@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="论文阅读心得、机制图解、代码记录与个人评论的长期知识库。">
+    <title>Paper Reading for Kun</title>
+    <link rel="stylesheet" href="assets/site.css">
+    <script src="assets/catalog.js" defer></script>
+  </head>
+  <body class="library-page">
+    <header class="library-header">
+      <a class="library-brand" href="./" aria-label="返回论文阅读首页">
+        <span class="library-brand__mark" aria-hidden="true">文</span>
+        <span>
+          <strong>Paper Reading for Kun</strong>
+          <small>阅读 · 推理 · 评论</small>
+        </span>
+      </a>
+      <a class="quiet-link" href="#paper-library">浏览全部论文</a>
+    </header>
+
+    <main>
+      <section class="library-intro" aria-labelledby="library-title">
+        <p class="eyebrow">PERSONAL RESEARCH NOTEBOOK</p>
+        <h1 id="library-title">把论文读成一套<br>可以继续思考的知识。</h1>
+        <p class="library-intro__copy">
+          这里沉淀每次阅读的研究目的、关键机制、证据边界、代码线索与个人评论。
+          每篇记录都是一张独立 HTML 页面，也是一份可以继续修订的研究档案。
+        </p>
+        <div class="library-principles" aria-label="阅读原则">
+          <span>目的优先</span>
+          <span>机制可视化</span>
+          <span>证据与推断分开</span>
+          <span>评论可写回</span>
+        </div>
+      </section>
+
+      <section id="paper-library" class="paper-library" aria-labelledby="paper-library-title">
+        <header class="paper-library__header">
+          <div>
+            <p class="eyebrow">READING ARCHIVE</p>
+            <h2 id="paper-library-title">论文档案 <span id="paper-count" aria-live="polite">0</span></h2>
+          </div>
+          <label class="paper-search">
+            <span class="sr-only">搜索论文</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+              <path d="m21 21-4.35-4.35m2.35-5.4A7.75 7.75 0 1 1 3.5 11.25a7.75 7.75 0 0 1 15.5 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <input id="paper-search" type="search" placeholder="搜索标题、作者或关键词" autocomplete="off">
+          </label>
+        </header>
+
+        <div id="paper-grid" class="paper-grid" aria-live="polite" aria-busy="true"></div>
+
+        <div id="paper-empty" class="paper-empty" hidden>
+          <span class="paper-empty__index">001</span>
+          <div>
+            <h3>第一篇阅读正在等你</h3>
+            <p>完成一次真实论文阅读后，HTML 长文会出现在这里。仓库不会用虚构示例填充档案。</p>
+          </div>
+        </div>
+
+        <p id="paper-error" class="paper-error" role="alert" hidden>
+          目录暂时无法读取。请通过 localhost 或 GitHub Pages 打开，而不是直接使用 file://。
+        </p>
+      </section>
+    </main>
+
+    <footer class="library-footer">
+      <span>Paper Reading for Kun</span>
+      <span id="catalog-updated">等待第一篇阅读</span>
+    </footer>
+  </body>
+</html>

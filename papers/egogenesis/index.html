@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE">
+    <meta name="citation_author" content="Zexuan Yan">
+    <meta name="citation_author" content="Yuzhou Wu">
+    <meta name="citation_author" content="Yue Ma">
+    <meta name="citation_author" content="Zonghang He">
+    <meta name="citation_author" content="Kaibo Yin">
+    <meta name="citation_author" content="Xiaobing Tu">
+    <meta name="citation_author" content="Yinggui Wang">
+    <meta name="citation_author" content="Jinkui Ren">
+    <meta name="citation_author" content="Xiantao Zhang">
+    <meta name="citation_author" content="Shijian Wang">
+    <meta name="citation_author" content="Jinghong Liu">
+    <meta name="citation_author" content="Linfeng Zhang">
+    <meta name="citation_publication_date" content="2026-07-30">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.28243">
+    <meta name="citation_public_url" content="https://egogenesis.github.io/">
+    <meta name="description" content="从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。">
+    <meta name="keywords" content="EgoGenesis, World-Action Model, egocentric video, embodied AI, OAPM, A3D-RoPE, synthetic data, robot manipulation">
+    <meta name="paper:read_at" content="2026-08-03">
+    <title>EgoGenesis：把可控第一视角视频变成可用的机器人训练数据</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/egogenesis/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.28243V1 · 2026-07-30 · 阅读于 2026-08-03</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住目的与结论</a></li>
+          <li><a href="#concepts">弄清它在生成什么</a></li>
+          <li><a href="#problem-chain">两类几何失控从哪来</a></li>
+          <li><a href="#mechanism">双记忆与 3D 动作编码</a></li>
+          <li><a href="#evidence">证据是否接得上主张</a></li>
+          <li><a href="#limits">哪些结论还不能外推</a></li>
+          <li><a href="#sources">回到原文与项目</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">WORLD–ACTION MODEL · EGOCENTRIC GENERATION · SYNTHETIC ROBOT DATA</p>
+          <h1 id="paper-title" class="paper-title">EgoGenesis</h1>
+          <p class="paper-subtitle">
+            一篇关于“生成视频何时才算机器人数据”的论文：画面不仅要像，还必须守住场景、相机与末端执行器之间的几何关系。
+          </p>
+          <div class="paper-byline">
+            <span>Zexuan Yan 等 12 位作者</span>
+            <span>上海交通大学、阿里巴巴等</span>
+            <span>arXiv v1 · 19 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把昂贵、稀缺的真实机器人示范扩成更多可训练的第一视角“视频—动作”对；关键不是只生成逼真视频，而是在长时自回归生成中同时保持场景身份稳定、相机运动可控、动作轨迹与画面接触过程一致，最终让合成轨迹真正提升真实机器人的分布外泛化。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <svg viewBox="0 0 760 438" role="img" aria-labelledby="overview-title overview-desc">
+              <title id="overview-title">EgoGenesis 的问题、动作与证据总览</title>
+              <desc id="overview-desc">从真实示范稀缺和生成几何漂移出发，经由双槽场景记忆与三维动作旋转位置编码，生成可控视频动作对，并用生成质量、几何消融和真实机器人泛化验证。</desc>
+              <defs>
+                <marker id="overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="438" fill="#fbfaf6"/>
+              <text x="40" y="48" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">01 / 场景压力</text>
+              <rect x="36" y="70" width="198" height="119" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="56" y="102" fill="#17201d" font-size="17" font-weight="700">真实示范很贵</text>
+              <text x="56" y="130" fill="#52605b" font-size="13">新场景、新物体、新机构</text>
+              <text x="56" y="153" fill="#52605b" font-size="13">都要执行、复位、监督</text>
+              <text x="56" y="176" fill="#52605b" font-size="13">失败还可能损坏硬件</text>
+
+              <rect x="36" y="213" width="198" height="119" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="56" y="245" fill="#17201d" font-size="17" font-weight="700">普通生成器不够</text>
+              <text x="56" y="273" fill="#52605b" font-size="13">动作和相机不受控</text>
+              <text x="56" y="296" fill="#52605b" font-size="13">物体身份与布局会漂移</text>
+              <text x="56" y="319" fill="#52605b" font-size="13">画面与动作标签可能错位</text>
+
+              <path d="M252 200H286" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="288" y="48" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">02 / 两个关键动作</text>
+              <rect x="286" y="70" width="210" height="119" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="306" y="102" fill="#17201d" font-size="17" font-weight="700">OAPM：守住世界</text>
+              <text x="306" y="130" fill="#52605b" font-size="13">第一帧锚点永久保留</text>
+              <text x="306" y="153" fill="#52605b" font-size="13">近期状态周期性替换</text>
+              <text x="306" y="176" fill="#52605b" font-size="13">稳定身份 + 跟上变化</text>
+
+              <rect x="286" y="213" width="210" height="119" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="306" y="245" fill="#17201d" font-size="17" font-weight="700">A3D-RoPE：管住动作</text>
+              <text x="306" y="273" fill="#52605b" font-size="13">骨架投影到视频 patch</text>
+              <text x="306" y="296" fill="#52605b" font-size="13">反投影为锚点系 3D 坐标</text>
+              <text x="306" y="319" fill="#52605b" font-size="13">只旋转动作区域的 Q / K</text>
+
+              <path d="M514 200H548" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="550" y="48" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">03 / 证据落点</text>
+              <rect x="548" y="70" width="176" height="262" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="568" y="103" fill="#17201d" font-size="16" font-weight="700">生成质量</text>
+              <text x="568" y="128" fill="#52605b" font-size="13">7 项指标中 6 项第一</text>
+              <line x1="568" y1="151" x2="704" y2="151" stroke="#d8d4ca"/>
+              <text x="568" y="181" fill="#17201d" font-size="16" font-weight="700">长时几何</text>
+              <text x="568" y="206" fill="#52605b" font-size="13">第 80 帧漂移显著降低</text>
+              <line x1="568" y1="229" x2="704" y2="229" stroke="#d8d4ca"/>
+              <text x="568" y="259" fill="#17201d" font-size="16" font-weight="700">真实机器人 OOD</text>
+              <text x="568" y="284" fill="#52605b" font-size="13">单臂 77% → 84%</text>
+              <text x="568" y="307" fill="#52605b" font-size="13">双臂 53% → 70%</text>
+
+              <path d="M135 352V379H636V352" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="215" y="367" width="344" height="48" rx="24" fill="#17201d"/>
+              <text x="387" y="396" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">合成数据的价值 = 外观变化 × 几何标签仍可信</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文真正的判断标准在最下方。若生成视频只改变外观，却破坏动作与画面的对应关系，它就不是有效的机器人训练数据；OAPM 与 A3D-RoPE 分别守住等式的“世界”和“动作”两侧。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，EgoGenesis 不是单纯的视频生成器，而是一个合成监督数据引擎。</strong>输入包括首帧、文本、相机参数和手/末端执行器轨迹，输出同时包含可观看的视频和与之对齐的动作条件。</p>
+            <p><strong>第二，论文把长时失败拆成两个相对独立的问题。</strong>OAPM 处理“世界是否还是同一个世界”，A3D-RoPE 处理“动作是否发生在正确的三维位置”；这比用一个泛化的控制信号同时承担场景记忆与动作约束更有针对性。</p>
+            <p><strong>第三，最有分量的证据不是 PSNR，而是固定下游模型后，混合数据提升了真实机器人 OOD 成功率。</strong>但这一结论仍局限于同一机器人平台、同一工作区和论文定义的外观/布局分布外变化，不能直接外推到跨平台泛化。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">先弄清它在生成什么</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">WORLD–ACTION MODEL（世界—动作模型）</span>
+            <p><strong>英译中：</strong>同时建模视觉世界如何变化，以及动作如何在世界中发生的模型。</p>
+            <p><strong>怎么理解：</strong>普通视频模型关心“下一段画面像不像”，WAM 还要关心“这段画面是不是由给定动作造成”。机器人训练需要后者，因为动作标签一旦与像素中的接触、位移或相机运动错位，再逼真的视频也会提供错误监督。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="pair-title pair-desc">
+            <svg viewBox="0 0 640 310" role="img" aria-labelledby="pair-title pair-desc">
+              <title id="pair-title">EgoGenesis 的输入输出关系</title>
+              <desc id="pair-desc">首帧、文本、相机轨迹和动作骨架共同进入生成器，产生动作对齐的第一视角视频，并与原动作条件组成下游训练样本。</desc>
+              <defs>
+                <marker id="pair-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="640" height="310" fill="#fbfaf6"/>
+              <text x="42" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">条件</text>
+              <rect x="36" y="62" width="138" height="42" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="105" y="88" text-anchor="middle" fill="#17201d" font-size="14">首帧 / 场景</text>
+              <rect x="36" y="116" width="138" height="42" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="105" y="142" text-anchor="middle" fill="#17201d" font-size="14">语言指令</text>
+              <rect x="36" y="170" width="138" height="42" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="105" y="196" text-anchor="middle" fill="#17201d" font-size="14">相机内外参</text>
+              <rect x="36" y="224" width="138" height="42" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="105" y="250" text-anchor="middle" fill="#17201d" font-size="14">手 / EEF 骨架</text>
+              <path d="M188 164H246" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#pair-arrow)"/>
+              <rect x="248" y="91" width="146" height="146" rx="73" fill="#17201d"/>
+              <text x="321" y="151" text-anchor="middle" fill="#fffef9" font-size="19" font-weight="700">EgoGenesis</text>
+              <text x="321" y="180" text-anchor="middle" fill="#d8d4ca" font-size="13">自回归 DiT</text>
+              <text x="321" y="202" text-anchor="middle" fill="#d8d4ca" font-size="13">+ OAPM + A3D-RoPE</text>
+              <path d="M408 164H466" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#pair-arrow)"/>
+              <rect x="470" y="74" width="134" height="78" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="537" y="106" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">第一视角视频</text>
+              <text x="537" y="131" text-anchor="middle" fill="#52605b" font-size="12">可控的观察序列</text>
+              <rect x="470" y="174" width="134" height="78" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="537" y="206" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">原动作标签</text>
+              <text x="537" y="231" text-anchor="middle" fill="#52605b" font-size="12">保持同一标签空间</text>
+              <path d="M537 153V172" fill="none" stroke="#86321f" stroke-width="2"/>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>生成器并不重新发明动作标签，而是在保留动作标签空间的前提下重模拟观察。下游 WAM 得到的是“同一动作、不同外观或场景”的配对样本。</figcaption>
+          </figure>
+
+          <h3>统一动作接口是跨机构生成的前提</h3>
+          <p>论文把 MANO 人手骨架、灵巧手骨架、机器人夹爪和末端执行器轨迹统一成 keypoint 格式。训练数据覆盖 EgoDex、AgiBot、RoboTwin、Real-world Ego 与 DexJoCo，共 21 万个 81 帧片段，统一为 16 FPS、832×480。跨机构能力不是从零出现，而是来自这一源平衡训练混合物与统一的相机—姿态条件接口。</p>
+
+          <h3>“世界”和“动作”被刻意拆开处理</h3>
+          <p>场景记忆通过 3D 场景 token 进入选定 DiT 层的 gated cross-attention；动作则通过骨架 token 进入另一组帧内 cross-attention adapter。这样的模块分工使作者能分别消融“记忆是否跟得上场景变化”和“动作是否带有度量三维几何”。</p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY OLD GENERATORS FAIL</p>
+          <h2 id="problem-title">两类几何失控，最后都会污染动作标签</h2>
+
+          <figure class="svg-figure" aria-labelledby="failure-title failure-desc">
+            <svg viewBox="0 0 760 382" role="img" aria-labelledby="failure-title failure-desc">
+              <title id="failure-title">现有第一视角生成器的两条失败链</title>
+              <desc id="failure-desc">缺少明确的三维动作约束会导致相机和末端轨迹不受控；缺少稳定的第一帧锚点会导致场景、物体与机构身份漂移；二者都造成视频和动作标签错位。</desc>
+              <defs>
+                <marker id="failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="382" fill="#fbfaf6"/>
+              <text x="42" y="45" fill="#355e7c" font-size="13" font-weight="700" letter-spacing="1.6">失败链 A · 控制不够几何化</text>
+              <rect x="38" y="68" width="178" height="76" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="127" y="99" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">2D 骨架 / mask</text>
+              <text x="127" y="123" text-anchor="middle" fill="#52605b" font-size="12">缺少度量深度与相机关系</text>
+              <path d="M226 106H285" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="290" y="68" width="178" height="76" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="379" y="99" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">轨迹看似接近</text>
+              <text x="379" y="123" text-anchor="middle" fill="#52605b" font-size="12">实际 3D 位置与相机射线错位</text>
+              <path d="M478 106H537" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="542" y="68" width="178" height="76" rx="4" fill="#17201d"/>
+              <text x="631" y="99" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">动作不再可信</text>
+              <text x="631" y="123" text-anchor="middle" fill="#d8d4ca" font-size="12">抓取、接触、位移对不上</text>
+
+              <text x="42" y="206" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.6">失败链 B · 场景记忆只有一头</text>
+              <rect x="38" y="229" width="178" height="76" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="127" y="260" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">只看第一帧</text>
+              <text x="127" y="284" text-anchor="middle" fill="#52605b" font-size="12">物体状态逐渐变旧</text>
+              <path d="M226 267H285" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="290" y="229" width="178" height="76" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="379" y="260" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">只信生成历史</text>
+              <text x="379" y="284" text-anchor="middle" fill="#52605b" font-size="12">小误差被反复写回和放大</text>
+              <path d="M478 267H537" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="542" y="229" width="178" height="76" rx="4" fill="#17201d"/>
+              <text x="631" y="260" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">世界不再稳定</text>
+              <text x="631" y="284" text-anchor="middle" fill="#d8d4ca" font-size="12">物体消失、布局漂移、手变夹爪</text>
+
+              <path d="M127 321V348H631V321" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="379" y="368" text-anchor="middle" fill="#86321f" font-size="14" font-weight="700">共同后果：视频条件与动作标签失配，合成样本从“增强”变成“噪声”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上路是“动作在哪儿”失控，下路是“世界现在是什么样”失控。论文的设计几乎是一一对应：A3D-RoPE 修上路，OAPM 修下路。</figcaption>
+          </figure>
+
+          <h3>第一帧锚定与在线更新存在天然矛盾</h3>
+          <p>第一帧通常最干净，最适合保存桌面布局和物体身份；但随着抓取、搬运和相机移动，它又会越来越“过时”。如果反过来不断用生成帧覆盖记忆，模型自身的误差就会变成下一步的条件。OAPM 的关键不是发明了更多记忆，而是规定了两种记忆不同的写权限。</p>
+
+          <h3>二维可控不等于三维动作对齐</h3>
+          <p>一条骨架投影在图像上看似正确，仍可能在深度方向、相机坐标或接触位置上错误。对机器人而言，二维上“手在杯子旁边”和三维上“手真正碰到杯子”是两件事。A3D-RoPE 因此把动作位置从控制图像提升为参考相机坐标系中的度量 3D 坐标。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">一个块生成一次：守住锚点、提交结果、更新近期状态</h2>
+
+          <figure class="svg-figure" aria-labelledby="loop-title loop-desc">
+            <svg viewBox="0 0 760 358" role="img" aria-labelledby="loop-title loop-desc">
+              <title id="loop-title">EgoGenesis 自回归生成循环</title>
+              <desc id="loop-desc">每个视频块从噪声开始，通过文本、相机、场景记忆和动作条件去噪；完成后提交到因果缓存，并按步长刷新近期场景槽，再生成下一个块。</desc>
+              <defs>
+                <marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="358" fill="#fbfaf6"/>
+              <rect x="34" y="72" width="112" height="78" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="90" y="103" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">① 新块噪声</text>
+              <text x="90" y="127" text-anchor="middle" fill="#52605b" font-size="12">Zᵇᵗ</text>
+              <path d="M153 111H189" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="194" y="54" width="142" height="114" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="265" y="86" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">② DiT 去噪</text>
+              <text x="265" y="111" text-anchor="middle" fill="#52605b" font-size="12">文本 / 相机 / KV cache</text>
+              <text x="265" y="134" text-anchor="middle" fill="#24624e" font-size="12">读取 OAPM</text>
+              <text x="265" y="153" text-anchor="middle" fill="#355e7c" font-size="12">注入 A3D-RoPE</text>
+              <path d="M343 111H379" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="384" y="72" width="112" height="78" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="440" y="103" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">③ 块完成</text>
+              <text x="440" y="127" text-anchor="middle" fill="#52605b" font-size="12">Zᵇ⁰ → Zᵇ</text>
+              <path d="M503 111H539" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="544" y="54" width="182" height="114" rx="5" fill="#17201d"/>
+              <text x="635" y="86" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">④ 因果提交</text>
+              <text x="635" y="111" text-anchor="middle" fill="#d8d4ca" font-size="12">写入 K&lt;b+1</text>
+              <text x="635" y="134" text-anchor="middle" fill="#d8d4ca" font-size="12">后续块只看已提交历史</text>
+              <text x="635" y="153" text-anchor="middle" fill="#d8d4ca" font-size="12">避免偷看未来</text>
+
+              <path d="M635 178V221" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="518" y="226" width="208" height="76" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="622" y="256" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">⑤ 到刷新步长时</text>
+              <text x="622" y="280" text-anchor="middle" fill="#52605b" font-size="12">解码最近帧 → 替换 Mʳ</text>
+              <path d="M509 264H420" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="250" y="226" width="162" height="76" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="331" y="256" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">⑥ 生成下一块</text>
+              <text x="331" y="280" text-anchor="middle" fill="#52605b" font-size="12">Mᵃ 不变，Mʳ 已更新</text>
+              <path d="M241 264H90V160" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>生成与记忆更新不是同一步。只有块完成并进入因果缓存后，最近帧才有资格成为新的近期记忆；这使 OAPM 的在线更新与自回归可见性保持一致。</figcaption>
+          </figure>
+
+          <h3>OAPM：两种槽，两种写权限</h3>
+          <div class="term-bridge">
+            <span class="term-bridge__label">ONLINE ANCHORED PROJECTIVE MEMORY（在线锚定投影记忆）</span>
+            <p><strong>英译中：</strong>保留不可变首帧锚点、同时在线刷新近期状态的三维投影记忆。</p>
+            <p><strong>怎么理解：</strong><em>M<sup>a</sup></em> 像“户籍底档”，记录最可信的场景身份；<em>M<sup>b</sup><sub>r</sub></em> 像“当前快照”，记录交互已经进行到哪里。读取时合并，写入时只替换后者。</p>
+          </div>
+
+          <div class="formula-card" aria-label="OAPM 公式说明">
+            <div class="formula-card__label">公式拆解 · 场景记忆如何读写</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">M</span><sup>b</sup> = SceneEncode<sub>Ω</sub>(<span class="formula-symbol">M</span><sup>a</sup> ⊕ <span class="formula-symbol">M</span><sup>b</sup><sub>r</sub>)
+            </div>
+            <p class="formula-card__caption">这条公式回答：第 b 个视频块生成前，模型读取哪一版“世界”。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>M<sup>a</sup></dt>
+                <dd>由干净第一帧得到的锚点槽；整个 rollout 永不覆盖，负责场景布局与物体身份。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>M<sup>b</sup><sub>r</sub></dt>
+                <dd>第 b 块之前的近期槽；每隔刷新步长 s<sub>r</sub>，用已提交前缀的最新 RGB 帧替换。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>⊕</dt>
+                <dd>槽拼接。VGGT-Ω 编码后得到带场景特征、参考系 3D 坐标与置信度的 memory tokens。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>M<sup>b</sup></dt>
+                <dd>当前块可读取的联合记忆，通过 gated cross-attention 加到选定 DiT 层。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：锚点提供低漂移但陈旧的“长期真相”，近期槽提供新鲜但可能带生成误差的“短期状态”。二者一起读、只让后者写，正好切断了“新状态覆盖原始身份”的误差放大链。</div>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="memory-title memory-desc">
+            <svg viewBox="0 0 640 284" role="img" aria-labelledby="memory-title memory-desc">
+              <title id="memory-title">OAPM 双槽记忆</title>
+              <desc id="memory-desc">不可变首帧锚点与周期替换的近期快照共同经三维编码器产生当前记忆，门控交叉注意力让生成隐藏状态读取二者。</desc>
+              <rect width="640" height="284" fill="#fbfaf6"/>
+              <rect x="38" y="57" width="174" height="78" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="125" y="88" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">锚点槽 Mᵃ</text>
+              <text x="125" y="113" text-anchor="middle" fill="#52605b" font-size="12">首帧 · 永不覆盖</text>
+              <rect x="38" y="166" width="174" height="78" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="125" y="197" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">近期槽 Mʳ</text>
+              <text x="125" y="222" text-anchor="middle" fill="#52605b" font-size="12">最近已提交帧 · 周期替换</text>
+              <path d="M226 96H292M226 205H292" stroke="#52605b" stroke-width="2"/>
+              <rect x="296" y="91" width="132" height="116" rx="58" fill="#17201d"/>
+              <text x="362" y="140" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">VGGT-Ω</text>
+              <text x="362" y="165" text-anchor="middle" fill="#d8d4ca" font-size="12">3D scene tokens</text>
+              <path d="M442 149H493" stroke="#52605b" stroke-width="2"/>
+              <rect x="497" y="96" width="109" height="106" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="551" y="130" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Gated</text>
+              <text x="551" y="151" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Cross-Attn</text>
+              <text x="551" y="178" text-anchor="middle" fill="#52605b" font-size="11">更新视频隐藏状态</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>OAPM 不是把两帧直接拼到视频输入，而是先把它们编码成三维场景 token，再让 DiT 隐藏状态按门控强度读取。</figcaption>
+          </figure>
+
+          <h3>A3D-RoPE：让“相同位置”在注意力里真的相近</h3>
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION-3D ROTARY POSITION EMBEDDING（动作三维旋转位置编码）</span>
+            <p><strong>英译中：</strong>用参考相机坐标系下的 x、y、z 度量坐标，旋转动作区域 query/key 通道的位置编码。</p>
+            <p><strong>怎么理解：</strong>骨架先覆盖到视频 latent 的 patch 网格，再借助深度、相机内参与外参反投影到首帧参考系。只有被骨架支持的 patch 进入这种 3D 旋转；背景 token 保持原样。</p>
+          </div>
+
+          <div class="formula-card" aria-label="A3D-RoPE 公式说明">
+            <div class="formula-card__label">公式拆解 · 3D 坐标怎样进入注意力</div>
+            <div class="formula-card__equation">
+              θ<sub>a,m</sub>(<span class="formula-symbol">X</span><sub>a</sub>) = s<span class="formula-symbol">X</span><sub>a</sub>κ<sup>−m/M<sub>a</sub></sup>, &nbsp; a ∈ {x,y,z}
+            </div>
+            <p class="formula-card__caption">这条公式回答：某个动作 patch 在 x / y / z 轴上的度量位置，应让 Q 与 K 旋转多少相位。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>X<sub>a</sub></dt>
+                <dd>动作 patch 在首帧参考相机坐标系中的一个轴分量；不是单纯的像素行列号。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>a</dt>
+                <dd>x、y、z 三个空间轴。Q 与 K 通道先被分成 Q<sup>x</sup>∥Q<sup>y</sup>∥Q<sup>z</sup> 和对应 K 组。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>m, M<sub>a</sub></dt>
+                <dd>当前轴的 RoPE 频率对编号与总对数；相邻两个通道组成标准二维旋转对。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>s, κ</dt>
+                <dd>论文实现取 s=4、κ=10⁴，分别控制坐标尺度和频率底数。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：RoPE 让注意力内积携带相对位置。这里的“位置”不再是 token 序号，而是动作在三维世界中的位置；视频 query 与骨架 key 只有在参考系几何一致时才获得匹配相位。论文把这一步放在骨架→视频的 cross-attention，而不是改动预训练 WAN 的 self-attention 主路径。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="a3d-title a3d-desc">
+            <svg viewBox="0 0 760 330" role="img" aria-labelledby="a3d-title a3d-desc">
+              <title id="a3d-title">A3D-RoPE 坐标构造与注入流程</title>
+              <desc id="a3d-desc">动作骨架边覆盖视频 patch，用透视正确深度得到支持 patch 的射线，再通过相机矩阵变换到首帧参考系，拆分三轴旋转 Q 和 K，最后只更新动作支持区域。</desc>
+              <defs>
+                <marker id="a3d-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="330" fill="#fbfaf6"/>
+              <g transform="translate(34 62)">
+                <rect width="124" height="148" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+                <g stroke="#d8d4ca">
+                  <path d="M21 22V126M42 22V126M63 22V126M84 22V126M105 22V126"/>
+                  <path d="M10 43H114M10 64H114M10 85H114M10 106H114"/>
+                </g>
+                <path d="M27 110 50 78 73 88 99 43" fill="none" stroke="#bd4c32" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="27" cy="110" r="6" fill="#bd4c32"/><circle cx="50" cy="78" r="6" fill="#bd4c32"/><circle cx="73" cy="88" r="6" fill="#bd4c32"/><circle cx="99" cy="43" r="6" fill="#bd4c32"/>
+              </g>
+              <text x="96" y="236" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">① 骨架覆盖 patch</text>
+              <path d="M168 136H214" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#a3d-arrow)"/>
+              <rect x="218" y="78" width="124" height="116" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="280" y="111" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">② 透视深度</text>
+              <text x="280" y="137" text-anchor="middle" fill="#52605b" font-size="12">骨架边插值</text>
+              <text x="280" y="158" text-anchor="middle" fill="#52605b" font-size="12">+ 高斯管状支持</text>
+              <text x="280" y="236" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">得到 patch 射线</text>
+              <path d="M352 136H398" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#a3d-arrow)"/>
+              <rect x="402" y="78" width="124" height="116" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="464" y="111" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">③ 反投影</text>
+              <text x="464" y="137" text-anchor="middle" fill="#52605b" font-size="12">K⁻¹ + 相机外参</text>
+              <text x="464" y="158" text-anchor="middle" fill="#52605b" font-size="12">统一到首帧参考系</text>
+              <text x="464" y="236" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">X = (x, y, z)</text>
+              <path d="M536 136H582" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#a3d-arrow)"/>
+              <rect x="586" y="62" width="140" height="148" rx="5" fill="#17201d"/>
+              <text x="656" y="95" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">④ 三轴 RoPE</text>
+              <text x="656" y="121" text-anchor="middle" fill="#d8d4ca" font-size="12">Qˣ / Qʸ / Qᶻ</text>
+              <text x="656" y="143" text-anchor="middle" fill="#d8d4ca" font-size="12">Kˣ / Kʸ / Kᶻ</text>
+              <line x1="612" y1="160" x2="700" y2="160" stroke="#52605b"/>
+              <text x="656" y="185" text-anchor="middle" fill="#f1d778" font-size="12">只写回动作区域 Iᵇ</text>
+              <text x="380" y="292" text-anchor="middle" fill="#86321f" font-size="14" font-weight="700">背景不旋转 · 预训练 self-attention 位置路径不改动</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>最重要的不是最后的旋转公式，而是坐标从哪里来：像素 patch 必须先获得深度，再结合相机内外参变到共同参考系。缺任一步，所谓“3D 位置”都无法跨帧比较。</figcaption>
+          </figure>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">证据分三层：画面、机制、真实机器人</h2>
+
+          <p>论文的论证顺序是合理的：先证明完整模型生成得更好，再用受控消融把收益归因到 OAPM 与 A3D-RoPE，最后固定下游 WAM 的架构和训练日程，只改变训练数据组成，观察真实机器人是否获益。</p>
+
+          <h3>第一层：生成质量不是只赢一个指标</h3>
+          <div class="table-wrap" role="region" aria-label="EgoGenesis 生成质量指标" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>指标</th><th>EgoGenesis</th><th>方向</th><th>论文内排名</th><th>它支撑什么</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>PSNR</td><td>21.8609</td><td>↑</td><td>第 1</td><td>像素保真</td></tr>
+                <tr><td>SSIM</td><td>0.8509</td><td>↑</td><td>第 1</td><td>结构相似</td></tr>
+                <tr><td>LPIPS</td><td>0.2399</td><td>↓</td><td>第 1</td><td>感知距离</td></tr>
+                <tr><td>Kpt.Err</td><td>0.0501</td><td>↓</td><td>第 1</td><td>手部关键点对齐</td></tr>
+                <tr><td>Phys.Faith</td><td>0.8278</td><td>↑</td><td>第 1</td><td>接触与物体运动可信度</td></tr>
+                <tr><td>Subj. Cons.</td><td>0.8923</td><td>↑</td><td>第 2</td><td>主体时间一致性</td></tr>
+                <tr><td>Bg. Cons.</td><td>0.9546</td><td>↑</td><td>第 1</td><td>背景时间一致性</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>证据边界：</strong>Phys.Faith 由 Kimi K2.7 对均匀采样帧做 0–5 分单轴判断后归一化；这是模型裁判指标，不等同于真实物理测量。Kpt.Err 只在 50 个 EgoDex clip 上计算。</p>
+
+          <h3>第二层：两个组件分别解决对应问题</h3>
+          <div class="table-wrap" role="region" aria-label="核心组件消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>组件设置</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>Kpt.Err ↓</th><th>Phys.Faith ↑</th><th>Bg. Cons. ↑</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>AR 基线：两者都无</td><td>19.9238</td><td>0.7812</td><td>0.3028</td><td>0.07723</td><td>0.7796</td><td>0.9316</td></tr>
+                <tr><td>仅首帧 Mᵃ + A3D-RoPE</td><td>20.4135</td><td>0.8385</td><td>0.2533</td><td>0.0532</td><td>0.8037</td><td>0.9532</td></tr>
+                <tr class="evidence-table__emphasis"><td>OAPM + A3D-RoPE</td><td>21.8609</td><td>0.8509</td><td>0.2399</td><td>0.0501</td><td>0.8278</td><td>0.9546</td></tr>
+                <tr><td>OAPM + 普通 RoPE</td><td>21.4250</td><td>0.8198</td><td>0.2838</td><td>0.07719</td><td>0.8182</td><td>0.9353</td></tr>
+                <tr><td>OAPM + PRoPE</td><td>21.8421</td><td>0.8408</td><td>0.2481</td><td>0.06135</td><td>0.8255</td><td>0.9481</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>固定 A3D-RoPE 时，从“只有锚点”到“锚点 + 近期刷新”，PSNR 20.4135→21.8609、LPIPS 0.2533→0.2399，说明在线状态确实补上了静态首帧的陈旧问题。固定 OAPM 时，A3D-RoPE 的 Kpt.Err 低于普通 RoPE 与 PRoPE，符合“动作 cross-attention 需要度量 3D”的机制主张。</p>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="drift-title drift-desc">
+            <svg viewBox="0 0 640 324" role="img" aria-labelledby="drift-title drift-desc">
+              <title id="drift-title">第 80 帧的几何漂移相对降幅</title>
+              <desc id="drift-desc">A3D-RoPE 相对普通 RoPE 的深度误差降低百分之七十九点三，相机误差降低百分之七十八点二六；相对 PRoPE 分别降低百分之六十六点四六和百分之四十九点零四。</desc>
+              <rect width="640" height="324" fill="#fbfaf6"/>
+              <text x="42" y="43" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.6">FRAME 80 · ACCUMULATED GEOMETRIC ERROR</text>
+              <text x="42" y="87" fill="#17201d" font-size="16" font-weight="700">相对普通 RoPE</text>
+              <rect x="42" y="105" width="478" height="42" rx="3" fill="#eeeae0"/>
+              <rect x="42" y="105" width="379" height="42" rx="3" fill="#355e7c"/>
+              <text x="433" y="131" fill="#17201d" font-size="13" font-weight="700">Depth −79.30%</text>
+              <rect x="42" y="156" width="478" height="42" rx="3" fill="#eeeae0"/>
+              <rect x="42" y="156" width="374" height="42" rx="3" fill="#24624e"/>
+              <text x="428" y="182" fill="#17201d" font-size="13" font-weight="700">Camera −78.26%</text>
+              <text x="42" y="235" fill="#17201d" font-size="16" font-weight="700">相对 PRoPE</text>
+              <text x="192" y="235" fill="#355e7c" font-size="14" font-weight="700">Depth −66.46%</text>
+              <text x="358" y="235" fill="#24624e" font-size="14" font-weight="700">Camera −49.04%</text>
+              <line x1="42" y1="264" x2="598" y2="264" stroke="#d8d4ca"/>
+              <text x="42" y="293" fill="#52605b" font-size="12">同一 OAPM 与训练设置；15 个非锚点采样帧；VGGT-Ω 估计深度和相机射线误差</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>作者报告的是第 80 帧相对误差降幅，而非单帧视觉分数；因此它更直接对应“长自回归 rollout 是否持续守住几何”的主张。</figcaption>
+          </figure>
+
+          <h3>第三层：混合数据在真实机器人上最有价值</h3>
+          <div class="table-wrap" role="region" aria-label="真实机器人成功率" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>训练数据</th><th>单臂 ID</th><th>单臂 OOD</th><th>ID→OOD 损失</th><th>双臂 ID</th><th>双臂 OOD</th><th>ID→OOD 损失</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>400 real</td><td>84%</td><td>77%</td><td>−7</td><td>72%</td><td>53%</td><td>−19</td></tr>
+                <tr><td>400 synth</td><td>84%</td><td>76%</td><td>−8</td><td>69%</td><td>56%</td><td>−13</td></tr>
+                <tr class="evidence-table__emphasis"><td>400 real + 400 synth</td><td>88%</td><td>84%</td><td>−4</td><td>76%</td><td>70%</td><td>−6</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">最值得保留的细节</span>
+            <p><strong>合成数据不是替代真实数据。</strong>纯合成在单臂 OOD 上是 76%，略低于 400 条真实数据的 77%；真正明显的收益来自 400 real + 400 synth。双臂 OOD 中纯合成 56% 高于纯真实 53%，但仍远低于混合数据 70%。这更像互补增强，而不是“生成数据已经可以取代采集”。</p>
+          </div>
+
+          <p>八个任务分为四个单臂和四个双臂任务，每个任务 25 次试验，因此单任务成功率以 4 个百分点变化；表中每个 suite 的平均值等价于 100 次试验。下游 LingBot-VA 对每种数据设置都从官方 checkpoint 独立初始化，架构、优化器与推理设置保持一致，这使“数据组成变化”成为主要受控变量。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">这篇论文证明了什么，又还没证明什么</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>合成轨迹能补充真实轨迹</h3>
+              <p>固定下游模型与训练日程后，混合数据在同一真实机器人平台的 OOD 外观和布局上提升成功率，并降低 ID→OOD 落差。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>“OOD”不是跨机器人泛化</h3>
+              <p>机器人、相机安装与工作区均固定；OOD 主要指未见物体外观、初始配置和目标布局，不能直接推到新硬件、新视角或新实验室。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>更大规模合成是否继续增益</h3>
+              <p>论文只比较 400 real、400 synth 与 400+400，没有合成比例或总预算的规模曲线，也没有回答何时出现收益饱和或合成偏差累积。</p>
+            </article>
+          </div>
+
+          <h3>控制条件本身并不便宜</h3>
+          <p>A3D-RoPE 需要骨架/末端轨迹、有效深度、相机内参与外参，OAPM 还依赖预训练 VGGT-Ω 提取 3D 场景特征。它降低的是重新执行和采集多样外观轨迹的成本，不是把几何标注与相机标定成本清零。</p>
+
+          <h3>评测有“模型裁判”和代理指标成分</h3>
+          <p>PSNR、SSIM、LPIPS 衡量与参考视频的接近程度，但不能单独证明接触物理正确；Phys.Faith 又由 Kimi K2.7 评分，论文未报告人类评审校准或多裁判一致性。真实机器人成功率因此是更关键的落点，但任务与平台覆盖仍有限。</p>
+
+          <h3>训练成本和复现门槛不低</h3>
+          <p>EgoGenesis 使用 21 万 clip，并在 8×A100 上进行两个各 6k step 的阶段；下游 LingBot-VA 的每个数据设置在 8×H100 上训练 20k step，论文称一次完整训练约 96 小时。OAPM 还要周期性解码最近帧并重新做 3D 编码，论文没有给出推理吞吐、显存或刷新步长的效率—质量曲线。</p>
+
+          <h3>“稳定锚点”也可能成为错误锚点</h3>
+          <p>论文默认第一帧最清晰、最稳定；如果首帧遮挡严重、深度或相机标定错误，永久不可写的锚点可能把错误带完整个 rollout。现有消融证明“不要覆盖锚点”在其数据上有效，但还没有展示锚点质量退化时的鲁棒性。</p>
+
+          <h3>当前材料是预印本 v1</h3>
+          <p>本页依据 2026-07-30 的 arXiv:2607.28243v1 撰写。它提供了完整附录、分任务成功率和算法伪代码，但现阶段仍应把数值视为作者团队在其设置中的报告，等待代码、模型、数据与独立复现进一步验证。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.28243">论文摘要页：arXiv:2607.28243</a> — 标题、作者、发布日期与版本信息。</li>
+            <li><a href="https://arxiv.org/pdf/2607.28243">论文 PDF</a> — 本页机制、公式、实验数值与限制判断的主要来源，共 19 页。</li>
+            <li><a href="https://egogenesis.github.io/">EgoGenesis 项目页</a> — 论文首页给出的官方项目入口。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>模型结构、训练配置与实验数字是论文事实；“合成数据更像互补增强”“第一帧错误可能成为永久偏差”“不能外推到跨平台 OOD”等是依据论文设置作出的分析判断。当前没有把项目页或未提供的代码实现细节当作已核验的 repo 事实。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

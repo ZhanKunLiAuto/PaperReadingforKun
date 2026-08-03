@@ -1,0 +1,38 @@
+{
+  "updatedAt": "2026-08-03",
+  "papers": [
+    {
+      "slug": "egogenesis",
+      "title": "EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE",
+      "authors": [
+        "Zexuan Yan",
+        "Yuzhou Wu",
+        "Yue Ma",
+        "Zonghang He",
+        "Kaibo Yin",
+        "Xiaobing Tu",
+        "Yinggui Wang",
+        "Jinkui Ren",
+        "Xiantao Zhang",
+        "Shijian Wang",
+        "Jinghong Liu",
+        "Linfeng Zhang"
+      ],
+      "publicationDate": "2026-07-30",
+      "readAt": "2026-08-03",
+      "description": "从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。",
+      "tags": [
+        "EgoGenesis",
+        "World-Action Model",
+        "egocentric video",
+        "embodied AI",
+        "OAPM",
+        "A3D-RoPE",
+        "synthetic data",
+        "robot manipulation"
+      ],
+      "sourceUrl": "https://egogenesis.github.io/",
+      "href": "papers/egogenesis/"
+    }
+  ]
+}
