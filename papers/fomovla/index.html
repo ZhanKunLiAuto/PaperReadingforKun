@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models">
+    <meta name="citation_author" content="Wei Li">
+    <meta name="citation_author" content="Peijin Jia">
+    <meta name="citation_author" content="Yuan Ma">
+    <meta name="citation_author" content="Xuefeng Jiang">
+    <meta name="citation_author" content="Titong Jiang">
+    <meta name="citation_author" content="Sheng Sun">
+    <meta name="citation_author" content="Yujian Li">
+    <meta name="citation_author" content="Xin Wen">
+    <meta name="citation_author" content="Han Hong">
+    <meta name="citation_author" content="Zhikang Liu">
+    <meta name="citation_author" content="Bailin Li">
+    <meta name="citation_author" content="Kun Zhan">
+    <meta name="citation_publication_date" content="2026-07-16">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.14739">
+    <meta name="citation_public_url" content="https://liauto-research.github.io/FoMoVLA/">
+    <meta name="description" content="从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。">
+    <meta name="keywords" content="FoMoVLA, Vision-Language-Action, visual foresight, point tracking, FCCA, LIBERO, RoboCasa, robot manipulation">
+    <meta name="paper:read_at" content="2026-08-04">
+    <title>FoMoVLA：未来终态与运动路径，怎样共同教会 VLA 动作</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260804">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/fomovla/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.14739V1 · 2026-07-16 · 阅读于 2026-08-04</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住目的与判断</a></li>
+          <li><a href="#concepts">区分终点、路径与动作</a></li>
+          <li><a href="#problem-chain">为什么单独预见还不够</a></li>
+          <li><a href="#mechanism">三路监督怎样汇入 VLA</a></li>
+          <li><a href="#evidence">增益是否来自真正耦合</a></li>
+          <li><a href="#limits">哪些结论不能越界</a></li>
+          <li><a href="#sources">回到论文与项目页</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">VISUAL FORESIGHT · POINT TRACKING · TRAINING-TIME SUPERVISION</p>
+          <h1 id="paper-title" class="paper-title">FoMoVLA</h1>
+          <p class="paper-subtitle">
+            一篇把“未来会变成什么样”和“物体怎样连续移动”接到同一个 VLA 表征里的论文；真正的创新点不是多加两项 loss，而是让终态先验去约束运动预测。
+          </p>
+          <div class="paper-byline">
+            <span>Wei Li 等 12 位作者</span>
+            <span>理想汽车、中国科学院大学、清华大学</span>
+            <span>arXiv v1 · 12 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把只根据当前图像和语言直接出动作的反应式 VLA，变成能在表征中同时理解“动作片段结束时场景应到哪里”与“任务相关区域沿途怎样移动”的策略；同时让这些训练监督在部署时大部分被移除，以较小的推理成本换取长程控制和分布外鲁棒性的提升。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <svg viewBox="0 0 760 438" role="img" aria-labelledby="overview-title overview-desc">
+              <title id="overview-title">FoMoVLA 的问题、机制与证据总览</title>
+              <desc id="overview-desc">反应式 VLA 和单独未来预测分别缺少前视与连续运动约束；FoMoVLA 用未来特征、稀疏点轨迹和未来条件交叉注意力形成训练监督，最后通过 LIBERO、RoboCasa 和 LIBERO-Plus 验证。</desc>
+              <defs>
+                <marker id="overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="438" fill="#fbfaf6"/>
+              <text x="38" y="46" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">01 / 能力缺口</text>
+              <rect x="34" y="68" width="198" height="116" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="100" fill="#17201d" font-size="17" font-weight="700">反应式 VLA</text>
+              <text x="54" y="128" fill="#52605b" font-size="13">当前观察 + 指令 → 动作</text>
+              <text x="54" y="151" fill="#52605b" font-size="13">没有显式未来场景约束</text>
+              <text x="54" y="174" fill="#52605b" font-size="13">长程交互容易缺少预见</text>
+
+              <rect x="34" y="209" width="198" height="116" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="54" y="241" fill="#17201d" font-size="17" font-weight="700">只预测未来也不够</text>
+              <text x="54" y="269" fill="#52605b" font-size="13">终态告诉你“去哪里”</text>
+              <text x="54" y="292" fill="#52605b" font-size="13">却没有连续的运动路径</text>
+              <text x="54" y="315" fill="#52605b" font-size="13">多帧像素预测又太冗余</text>
+
+              <path d="M250 197H282" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="284" y="46" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">02 / 三个关键动作</text>
+              <rect x="282" y="68" width="214" height="76" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="302" y="98" fill="#17201d" font-size="16" font-weight="700">Future tokens：锚定终态</text>
+              <text x="302" y="123" fill="#52605b" font-size="13">16 个 token 压缩预测未来特征</text>
+
+              <rect x="282" y="160" width="214" height="76" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="302" y="190" fill="#17201d" font-size="16" font-weight="700">Point tracks：描述路径</text>
+              <text x="302" y="215" fill="#52605b" font-size="13">64 个 patch 点预测 T 帧位移</text>
+
+              <rect x="282" y="252" width="214" height="76" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="302" y="282" fill="#17201d" font-size="16" font-weight="700">FCCA：让终态约束路径</text>
+              <text x="302" y="307" fill="#52605b" font-size="13">future 作 K/V，image 作 Q</text>
+
+              <path d="M514 197H546" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="548" y="46" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="2">03 / 证据落点</text>
+              <rect x="546" y="68" width="180" height="260" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="566" y="100" fill="#17201d" font-size="16" font-weight="700">LIBERO</text>
+              <text x="566" y="125" fill="#52605b" font-size="13">96.5% → 98.8%</text>
+              <text x="566" y="146" fill="#52605b" font-size="12">Long：92.0% → 97.6%</text>
+              <line x1="566" y1="165" x2="706" y2="165" stroke="#d8d4ca"/>
+              <text x="566" y="195" fill="#17201d" font-size="16" font-weight="700">RoboCasa GR-1</text>
+              <text x="566" y="220" fill="#52605b" font-size="13">47.8% → 56.9%</text>
+              <line x1="566" y1="239" x2="706" y2="239" stroke="#d8d4ca"/>
+              <text x="566" y="269" fill="#17201d" font-size="16" font-weight="700">LIBERO-Plus</text>
+              <text x="566" y="294" fill="#52605b" font-size="13">零样本 80.5%</text>
+              <text x="566" y="315" fill="#52605b" font-size="12">比 StarVLA +6.4 pp</text>
+
+              <path d="M133 347V377H636V347" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="180" y="365" width="410" height="49" rx="24" fill="#17201d"/>
+              <text x="385" y="394" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">训练时学会预见与运动 · 推理时只保留改造后的表征</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>FoMoVLA 的两个辅助任务各自有用，但论文最想证明的是中间的 FCCA：终态并非和轨迹并排预测，而是作为先验直接参与轨迹解码。部署时未来解码器、点轨迹头和 FCCA 都被移除，收益留在经过联合梯度塑形的 VLM 表征里。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，它不是在推理时运行一个完整世界模型。</strong>未来帧特征重建、CoTracker 监督、点轨迹解码和 FCCA 都是训练工具；推理时动作头读取保留下来的 16 个 foresight token，但不再显式输出未来特征或轨迹。</p>
+            <p><strong>第二，论文的有效增量来自“终点—路径”分工。</strong>未来特征给出全局目标状态，稀疏二维轨迹给出局部连续运动；FCCA 再把两者变成条件关系，避免只是把两个辅助 loss 相加。</p>
+            <p><strong>第三，实验支持更好的模拟器内策略学习和零样本扰动鲁棒性，但没有真实机器人证据。</strong>LIBERO、LIBERO-Plus 与 RoboCasa GR-1 Tabletop 都是仿真评测；“机器人操控更强”在这里应读成这些基准内的成功率提升。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">三个对象：终点、路径，以及真正执行的动作</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">VISUAL FORESIGHT（视觉预见）</span>
+            <p><strong>英译中：</strong>根据当前观察与指令，提前编码动作片段结束时的视觉状态。</p>
+            <p><strong>怎么理解：</strong>FoMoVLA 不直接生成未来 RGB 图像，而是让 16 个 foresight token 经轻量 MAE 解码器重建末帧的 64 个视觉特征。它关心的是“杯子最终应在盘子里”这类场景变化，不承担每一帧的运动细节。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SPARSE POINT TRACKING（稀疏点跟踪）</span>
+            <p><strong>英译中：</strong>跟踪一小组图像位置在未来多帧中的二维位移与可见性。</p>
+            <p><strong>怎么理解：</strong>224×224 图像被压成 8×8 个 VLM 图像 token，每个 token 对应一个 patch 中心点；冻结的 CoTracker-v3 在训练视频里产生 T 帧轨迹标签，模型再从图像 token 隐状态预测这些位移。它描述“沿途怎么动”，但二维轨迹本身并不等于机器人动作。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="objects-title objects-desc">
+            <svg viewBox="0 0 640 320" role="img" aria-labelledby="objects-title objects-desc">
+              <title id="objects-title">终态、轨迹和动作的关系</title>
+              <desc id="objects-desc">未来特征表示动作片段终态，稀疏点轨迹表示图像空间连续路径，两者作为训练监督共同塑造 VLA 上下文，最后由流匹配动作头输出机器人动作片段。</desc>
+              <defs>
+                <marker id="objects-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="640" height="320" fill="#fbfaf6"/>
+              <rect x="34" y="54" width="164" height="82" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="116" y="86" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">未来视觉特征</text>
+              <text x="116" y="111" text-anchor="middle" fill="#52605b" font-size="13">where to end up</text>
+              <text x="116" y="130" text-anchor="middle" fill="#52605b" font-size="12">末帧的全局语义终态</text>
+
+              <rect x="34" y="182" width="164" height="82" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="116" y="214" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">二维点轨迹</text>
+              <text x="116" y="239" text-anchor="middle" fill="#52605b" font-size="13">how pixels move</text>
+              <text x="116" y="258" text-anchor="middle" fill="#52605b" font-size="12">T 帧的局部几何路径</text>
+
+              <path d="M214 95H270" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#objects-arrow)"/>
+              <path d="M214 223H270" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#objects-arrow)"/>
+              <rect x="274" y="91" width="144" height="138" rx="69" fill="#17201d"/>
+              <text x="346" y="141" text-anchor="middle" fill="#fffef9" font-size="18" font-weight="700">共享 VLM</text>
+              <text x="346" y="169" text-anchor="middle" fill="#d8d4ca" font-size="13">FCCA 耦合梯度</text>
+              <text x="346" y="193" text-anchor="middle" fill="#d8d4ca" font-size="13">塑造上下文表征</text>
+              <path d="M430 160H478" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#objects-arrow)"/>
+              <rect x="482" y="109" width="126" height="102" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="545" y="143" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">动作片段</text>
+              <text x="545" y="169" text-anchor="middle" fill="#52605b" font-size="13">where joints move</text>
+              <text x="545" y="192" text-anchor="middle" fill="#52605b" font-size="12">T×D 连续控制量</text>
+              <text x="320" y="294" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">轨迹是训练监督，不是部署时必须生成的中间规划结果</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>三者不能混为一谈。终态和点轨迹都在训练阶段提供额外监督，真正执行的是流匹配动作头产生的关节/末端动作 chunk；FoMoVLA 的目标是让动作头所依赖的共享表征带上前两者的知识。</figcaption>
+          </figure>
+
+          <h3>动作仍由原来的流匹配头生成</h3>
+          <p>基础策略把当前图像 o<sub>t</sub> 与语言 l 编成上下文 c，再由 DiT 流匹配头从高斯噪声积分得到 T×D 的动作片段。FoMoVLA 没有替换这一动作生成方式，而是在共享 VLM 上添加训练监督，因此可以移植到不同动作头；论文在 StarVLA-π 与 StarVLA-OFT 上都报告了平均成功率增益。</p>
+
+          <h3>“未来”是当前动作 chunk 的末帧，不是任意长时规划</h3>
+          <p>foresight 监督目标是 o<sub>t+T</sub> 的视觉特征，点轨迹也覆盖相同的 T 帧动作片段。LIBERO 取 T=8，RoboCasa 取 T=16。它提供的是局部时域内的终态与运动先验；论文并没有证明这些 token 能形成跨多个 chunk 的显式长期计划。</p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY SEPARATE SUPERVISION FALLS SHORT</p>
+          <h2 id="problem-title">旧方法缺的不是更多未来像素，而是终点与路径的因果接合</h2>
+
+          <figure class="svg-figure" aria-labelledby="failure-title failure-desc">
+            <svg viewBox="0 0 760 386" role="img" aria-labelledby="failure-title failure-desc">
+              <title id="failure-title">三类既有方案的失败链</title>
+              <desc id="failure-desc">反应式策略缺少未来约束，密集未来预测冗余且不说明路径，独立点跟踪缺少目标终态；最终都限制动作控制中的时空表征。</desc>
+              <defs>
+                <marker id="failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="386" fill="#fbfaf6"/>
+              <text x="40" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">A · 直接反应</text>
+              <rect x="36" y="64" width="182" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="127" y="94" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">当前图像 → 动作</text>
+              <text x="127" y="118" text-anchor="middle" fill="#52605b" font-size="12">没有未来状态监督</text>
+              <path d="M228 100H284" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="288" y="64" width="188" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="382" y="94" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">表征偏向当下相关性</text>
+              <text x="382" y="118" text-anchor="middle" fill="#52605b" font-size="12">长程任务缺少前视锚点</text>
+
+              <text x="40" y="184" fill="#355e7c" font-size="13" font-weight="700" letter-spacing="1.6">B · 只看终态</text>
+              <rect x="36" y="203" width="182" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="127" y="233" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">未来像素 / 特征</text>
+              <text x="127" y="257" text-anchor="middle" fill="#52605b" font-size="12">知道最后场景长什么样</text>
+              <path d="M228 239H284" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="288" y="203" width="188" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="382" y="233" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">静态内容冗余 / 路径缺失</text>
+              <text x="382" y="257" text-anchor="middle" fill="#52605b" font-size="12">“去哪里”没有约束“怎么去”</text>
+
+              <text x="40" y="323" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.6">C · 只看轨迹</text>
+              <rect x="36" y="336" width="182" height="42" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="127" y="362" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">点怎样动，却不知道为何这样动</text>
+              <path d="M228 357H284" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#failure-arrow)"/>
+              <rect x="288" y="336" width="188" height="42" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="382" y="362" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">局部路径缺少全局目标先验</text>
+
+              <rect x="520" y="64" width="204" height="314" rx="5" fill="#17201d"/>
+              <text x="622" y="99" text-anchor="middle" fill="#fffef9" font-size="17" font-weight="700">FoMoVLA 的判断</text>
+              <text x="622" y="139" text-anchor="middle" fill="#f1d778" font-size="15" font-weight="700">终态不是另一项并行 loss</text>
+              <path d="M558 167H686" stroke="#52605b"/>
+              <text x="622" y="201" text-anchor="middle" fill="#d8d4ca" font-size="13">future tokens 提供 K / V</text>
+              <text x="622" y="229" text-anchor="middle" fill="#d8d4ca" font-size="13">image tokens 提供 Q</text>
+              <text x="622" y="257" text-anchor="middle" fill="#d8d4ca" font-size="13">轨迹头预测局部位移</text>
+              <path d="M558 282H686" stroke="#52605b"/>
+              <text x="622" y="316" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">目标条件化的运动监督</text>
+              <text x="622" y="344" text-anchor="middle" fill="#d8d4ca" font-size="12">才把 where 与 how 接起来</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文不是否定未来预测或点跟踪，而是指出二者独立优化时只会给共享骨干施加两组并列正则。FCCA 把未来 token 放进点轨迹的注意力计算，使运动误差能沿着“目标终态 → 空间位置 → VLM 表征”的链路反向传播。</figcaption>
+          </figure>
+
+          <h3>语言必须先于图像 token</h3>
+          <p>若自回归 VLM 仍按“图像在前、文本在后”排列，因果注意力下的图像 token 看不到完整指令，点轨迹头就难以区分“把杯子放进盘子”和“把杯子放进抽屉”需要的不同运动。FoMoVLA 改成 Instruction → Current Image → Foresight → Action，使每个图像位置在预测轨迹前已经具备任务目标信息。</p>
+
+          <h3>共享同一批 goal token 反而会冲突</h3>
+          <p>论文尝试让未来重建与运动预测直接共享 16 个目标 token，LIBERO-Long 只有 85.8%，明显低于最终设计的 97.6%。作者把它归因于梯度干扰：未来分支偏好外观与全局场景，轨迹分支偏好空间位移。最终设计让图像 token 承担运动 query，再通过 cross-attention 读取 future token，而不是让两个任务争夺同一表示槽。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">三路训练信号怎样汇入一套 VLA 表征</h2>
+
+          <figure class="svg-figure" aria-labelledby="pipeline-title pipeline-desc">
+            <svg viewBox="0 0 760 452" role="img" aria-labelledby="pipeline-title pipeline-desc">
+              <title id="pipeline-title">FoMoVLA 的训练与推理流程</title>
+              <desc id="pipeline-desc">指令和当前图像进入共享 VLM，动作分支产生动作，未来分支重建末帧特征，点跟踪分支在 FCCA 读取未来 token 后预测位移与可见性；训练后辅助解码器和教师被移除。</desc>
+              <defs>
+                <marker id="pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="452" fill="#fbfaf6"/>
+              <rect x="34" y="44" width="142" height="58" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="105" y="69" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">指令 + 当前图像</text>
+              <text x="105" y="89" text-anchor="middle" fill="#52605b" font-size="12">文本先于图像 token</text>
+              <path d="M186 73H242" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="246" y="35" width="164" height="76" rx="5" fill="#17201d"/>
+              <text x="328" y="66" text-anchor="middle" fill="#fffef9" font-size="18" font-weight="700">共享 VLM</text>
+              <text x="328" y="91" text-anchor="middle" fill="#d8d4ca" font-size="12">64 image + 16 foresight tokens</text>
+
+              <path d="M420 73H476" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="480" y="35" width="244" height="76" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="602" y="66" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">动作 DiT：流匹配 L_action</text>
+              <text x="602" y="91" text-anchor="middle" fill="#52605b" font-size="12">训练与推理都保留 · 输出 T×D 动作 chunk</text>
+
+              <path d="M328 122V160" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="78" y="166" width="274" height="108" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="98" y="196" fill="#17201d" font-size="16" font-weight="700">未来特征分支</text>
+              <text x="98" y="222" fill="#52605b" font-size="13">16 foresight + 48 mask → MAE → 64 patch 特征</text>
+              <text x="98" y="246" fill="#52605b" font-size="13">EMA 视觉教师提供 o<tspan baseline-shift="sub" font-size="10">t+T</tspan> 的目标特征</text>
+              <text x="98" y="267" fill="#355e7c" font-size="12" font-weight="700">余弦重建损失 L_foresight</text>
+
+              <rect x="408" y="166" width="316" height="108" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="428" y="196" fill="#17201d" font-size="16" font-weight="700">点轨迹分支</text>
+              <text x="428" y="222" fill="#52605b" font-size="13">64 image Q ← FCCA ← 16 foresight K/V</text>
+              <text x="428" y="246" fill="#52605b" font-size="13">CoTracker 教师提供位移 d* 与可见性 v*</text>
+              <text x="428" y="267" fill="#24624e" font-size="12" font-weight="700">位移 + 可见性 + 二阶平滑损失</text>
+
+              <path d="M215 286V323H566V286" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="188" y="328" width="404" height="52" rx="26" fill="#17201d"/>
+              <text x="390" y="351" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">联合反向传播，更新共享 VLM 与动作表征</text>
+              <text x="390" y="370" text-anchor="middle" fill="#d8d4ca" font-size="11">教师无梯度；FCCA 输出投影从零初始化</text>
+
+              <path d="M390 390V411" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <text x="390" y="438" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">部署：删掉 MAE、EMA、CoTracker、FCCA、轨迹头；保留 16 个输入 token</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上方红色动作分支是最终产品；下方两支是训练脚手架。它们不会在部署时继续输出预测，但它们的误差都穿过共享 VLM 反向传播，所以动作头读取到的上下文已经被“未来终态 + 连续运动”共同塑形。</figcaption>
+          </figure>
+
+          <h3>未来特征：用 16 个 token 压缩 64 个 patch 的末帧表示</h3>
+          <p>EMA 教师以动量 μ=0.999 更新，用动作 chunk 的最后一帧产生 64 个目标视觉特征；学生端把 16 个 foresight hidden state 与 48 个可学习 mask token 拼接，通过两层 ViT/MAE 解码器重建全部 64 个 patch。余弦损失抑制绝对尺度影响，16→64 的瓶颈迫使 token 优先保存全局场景变化，而不是逐 patch 记忆纹理。</p>
+
+          <h3>点轨迹：对每个图像 token 施加 T 帧位移监督</h3>
+          <p>冻结的 CoTracker-v3 从训练视频为 8×8 网格产生归一化二维位移 d* 与可见性 v*。两个 MLP 分别预测位移与可见性；位移回归只统计可见点，另加二阶时间差分惩罚，避免轨迹突然折返。这个设计比稠密 16×16 网格更好：后者在 LIBERO-Long 从 97.6% 降到 94.8%，说明监督更密并不自动更有效。</p>
+
+          <div class="formula-card" aria-label="FCCA 公式说明">
+            <div class="formula-card__label">公式拆解 · 终态怎样进入运动预测</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">H̃<sub>vis</sub></span> = <span class="formula-symbol">H<sub>vis</sub></span> + MHA(LN(<span class="formula-symbol">H<sub>vis</sub></span>), LN(<span class="formula-symbol">H<sub>fut</sub></span>), LN(<span class="formula-symbol">H<sub>fut</sub></span>))
+            </div>
+            <p class="formula-card__caption">这条公式回答：每个空间图像 token 在预测点轨迹前，怎样读取全局未来状态，同时不破坏预训练 VLM 的原始表征。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>H<sub>vis</sub></dt>
+                <dd>64 个图像 patch 在 VLM 中的隐藏状态，同时充当 query；每个位置最终要预测一条 T 帧轨迹。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>H<sub>fut</sub></dt>
+                <dd>16 个 foresight token 的隐藏状态，同时充当 key 与 value，提供动作片段末帧的全局目标先验。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>MHA</dt>
+                <dd>8 头交叉注意力。输出投影零初始化，使训练开始时附加项为 0，模块先等价于恒等映射，再逐步学习终态条件。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>残差 +</dt>
+                <dd>保留原 H<sub>vis</sub> 的空间内容，只把 future 信息作为增量写入，降低一开始扰乱预训练特征的风险。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：一个 patch 想判断自己下一步往哪动，先用自身位置去询问“任务完成时整个场景应该是什么样”。FCCA 只服务于训练期轨迹头；它对动作策略的影响来自联合梯度，而不是推理时显式输出一条点轨迹。</div>
+          </div>
+
+          <h3>总损失把动作作为主任务，另外两支只做辅助</h3>
+          <p class="formula">L = L<sub>action</sub> + λ<sub>1</sub>L<sub>foresight</sub> + λ<sub>2</sub>(L<sub>disp</sub> + L<sub>vis</sub> + λ<sub>smooth</sub>L<sub>smooth</sub>)，实现取 λ<sub>1</sub>=0.1、λ<sub>2</sub>=0.3、λ<sub>smooth</sub>=0.1。</p>
+          <p>轨迹监督的总权重高于未来重建，但二者都不替代动作 loss。训练新增 60.7M 参数（约 +1.3%），包括 30.5M 未来解码器、26.2M FCCA、2.6M 位移头和 1.3M 可见性头；部署参数回到与基线相同的 4599.3M。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">证据分四层：组件、耦合、跨策略头与零样本扰动</h2>
+
+          <h3>第一层：两个辅助任务单独有效，FCCA 再补上协同</h3>
+          <div class="table-wrap" role="region" aria-label="LIBERO 组件消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>StarVLA-GR00T 设置</th><th>Spatial</th><th>Object</th><th>Goal</th><th>Long</th><th>平均</th><th>相对基线</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>基础骨干</td><td>97.8</td><td>98.8</td><td>97.4</td><td>92.0</td><td>96.5</td><td>—</td></tr>
+                <tr><td>+ Future Prediction</td><td>99.0</td><td>99.4</td><td>97.2</td><td>94.4</td><td>97.5</td><td>+1.0 pp</td></tr>
+                <tr><td>+ Tracking</td><td>98.6</td><td>99.2</td><td>99.0</td><td>94.4</td><td>97.8</td><td>+1.3 pp</td></tr>
+                <tr><td>+ Future + Tracking</td><td>98.8</td><td>99.4</td><td>99.2</td><td>95.8</td><td>98.3</td><td>+1.8 pp</td></tr>
+                <tr class="evidence-table__emphasis"><td>+ Future + Tracking + FCCA</td><td>98.4</td><td>99.6</td><td>99.4</td><td>97.6</td><td>98.8</td><td>+2.3 pp</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>最强信号来自 LIBERO-Long：92.0%→97.6%，而 Spatial 已接近饱和，完整模型反而比基线高 0.6 个百分点而不是一路单调上升。FCCA 相比“两个任务直接相加”再贡献平均 +0.5 pp、Long +1.8 pp，支持“耦合优于并列 loss”的核心主张，但增量不算巨大。</p>
+
+          <h3>第二层：FCCA 确实让教师定义下的点轨迹更准</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="tracking-title tracking-desc">
+            <svg viewBox="0 0 640 326" role="img" aria-labelledby="tracking-title tracking-desc">
+              <title id="tracking-title">FCCA 对点轨迹误差与存活率的影响</title>
+              <desc id="tracking-desc">在一万条 LIBERO-10 训练样本上，FCCA 将全部点平均轨迹误差从一点二像素降到零点九，移动点误差从三点八降到二点三，中位误差从三点七降到二点一，十像素内存活率从百分之七十八提高到百分之九十五点三。</desc>
+              <rect width="640" height="326" fill="#fbfaf6"/>
+              <text x="38" y="43" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">10,000 LIBERO-10 TRAINING SAMPLES · COTRACKER TARGET</text>
+              <text x="38" y="83" fill="#17201d" font-size="15" font-weight="700">误差越低越好</text>
+              <text x="38" y="113" fill="#52605b" font-size="13">ATE-all</text>
+              <rect x="128" y="96" width="232" height="24" rx="3" fill="#eeeae0"/>
+              <rect x="128" y="96" width="232" height="24" rx="3" fill="#aaa69c"/>
+              <rect x="128" y="125" width="174" height="24" rx="3" fill="#355e7c"/>
+              <text x="374" y="114" fill="#52605b" font-size="12">1.2 → 0.9 px（−25.0%）</text>
+              <text x="38" y="171" fill="#52605b" font-size="13">ATE-moving</text>
+              <rect x="128" y="154" width="232" height="24" rx="3" fill="#aaa69c"/>
+              <rect x="128" y="183" width="140" height="24" rx="3" fill="#24624e"/>
+              <text x="374" y="172" fill="#52605b" font-size="12">3.8 → 2.3 px（−39.5%）</text>
+              <text x="38" y="229" fill="#52605b" font-size="13">Median TE</text>
+              <rect x="128" y="212" width="226" height="24" rx="3" fill="#aaa69c"/>
+              <rect x="128" y="241" width="128" height="24" rx="3" fill="#bd4c32"/>
+              <text x="374" y="230" fill="#52605b" font-size="12">3.7 → 2.1 px（−43.2%）</text>
+              <line x1="38" y1="285" x2="602" y2="285" stroke="#d8d4ca"/>
+              <text x="38" y="310" fill="#17201d" font-size="13" font-weight="700">Survival@10px：78.0% → 95.3%（+17.3 pp）</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>FCCA 的方向一致：平均误差、中位误差和终帧 10px 内存活率都改善。但评测样本来自 LIBERO-10 训练集，目标仍由同一个冻结 CoTracker 教师定义，因此它证明的是“更好拟合训练期轨迹监督”，不是独立真实几何测量。</figcaption>
+          </figure>
+
+          <h3>第三层：跨动作头与 RoboCasa 说明收益不只来自一套解码器</h3>
+          <div class="table-wrap" role="region" aria-label="跨动作头和 RoboCasa 结果" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>设置</th><th>基线平均</th><th>+ FoMoVLA</th><th>变化</th><th>最值得注意的细节</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>StarVLA-π / LIBERO</td><td>95.7%</td><td>97.9%</td><td>+2.2 pp</td><td>Long +8.2 pp；Spatial −0.6、Object −1.0</td></tr>
+                <tr><td>StarVLA-OFT / LIBERO</td><td>96.6%</td><td>98.0%</td><td>+1.4 pp</td><td>四套件均提升</td></tr>
+                <tr class="evidence-table__emphasis"><td>StarVLA-GR00T / RoboCasa</td><td>47.8%</td><td>56.9%</td><td>+9.1 pp</td><td>24 任务 × 50 rollout；头戴第一视角</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>RoboCasa 的逐组件平均值也保持相同趋势：Future 54.4%、Tracking 55.6%、两者 56.6%、再加 FCCA 56.9%。这说明两种监督的主体收益跨第三人称 LIBERO 与头戴第一视角 RoboCasa 都存在；不过 FCCA 在 RoboCasa 只比无 FCCA 多 0.3 pp，协同增量仍需更多随机种子判断稳定性。</p>
+
+          <h3>第四层：零样本扰动整体更强，但并非每一维都最好</h3>
+          <div class="table-wrap" role="region" aria-label="LIBERO-Plus 零样本鲁棒性" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>方法</th><th>额外预训练</th><th>Camera</th><th>Robot</th><th>Language</th><th>Light</th><th>Background</th><th>Noise</th><th>Layout</th><th>总分</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>StarVLA</td><td>否</td><td>52.5</td><td>49.8</td><td>88.5</td><td>95.7</td><td>95.7</td><td>73.0</td><td>76.9</td><td>74.1</td></tr>
+                <tr><td>Qwen-RobotManip-scratch</td><td>否</td><td>70.4</td><td>44.9</td><td>88.1</td><td>95.8</td><td>95.5</td><td>84.4</td><td>79.1</td><td>78.3</td></tr>
+                <tr class="evidence-table__emphasis"><td>FoMoVLA</td><td>否</td><td>64.0</td><td>62.2</td><td>94.0</td><td>94.1</td><td>96.2</td><td>82.2</td><td>79.6</td><td>80.5</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>FoMoVLA 比 StarVLA 总分高 6.4 pp，并在无额外预训练的方法中取得最高总分；但相机与噪声维度低于 Qwen-RobotManip-scratch，光照也低于多项对手。它更适合被表述为“平均鲁棒性显著改善”，而不是“所有扰动都解决”。论文自己也承认，固定视角与二维运动线索限制了对新相机和初始状态的泛化。</p>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">证据链最稳的部分</span>
+            <p><strong>组件消融与设计消融互相咬合。</strong>单独 future、单独 tracking、直接相加、FCCA 耦合形成递进；共享 goal token 的失败又反向支持“分工后交互”的设计。相比只报一个主表，这组证据更能说明收益为何出现。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它证明了训练监督有效，还没有证明显式世界模型已经形成</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>终态与轨迹是互补监督</h3>
+              <p>两个分支单独、合并与 FCCA 耦合的消融方向一致；LIBERO 与 RoboCasa 都显示联合训练优于基础骨干。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>“零样本”仍在模拟器族内</h3>
+              <p>LIBERO-Plus 改变相机、机器人状态、语言、光照、背景、噪声和布局，但不是跨真实硬件、跨控制频率或跨实验室迁移。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>token 是否真的预测可执行未来</h3>
+              <p>定性 PCA 图和教师轨迹误差显示内部一致性，但没有反事实规划、失败恢复或多步未来校准实验来证明它形成了可查询的世界模型。</p>
+            </article>
+          </div>
+
+          <h3>第一，二维点轨迹不包含深度与三维动力学</h3>
+          <p>作者在结论中明确把这一点列为限制：当前监督只描述依赖视角的图像平面运动，无法显式表示动态场景的三维几何。相机移动会把全局 ego-motion 与局部操作运动叠在一起；RoboCasa 定性结果虽显示模型能一定程度拆分二者，但 LIBERO-Plus 的相机维度仍不是最强。</p>
+
+          <h3>第二，所有策略成功率来自仿真</h3>
+          <p>LIBERO 有 4 套件 × 10 任务，每任务 20 次 rollout；RoboCasa 有 24 个任务，每任务 50 次；LIBERO-Plus 有 10,030 个扰动实例。覆盖面不小，但都没有执行噪声、传感器延迟、真实遮挡、机械磨损和安全约束等现实变量，不能据此声称真实机器人成功率已经提升。</p>
+
+          <h3>第三，结果缺少方差、置信区间和多随机种子</h3>
+          <p>主表以单个成功率呈现，没有报告不同训练种子或 bootstrap 区间。对于 FCCA 相对直接相加仅 +0.5 pp（LIBERO）和 +0.3 pp（RoboCasa）的增量，统计不确定性尤其重要；现有结果支持机制方向，但不足以精确判断协同增益的稳定规模。</p>
+
+          <h3>第四，“无额外推理开销”需要拆成两句话</h3>
+          <p>附录显示部署参数确实与基线同为 4599.3M，因为 60.7M 辅助参数全部删除；但 16 个 foresight token 仍要穿过 VLM，单张 H20、batch 1 下中位延迟从 94.3 ms 增至 103.7 ms，约 +10.0%，显存从 9.3 GB 增至 9.4 GB。更准确的说法是“无额外部署参数，推理成本小幅增加”，而非字面上的零开销。</p>
+
+          <h3>第五，未来监督依赖训练视频和外部教师质量</h3>
+          <p>训练时必须取得动作 chunk 的未来帧，EMA 教师决定什么视觉特征算“正确未来”，CoTracker 决定什么二维轨迹算“正确运动”。遮挡、反光、快速相机运动或教师漂移会把误差作为监督写入 VLM；论文没有给出教师置信度过滤、错误轨迹鲁棒性或无未来视频数据时的训练方案。</p>
+
+          <h3>第六，计算账只覆盖推理，没有完整训练成本对照</h3>
+          <p>作者报告训练参数增加 1.3%，并给出 8×H20、LIBERO 30K step、RoboCasa 100K step 的设置，但没有量化 CoTracker 预处理、EMA 教师前向、MAE 与 FCCA 带来的训练吞吐和总 GPU 小时变化。训练期“轻量”仍缺少完整成本曲线。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.14739">论文摘要页：arXiv:2607.14739</a> — 标题、作者、提交日期与版本信息。</li>
+            <li><a href="https://arxiv.org/pdf/2607.14739">论文 PDF</a> — 本页方法、公式、实现配置、主表、附录消融和推理成本的主要来源，共 12 页。</li>
+            <li><a href="https://liauto-research.github.io/FoMoVLA/">FoMoVLA 官方项目页</a> — 方法图、基准结果、演示视频与论文入口。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>模型结构、训练配置和所有数值是论文事实；“它是训练脚手架而非推理时完整世界模型”“无额外部署参数不等于零延迟”“FCCA 小幅增益需要多随机种子”“不能外推到真实机器人”等是依据论文设计与证据范围作出的分析判断。本页未把项目页之外未核验的代码实现当作 repo 事实。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

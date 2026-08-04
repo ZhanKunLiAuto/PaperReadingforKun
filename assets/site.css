@@ -1311,6 +1311,55 @@ a {
   }
 }
 
+@media (max-width: 1119px) {
+  .paper-doc {
+    display: block;
+    width: min(100% - 30px, 760px);
+    padding-top: 28px;
+  }
+
+  .paper-sidebar {
+    position: relative;
+    top: auto;
+    z-index: 10;
+    display: flex;
+    max-height: none;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 42px;
+    padding: 10px 0;
+    overflow: auto;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .paper-sidebar__label {
+    flex: none;
+    margin: 0;
+  }
+
+  .paper-map {
+    display: flex;
+    flex: none;
+  }
+
+  .paper-map a {
+    padding: 7px 9px;
+    border: 0;
+    white-space: nowrap;
+  }
+
+  .paper-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 60px;
+  }
+
+  .claim-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 860px) {
   .library-header,
   .library-footer,
