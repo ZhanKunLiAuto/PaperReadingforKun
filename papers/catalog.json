@@ -1,6 +1,39 @@
 {
-  "updatedAt": "2026-08-03",
+  "updatedAt": "2026-08-04",
   "papers": [
+    {
+      "slug": "fomovla",
+      "title": "FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models",
+      "authors": [
+        "Wei Li",
+        "Peijin Jia",
+        "Yuan Ma",
+        "Xuefeng Jiang",
+        "Titong Jiang",
+        "Sheng Sun",
+        "Yujian Li",
+        "Xin Wen",
+        "Han Hong",
+        "Zhikang Liu",
+        "Bailin Li",
+        "Kun Zhan"
+      ],
+      "publicationDate": "2026-07-16",
+      "readAt": "2026-08-04",
+      "description": "从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。",
+      "tags": [
+        "FoMoVLA",
+        "Vision-Language-Action",
+        "visual foresight",
+        "point tracking",
+        "FCCA",
+        "LIBERO",
+        "RoboCasa",
+        "robot manipulation"
+      ],
+      "sourceUrl": "https://liauto-research.github.io/FoMoVLA/",
+      "href": "papers/fomovla/"
+    },
     {
       "slug": "egogenesis",
       "title": "EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE",

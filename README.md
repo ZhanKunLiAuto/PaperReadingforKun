@@ -12,9 +12,10 @@
 
 ## 当前收录
 
+- [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/)
 - [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/)
 
-完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 2 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
