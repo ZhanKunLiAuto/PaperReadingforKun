@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="INTACT: Isomorphic Intent-to-Action Learning for Search-Free World Models">
+    <meta name="citation_author" content="Junhan Sun">
+    <meta name="citation_author" content="Hao Zhao">
+    <meta name="citation_author" content="Guofeng Zhang">
+    <meta name="citation_publication_date" content="2026-07-28">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.26056">
+    <meta name="description" content="从前向世界模型的动作反演缺口解读 INTACT：局部物理意图与未来目标意图如何共用一个条件动作律，把部署时 CEM 搜索改造成零候选直接控制与低预算验证。">
+    <meta name="keywords" content="INTACT, JEPA, latent world model, intent-to-action, search-free control, CEM, inverse dynamics, goal-conditioned imitation">
+    <meta name="paper:read_at" content="2026-08-06">
+    <title>INTACT：把世界模型的动作搜索摊销成直接控制</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/intact/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.26056V1 · 2026-07-28 · 阅读于 2026-08-06</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先看前向—动作缺口</a></li>
+          <li><a href="#concepts">弄清两种 intent 与同构</a></li>
+          <li><a href="#problem-chain">为什么部署必须搜索</a></li>
+          <li><a href="#mechanism">共享动作律怎样训练与调用</a></li>
+          <li><a href="#evidence">表示、读出与搜索分别贡献多少</a></li>
+          <li><a href="#limits">支持集、多模态与仿真边界</a></li>
+          <li><a href="#sources">回到论文原文</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">INTENT TO ACTION · JEPA · DIRECT CONTROL · OPTIONAL SEARCH</p>
+          <h1 id="paper-title" class="paper-title">INTACT</h1>
+          <p class="paper-subtitle">
+            一篇把“世界模型知道动作会造成什么”推进到“世界模型知道想要这种变化该做什么”的论文；它不删除前向模型，而是补上一个训练和部署共用的意图—动作接口。
+          </p>
+          <div class="paper-byline">
+            <span>Junhan Sun、Hao Zhao、Guofeng Zhang</span>
+            <span>浙江大学、清华大学 AIR、InSpatio、RoboParty Lab</span>
+            <span>arXiv v1 · 28 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              利用离线专家轨迹中已有的“状态变化—动作”配对，把前向潜世界模型需要在部署时用 CEM 反演动作的高成本逆问题，摊销成一个可直接调用的条件动作分布；同时让动作监督反向塑造视觉表示，使搜索从必需步骤降为可选局部验证。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="intact-overview-title intact-overview-desc">
+            <svg viewBox="0 0 760 430" role="img" aria-labelledby="intact-overview-title intact-overview-desc">
+              <title id="intact-overview-title">INTACT 的问题、方法与证据总览</title>
+              <desc id="intact-overview-desc">前向世界模型只学动作到未来，需要 CEM 搜索反演。INTACT 用局部物理意图和未来目标意图共享同一个动作预测器，直接生成动作计划；前向模型仍用于滚动和可选验证。</desc>
+              <defs>
+                <marker id="intact-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="430" fill="#fbfaf6"/>
+              <text x="38" y="44" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">前向—动作缺口</text>
+              <rect x="34" y="66" width="194" height="238" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="100" fill="#17201d" font-size="16" font-weight="700">世界模型学会 F(z, a)</text>
+              <text x="54" y="128" fill="#52605b" font-size="13">给动作，预测下一状态</text>
+              <line x1="54" y1="151" x2="208" y2="151" stroke="#d0aaa0"/>
+              <text x="54" y="181" fill="#17201d" font-size="15" font-weight="700">部署却需要逆方向</text>
+              <text x="54" y="208" fill="#52605b" font-size="13">给目标变化，求动作</text>
+              <text x="54" y="235" fill="#52605b" font-size="13">CEM 300×30</text>
+              <text x="54" y="258" fill="#52605b" font-size="12">最多 9,000 条候选序列</text>
+              <text x="54" y="281" fill="#52605b" font-size="12">规划器约 1.48 s</text>
+
+              <path d="M244 185H278" stroke="#86321f" stroke-width="2" marker-end="url(#intact-overview-arrow)"/>
+              <text x="280" y="44" fill="#355e7c" font-size="13" font-weight="700" letter-spacing="1.8">共享意图—动作律</text>
+              <rect x="278" y="66" width="224" height="101" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="98" fill="#17201d" font-size="15" font-weight="700">Local intent · 物理锚</text>
+              <text x="298" y="126" fill="#52605b" font-size="13">m = z<tspan baseline-shift="sub" font-size="10">t+1</tspan> − z<tspan baseline-shift="sub" font-size="10">t</tspan></text>
+              <text x="298" y="150" fill="#52605b" font-size="12">真实后继 attached，塑造 encoder</text>
+              <rect x="278" y="183" width="224" height="101" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="215" fill="#17201d" font-size="15" font-weight="700">Goal intent · 部署接口</text>
+              <text x="298" y="243" fill="#52605b" font-size="13">m = sg(z<tspan baseline-shift="sub" font-size="10">g</tspan>) − z<tspan baseline-shift="sub" font-size="10">t</tspan></text>
+              <text x="298" y="267" fill="#52605b" font-size="12">目标 stop-gradient，动作前可用</text>
+              <rect x="306" y="305" width="168" height="42" rx="21" fill="#17201d"/>
+              <text x="390" y="331" text-anchor="middle" fill="#fffef9" font-size="13" font-weight="700">同一个 Gη 解释两类 intent</text>
+
+              <path d="M518 185H552" stroke="#86321f" stroke-width="2" marker-end="url(#intact-overview-arrow)"/>
+              <text x="554" y="44" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.8">结果</text>
+              <rect x="550" y="66" width="176" height="281" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="570" y="100" fill="#17201d" font-size="15" font-weight="700">单任务 · 1 epoch</text>
+              <text x="570" y="125" fill="#52605b" font-size="13">Direct macro 95.33%</text>
+              <text x="570" y="146" fill="#52605b" font-size="12">2.9–5.5 ms · 0 search</text>
+              <line x1="570" y1="168" x2="706" y2="168" stroke="#d8d4ca"/>
+              <text x="570" y="198" fill="#17201d" font-size="15" font-weight="700">可选验证</text>
+              <text x="570" y="223" fill="#52605b" font-size="13">Guarded A 96.86%</text>
+              <text x="570" y="244" fill="#52605b" font-size="12">384 vs 9,000 sequences</text>
+              <line x1="570" y1="266" x2="706" y2="266" stroke="#d8d4ca"/>
+              <text x="570" y="296" fill="#17201d" font-size="15" font-weight="700">共享四任务 · E5</text>
+              <text x="570" y="321" fill="#52605b" font-size="13">Direct macro 89.39%</text>
+              <text x="570" y="342" fill="#52605b" font-size="12">LeWM+CEM：66.17%</text>
+
+              <rect x="128" y="377" width="504" height="42" rx="21" fill="#17201d"/>
+              <text x="380" y="403" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">世界模型继续负责“会发生什么”，INTACT 补上“该做什么”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>两类 intent 的角色故意不对称：真实后继物理可信，却在动作前不可用；未来目标动作前可用，却不是下一步真实状态。INTACT 不把二者拉近，而是让同一个条件动作分布在各自支持集上给出正确动作。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，INTACT 不是把 inverse dynamics head 随手加到 LeWM。</strong>局部 inverse branch 与 goal-conditioned imitation branch 本身都不新；完整方法的不可约部分，是它们使用相同输入语法、共享同一动作预测器，同时对 endpoint 采用不对称梯度。</p>
+            <p><strong>第二，“同构”不是说两个潜变量数值相等。</strong>它指两类调用的图结构相同，并通过同一个条件动作律建立语义对应；论文明确没有最小化 ||m<sub>goal</sub>−m<sub>local</sub>||²。</p>
+            <p><strong>第三，搜索不是被证明无用，而是被重新定位。</strong>Direct 已提供高质量计划；以它为中心的 128×3 局部 CEM 还能略升成功率，而从零均值单位方差开始的宽搜索会浪费已经学到的接口。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">读懂 INTACT，必须分清“状态”“意图坐标”和“动作律”</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">FORWARD–ACTION GAP（前向—动作缺口）</span>
+            <p><strong>英译中：</strong>训练学的是“动作如何改变状态”，部署问的却是“想改变成这样该做什么”。</p>
+            <p><strong>怎么理解：</strong>LeWM 的 F<sub>φ</sub>(z,a) 可以 rollout 候选动作并打终点距离，但没有从目标变化直接读动作的映射，于是 CEM 必须在原始动作空间反复采样、预测、筛选和重拟合。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONDITIONAL ACTION QUOTIENT（条件动作商类）</span>
+            <p><strong>英译中：</strong>在固定当前状态 z 时，把会诱导相同专家动作分布的不同 endpoint condition 视为同一类。</p>
+            <p><strong>怎么理解：</strong>门口前的两个不同远期目标，当前第一步可能相同；真实下一状态与某个远期目标也可能离得很远，却要求相同动作。等价关系由动作律定义，不由潜空间欧氏距离定义。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ISOMORPHIC（同构）</span>
+            <p><strong>英译中：</strong>结构上，local 与 goal 调用都有 [状态、意图、状态×意图、上一动作] 四个槽并共享参数；语义上，两类意图通过同一动作分布映射建立对应。</p>
+            <p><strong>避免误解：</strong>它不宣称整个潜空间存在全局线性同构，也不宣称跨任务可用一个统一 actor；实际多任务设置共享 encoder，但 Forward 与动作 heads 仍按任务区分。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY SEARCH BECOMES MANDATORY</p>
+          <h2 id="problem-title">如果训练时只学正向动力学，部署时就只能数值反演</h2>
+
+          <figure class="svg-figure" aria-labelledby="intact-gap-title intact-gap-desc">
+            <svg viewBox="0 0 760 390" role="img" aria-labelledby="intact-gap-title intact-gap-desc">
+              <title id="intact-gap-title">LeWM 搜索路径与 INTACT 直接路径对照</title>
+              <desc id="intact-gap-desc">LeWM 从无信息高斯采样动作序列，通过前向模型 rollout 和终点代价反复更新；INTACT 从目标潜位移直接预测动作均值，前向模型滚动下一意图，可立即执行或小范围验证。</desc>
+              <defs>
+                <marker id="intact-gap-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="390" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700">LeWM · search-first</text>
+              <rect x="34" y="62" width="142" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="105" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">随机动作序列</text>
+              <text x="105" y="115" text-anchor="middle" fill="#52605b" font-size="12">μ=0 · σ=1</text>
+              <path d="M187 98H225" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="229" y="62" width="142" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="300" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">F rollout</text>
+              <text x="300" y="115" text-anchor="middle" fill="#52605b" font-size="12">预测终点潜状态</text>
+              <path d="M382 98H420" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="424" y="62" width="142" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="495" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">与 zg 算代价</text>
+              <text x="495" y="115" text-anchor="middle" fill="#52605b" font-size="12">选 elites 重拟合</text>
+              <path d="M577 98H615" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="619" y="62" width="107" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="672" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">重复 30 次</text>
+              <text x="672" y="115" text-anchor="middle" fill="#52605b" font-size="12">才有目标性</text>
+
+              <text x="38" y="198" fill="#24624e" font-size="13" font-weight="700">INTACT · intent-first</text>
+              <rect x="34" y="218" width="142" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="105" y="247" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">m = zg − ẑk</text>
+              <text x="105" y="271" text-anchor="middle" fill="#52605b" font-size="12">当前目标意图</text>
+              <path d="M187 254H225" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="229" y="218" width="142" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="300" y="247" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Gη 直接出 ā</text>
+              <text x="300" y="271" text-anchor="middle" fill="#52605b" font-size="12">条件高斯均值</text>
+              <path d="M382 254H420" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="424" y="218" width="142" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="495" y="247" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">F 滚动下一步</text>
+              <text x="495" y="271" text-anchor="middle" fill="#52605b" font-size="12">继续重算 intent</text>
+              <path d="M577 254H615" stroke="#86321f" stroke-width="2" marker-end="url(#intact-gap-arrow)"/>
+              <rect x="619" y="207" width="107" height="94" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="672" y="238" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Direct</text>
+              <text x="672" y="260" text-anchor="middle" fill="#52605b" font-size="11">0 candidates</text>
+              <text x="672" y="282" text-anchor="middle" fill="#52605b" font-size="11">或 128×3 验证</text>
+              <rect x="145" y="332" width="470" height="42" rx="21" fill="#17201d"/>
+              <text x="380" y="358" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">INTACT 摊销的是“搜索如何变得目标导向”这一步</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>两条路径都保留 Forward Predictor。差别在第一条要靠终点代价逐轮把随机动作变得目标相关，第二条的动作分布在训练时已经学会解释目标 intent，因而一开始就目标相关。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">同一条轨迹同时提供“真实变化—动作”和“未来目标—动作”两类监督</h2>
+
+          <div class="formula-card" aria-label="INTACT 两类意图公式说明">
+            <div class="formula-card__label">公式拆解 · 两类 intent 为什么必须同时存在</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">m<sub>local</sub></span> = z<sub>t+1</sub> − z<sub>t</sub>
+              &nbsp;&nbsp;·&nbsp;&nbsp;
+              <span class="formula-symbol">m<sub>goal</sub></span> = sg(z<sub>g</sub>) − z<sub>t</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：训练怎样同时获得物理可信的局部变化与部署前可计算的目标变化。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>z<sub>t+1</sub>−z<sub>t</sub></dt><dd>真实执行一个 action chunk 后观察到的局部变化；endpoint attached，动作损失能塑造两端 encoder 表示。</dd></div>
+              <div class="formula-legend__row"><dt>sg(z<sub>g</sub>)−z<sub>t</sub></dt><dd>当前状态到同一轨迹未来目标的潜位移；未来目标 stop-gradient，但当前 z<sub>t</sub> 与 actor 仍更新。</dd></div>
+              <div class="formula-legend__row"><dt>sg</dt><dd>stop-gradient，只作用于 goal branch 中作为部署锚的那次 z<sub>g</sub>；同一未来 latent 作为物理后继时仍可塑。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">局部 intent 解决“表示里有没有保留可控变化”，目标 intent 解决“动作前能否直接查询”；前者单独会在部署时循环依赖未来，后者单独更像目标条件行为克隆。</div>
+          </div>
+
+          <div class="formula-card" aria-label="INTACT 总目标公式说明">
+            <div class="formula-card__label">公式拆解 · 完整耦合目标</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L<sub>ST</sub></span> = <span class="formula-symbol">L<sub>world</sub></span> + λ<sub>inv</sub><span class="formula-symbol">L<sub>local</sub></span> + λ<sub>goal</sub><span class="formula-symbol">L<sub>goal</sub></span>
+            </div>
+            <p class="formula-card__caption">这条公式回答：前向世界预测与两种动作似然怎样在一次端到端训练里分工。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>L<sub>world</sub></dt><dd>LeWM 的前向潜预测 + SIGReg，保留接触、障碍和未来视觉等比当前动作更丰富的信息。</dd></div>
+              <div class="formula-legend__row"><dt>L<sub>local</sub></dt><dd>同一个 G<sub>η</sub> 在 local intent 下对示范 action block 的负对数似然。</dd></div>
+              <div class="formula-legend__row"><dt>L<sub>goal</sub></dt><dd>同一个 G<sub>η</sub> 在 goal intent 下对同一示范 action block 的负对数似然。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">完整方法不是要求两种 intent 长得一样，而是要求它们在各自有数据支持的条件下，被同一个 proper likelihood 解释成正确动作分布。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="intact-train-title intact-train-desc">
+            <svg viewBox="0 0 760 390" role="img" aria-labelledby="intact-train-title intact-train-desc">
+              <title id="intact-train-title">INTACT 的共享输入语法和部署循环</title>
+              <desc id="intact-train-desc">局部与目标两类 intent 都以状态、意图、状态意图乘积和上一动作四个槽进入同一三层 MLP，输出对角高斯动作分布；部署时使用目标意图均值并用前向模型循环滚动。</desc>
+              <defs>
+                <marker id="intact-train-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="390" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700">训练：两条路，同一语法</text>
+              <rect x="34" y="66" width="164" height="70" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="116" y="95" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">local intent</text>
+              <text x="116" y="119" text-anchor="middle" fill="#52605b" font-size="12">真实后继 attached</text>
+              <rect x="34" y="156" width="164" height="70" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="116" y="185" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">goal intent</text>
+              <text x="116" y="209" text-anchor="middle" fill="#52605b" font-size="12">未来目标 detached</text>
+              <path d="M210 101H252" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <path d="M210 191H252" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <rect x="256" y="82" width="208" height="126" rx="5" fill="#17201d"/>
+              <text x="360" y="112" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">共享四槽输入</text>
+              <text x="360" y="143" text-anchor="middle" fill="#d8d4ca" font-size="13">[ z ; m ; z ⊙ m ; A(a<tspan baseline-shift="sub" font-size="10">t−1</tspan>) ]</text>
+              <text x="360" y="172" text-anchor="middle" fill="#d8d4ca" font-size="12">同一个 3-layer Gη</text>
+              <text x="360" y="193" text-anchor="middle" fill="#d8d4ca" font-size="11">→ diagonal Gaussian p(a|z,m,a−)</text>
+              <path d="M476 145H520" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <rect x="524" y="96" width="202" height="98" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="625" y="126" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">z ⊙ m 是状态条件交互</text>
+              <text x="625" y="151" text-anchor="middle" fill="#52605b" font-size="12">同一位移在接触、姿态、</text>
+              <text x="625" y="172" text-anchor="middle" fill="#52605b" font-size="12">障碍状态下需要不同动作</text>
+
+              <text x="38" y="280" fill="#24624e" font-size="13" font-weight="700">部署：只走 goal call</text>
+              <rect x="34" y="302" width="154" height="60" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="111" y="327" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">m<tspan baseline-shift="sub" font-size="10">k</tspan>=z<tspan baseline-shift="sub" font-size="10">g</tspan>−ẑ<tspan baseline-shift="sub" font-size="10">k</tspan></text>
+              <text x="111" y="348" text-anchor="middle" fill="#52605b" font-size="11">重算剩余意图</text>
+              <path d="M200 332H238" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <rect x="242" y="302" width="154" height="60" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="319" y="327" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">ā<tspan baseline-shift="sub" font-size="10">k</tspan>=μη(ẑ<tspan baseline-shift="sub" font-size="10">k</tspan>,m<tspan baseline-shift="sub" font-size="10">k</tspan>)</text>
+              <text x="319" y="348" text-anchor="middle" fill="#52605b" font-size="11">直接动作 chunk</text>
+              <path d="M408 332H446" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <rect x="450" y="302" width="154" height="60" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="527" y="327" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">ẑ<tspan baseline-shift="sub" font-size="10">k+1</tspan>=F(ẑ<tspan baseline-shift="sub" font-size="10">k</tspan>,ā<tspan baseline-shift="sub" font-size="10">k</tspan>)</text>
+              <text x="527" y="348" text-anchor="middle" fill="#52605b" font-size="11">滚动潜状态</text>
+              <path d="M616 332H654" stroke="#355e7c" stroke-width="2" marker-end="url(#intact-train-arrow)"/>
+              <rect x="658" y="302" width="68" height="60" rx="4" fill="#17201d"/>
+              <text x="692" y="327" text-anchor="middle" fill="#fffef9" font-size="12" font-weight="700">执行</text>
+              <text x="692" y="347" text-anchor="middle" fill="#d8d4ca" font-size="10">再观察</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>z⊙m 不是“二阶动力学模型”，只是固定双线性交互特征，让同一目标位移能按当前状态解释。真正的时序演化仍由独立 Forward Predictor 完成。</figcaption>
+          </figure>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">论文最扎实的地方，是把表示、动作读出和搜索三种贡献拆开测</h2>
+
+          <div class="table-wrap" role="region" aria-label="INTACT 单任务结果" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>单任务模型 · 1 epoch</th><th>候选序列</th><th>PushT</th><th>Cube</th><th>Reacher</th><th>TwoRoom</th><th>Macro</th></tr>
+              </thead>
+              <tbody>
+                <tr class="evidence-table__emphasis"><td>Goal-displacement Direct</td><td>0</td><td>85.78</td><td>100.00</td><td>97.67</td><td>97.89</td><td>95.33</td></tr>
+                <tr><td>同模型 Pure CEM 300×30</td><td>9,000</td><td>88.44</td><td>68.44</td><td>83.67</td><td>82.89</td><td>80.86</td></tr>
+                <tr><td>Actor-on CEM 300×30</td><td>9,000</td><td>93.56</td><td>96.89</td><td>86.67</td><td>98.00</td><td>93.78</td></tr>
+                <tr><td>Guarded A 128×3</td><td>384</td><td>92.22</td><td>99.78</td><td>97.44</td><td>98.00</td><td>96.86</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-wrap" role="region" aria-label="INTACT 共享四任务 E5 结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>共享 encoder · E5</th><th>接口</th><th>Macro SR</th><th>读法</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>LeWM</td><td>CEM 300×30</td><td>66.17 ± 2.67</td><td>前向模型 + 强制搜索</td></tr>
+                <tr><td>Goal intent only</td><td>Direct</td><td>80.61 ± 2.11</td><td>目标条件模仿已经很强</td></tr>
+                <tr class="evidence-table__emphasis"><td>Goal-displacement INTACT</td><td>Direct</td><td>89.39 ± 0.77</td><td>加 local physical anchor 后 +8.78</td></tr>
+                <tr><td>同一 Full INTACT</td><td>actor-disabled CEM</td><td>70.08 ± 1.13</td><td>即使不用 actor，表示也优于 LeWM</td></tr>
+                <tr><td>同一 Full INTACT</td><td>Guarded A</td><td>90.47 ± 0.84</td><td>局部搜索只再加约 1.08</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="intact-evidence-title intact-evidence-desc">
+            <svg viewBox="0 0 660 330" role="img" aria-labelledby="intact-evidence-title intact-evidence-desc">
+              <title id="intact-evidence-title">INTACT 的三层因果证据</title>
+              <desc id="intact-evidence-desc">actor-disabled CEM 测表示与前向模型，Direct 测意图到动作读出，Guarded A 测局部验证；家族级 kNN 和 CKA 与成功率相关性强于点式动作 R2。</desc>
+              <rect width="660" height="330" fill="#fbfaf6"/>
+              <rect x="34" y="55" width="184" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="126" y="86" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">① 表示是否改善</text>
+              <text x="126" y="114" text-anchor="middle" fill="#52605b" font-size="12">关闭 Gη</text>
+              <text x="126" y="136" text-anchor="middle" fill="#52605b" font-size="12">固定 CEM 评 encoder + F</text>
+              <text x="126" y="157" text-anchor="middle" fill="#355e7c" font-size="12" font-weight="700">66.17 → 70.08</text>
+              <rect x="238" y="55" width="184" height="112" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="330" y="86" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">② 读出是否有效</text>
+              <text x="330" y="114" text-anchor="middle" fill="#52605b" font-size="12">启用 Gη · 关闭搜索</text>
+              <text x="330" y="136" text-anchor="middle" fill="#52605b" font-size="12">Direct 测部署接口</text>
+              <text x="330" y="157" text-anchor="middle" fill="#24624e" font-size="12" font-weight="700">89.39 macro</text>
+              <rect x="442" y="55" width="184" height="112" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="534" y="86" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">③ 搜索还剩什么</text>
+              <text x="534" y="114" text-anchor="middle" fill="#52605b" font-size="12">Direct 周围 128×3</text>
+              <text x="534" y="136" text-anchor="middle" fill="#52605b" font-size="12">只做小范围验证</text>
+              <text x="534" y="157" text-anchor="middle" fill="#9c7b1f" font-size="12" font-weight="700">89.39 → 90.47</text>
+              <rect x="74" y="214" width="512" height="80" rx="5" fill="#17201d"/>
+              <text x="330" y="242" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">机制诊断：动作“家族关系”比单点回归更贴近控制</text>
+              <text x="330" y="268" text-anchor="middle" fill="#d8d4ca" font-size="12">predicted–expert kNN r=.954 · CKA r=.897 · pointwise action R² r=.815</text>
+              <text x="330" y="287" text-anchor="middle" fill="#f1d778" font-size="11">高 effective rank 也可能对应更低 SR：容量不是语义证书</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>如果只报 Direct，增益可能全来自 actor；如果只报 actor-disabled CEM，又看不到部署接口。论文把两者和局部验证一起报告，因此能较清楚地说：表示有小幅改善，直接读出贡献最大，搜索只剩收尾价值。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">最值得保留的证据</span>
+            <p>在 PushT 单任务中，物理 inverse 监督把 actor-disabled CEM 30×10 从 42.22% 提到 57.67%，说明 action loss 确实改变了共享表示，而不只是训练了一个好 actor。多任务 E5 中 Full INTACT 又比 goal-intent-only Direct 高 8.78±1.63 macro，说明局部物理锚与目标条件模仿具有互补性。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它消除了一个接口错位，没有消除离线控制的所有分布外问题</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>直接接口能替代宽搜索</h3>
+              <p>单任务三训练种子、共享四任务完整 factorial、actor-disabled 对照和规划预算审计都支持 Direct-first。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>动作商类只在示范支持上识别</h3>
+              <p>单条专家轨迹不能告诉模型所有同样有效的动作，也不能保证任意反事实目标都有正确条件分布。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>真实机器人与跨形态统一 actor</h3>
+              <p>现有四任务都是仿真、固定图像目标、离线专家轨迹，并使用任务特定动作 heads。</p>
+            </article>
+          </div>
+
+          <h3>Direct 的对角高斯均值会抹平多模态</h3>
+          <p>路口或接触切换可能存在多个都正确的动作 mode，而均值可能落在两个 mode 之间。论文提出 mixture actor、按不确定性触发验证与从 learned conditional 采样作为后续方向；当前 Direct 强结果不能证明均值策略在所有多模态任务都安全。</p>
+
+          <h3>目标位移不是障碍感知路径</h3>
+          <p>m<sub>goal</sub>=z<sub>g</sub>−z<sub>t</sub> 保留方向与距离，却只是一阶请求；绕障、接触切换与多段拓扑不一定能由一条潜位移表达。非线性 G<sub>η</sub> 可以按状态解释，但正确性仍依赖示范覆盖。</p>
+
+          <h3>递归 rollout 仍会进入预测状态分布</h3>
+          <p>第一步用真实编码状态，之后的计划内部状态来自 F<sub>φ</sub> 预测；误差会累积。训练与部署共用 goal intent 构造消除了动作 proposal 接口错位，却没有消除自回归状态漂移。</p>
+
+          <h3>三训练种子仍是粗粒度不确定性估计</h3>
+          <p>作者已完整跑三训练种子、三评测种子与 E1–E5，明显优于只报单点；但其限制章节仍主动承认三种子不足以精确估计训练方差。若比较 1–2 个百分点的小差异，仍需更多种子或置信区间。</p>
+
+          <h3>官方评测与 CLEAR 审计不能混用</h3>
+          <p>官方 LeWM protocol 保持可比性，但 CLEAR-LeWM Moderate 修复 Reacher 与 TwoRoom 的评测问题并移除初始已成功样本。Reacher 从官方 97.67% 降到 Moderate 49.56%，说明 headline SR 强依赖协议；论文将两套数字分开是必要的。</p>
+
+          <h3>“约 300×”只指规划器侧时延</h3>
+          <p>Direct 的 2.9–5.5 ms 与 CEM 1.48 s 是 planner-side audit，不包含视觉编码、环境 I/O 或更大 VLA backbone。它有力证明数值搜索瓶颈被移除，但不等于整个机器人系统端到端快 300 倍。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.26056">论文摘要页：arXiv:2607.26056</a> — 标题、作者、日期与版本。</li>
+            <li><a href="https://arxiv.org/pdf/2607.26056">论文 PDF</a> — 本页定义、公式、训练与控制算法、单任务/多任务矩阵、机制诊断和限制的主要来源，共 28 页。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>训练协议、成功率、规划预算、相关系数与作者自述限制是论文事实；“INTACT 摊销的是搜索获得目标性的步骤”“表示改善小于直接读出贡献”“同构不是潜变量相等”等是根据论文构造与对照作出的分析总结。本页没有把并发工作间不匹配的 headline 数字当成严格对照。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="LLaWA: A Unified Latent Language World Action Model for Autonomous Driving">
+    <meta name="citation_author" content="Jinjin Cao">
+    <meta name="citation_author" content="Yongjia Ma">
+    <meta name="citation_author" content="Shaoyang Peng">
+    <meta name="citation_author" content="Xuancheng Zhang">
+    <meta name="citation_author" content="Donglin Di">
+    <meta name="citation_author" content="Xiangkai Huang">
+    <meta name="citation_author" content="Zhikang Liu">
+    <meta name="citation_author" content="Kun Zhan">
+    <meta name="citation_author" content="Guojun Qi">
+    <meta name="citation_publication_date" content="2026-07-31">
+    <meta name="description" content="从表示对齐与目标对齐两条线解读 LLaWA：文本—未来视频—潜在动作如何因果串联，AACA 怎样筛选决策相关未来信息，Flow Policy GRPO 又如何把预测能力转成规划收益。">
+    <meta name="keywords" content="LLaWA, autonomous driving, world action model, AACA, flow matching, GRPO, NavDecision, NAVSIM">
+    <meta name="paper:read_at" content="2026-08-06">
+    <title>LLaWA：世界预测怎样真正变成驾驶决策</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/llawa/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">IEEE TMM INITIAL SUBMISSION · 2026-07-31 · 阅读于 2026-08-06</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先看两层对齐</a></li>
+          <li><a href="#concepts">分清预测、推理与动作</a></li>
+          <li><a href="#problem-chain">未来特征为何没有自然变成规划</a></li>
+          <li><a href="#mechanism">从因果序列到奖励微调</a></li>
+          <li><a href="#evidence">增益究竟来自哪里</a></li>
+          <li><a href="#limits">读清评测与成本边界</a></li>
+          <li><a href="#sources">回到投稿原文</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">LANGUAGE · WORLD · ACTION · DECISION ALIGNMENT</p>
+          <h1 id="paper-title" class="paper-title">LLaWA</h1>
+          <p class="paper-subtitle">
+            一篇追问“世界模型明明会预测未来，为什么规划不一定更好”的自动驾驶论文；它的答案不是继续堆预测分辨率，而是让动作主动从未来与语言中取证，再用奖励直接校准连续轨迹。
+          </p>
+          <div class="paper-byline">
+            <span>Jinjin Cao、Yongjia Ma 等 9 位作者</span>
+            <span>浙江大学、西湖大学、理想汽车、哈尔滨工业大学</span>
+            <span>IEEE TMM 初投稿 · 投稿包 18 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把驾驶世界模型的“会重建未来画面”转成“会选择对自车决策有用的未来证据”，并进一步把模仿学习得到的保守轨迹改造成直接服务安全、进度与规则指标的连续策略；最终在同一潜空间里接通语义推理、未来视觉预测与动作生成。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="llawa-overview-title llawa-overview-desc">
+            <svg viewBox="0 0 760 420" role="img" aria-labelledby="llawa-overview-title llawa-overview-desc">
+              <title id="llawa-overview-title">LLaWA 的两层决策对齐总览</title>
+              <desc id="llawa-overview-desc">密集未来预测包含大量与自车动作无关的信息，模仿学习又倾向保守。LLaWA 先用动作查询选择文本和未来视觉证据，再用 Flow Policy GRPO 优化连续轨迹。</desc>
+              <defs>
+                <marker id="llawa-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="420" fill="#fbfaf6"/>
+              <text x="38" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">旧瓶颈</text>
+              <rect x="34" y="64" width="192" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="96" fill="#17201d" font-size="16" font-weight="700">预测目标错位</text>
+              <text x="54" y="124" fill="#52605b" font-size="13">未来画面越密集</text>
+              <text x="54" y="147" fill="#52605b" font-size="13">背景与远车噪声也越多</text>
+              <text x="54" y="168" fill="#52605b" font-size="12">重建得好 ≠ 规划得好</text>
+              <rect x="34" y="210" width="192" height="112" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="54" y="242" fill="#17201d" font-size="16" font-weight="700">模仿目标错位</text>
+              <text x="54" y="270" fill="#52605b" font-size="13">只逼近日志轨迹</text>
+              <text x="54" y="293" fill="#52605b" font-size="13">安全与进度取舍偏保守</text>
+              <text x="54" y="314" fill="#52605b" font-size="12">似人 ≠ 指标最优</text>
+
+              <path d="M242 192H280" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-overview-arrow)"/>
+              <text x="282" y="43" fill="#355e7c" font-size="13" font-weight="700" letter-spacing="1.8">两层对齐</text>
+              <rect x="278" y="64" width="222" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="96" fill="#17201d" font-size="16" font-weight="700">表示层 · AACA</text>
+              <text x="298" y="124" fill="#52605b" font-size="13">动作潜变量作为 Query</text>
+              <text x="298" y="147" fill="#52605b" font-size="13">文本 + 未来视频作为 K/V</text>
+              <text x="298" y="168" fill="#52605b" font-size="12">筛出决策相关动态</text>
+              <rect x="278" y="210" width="222" height="112" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="242" fill="#17201d" font-size="16" font-weight="700">目标层 · Flow Policy GRPO</text>
+              <text x="298" y="270" fill="#52605b" font-size="13">冻结世界骨干</text>
+              <text x="298" y="293" fill="#52605b" font-size="13">成组采样并比较规划奖励</text>
+              <text x="298" y="314" fill="#52605b" font-size="12">直接改流匹配规划器</text>
+
+              <path d="M516 192H552" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-overview-arrow)"/>
+              <text x="554" y="43" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.8">证据落点</text>
+              <rect x="550" y="64" width="176" height="258" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="570" y="96" fill="#17201d" font-size="16" font-weight="700">NAVSIM-V1</text>
+              <text x="570" y="122" fill="#52605b" font-size="13">PDMS 90.7</text>
+              <text x="570" y="143" fill="#52605b" font-size="12">SFT 基线 82.1</text>
+              <line x1="570" y1="164" x2="706" y2="164" stroke="#d8d4ca"/>
+              <text x="570" y="194" fill="#17201d" font-size="16" font-weight="700">NAVSIM-V2</text>
+              <text x="570" y="220" fill="#52605b" font-size="13">EPDMS 86.8</text>
+              <line x1="570" y1="240" x2="706" y2="240" stroke="#d8d4ca"/>
+              <text x="570" y="270" fill="#17201d" font-size="16" font-weight="700">nuScenes</text>
+              <text x="570" y="296" fill="#52605b" font-size="13">ℓ2 0.67 → 0.50 m</text>
+              <text x="570" y="316" fill="#52605b" font-size="12">碰撞 0.45% → 0.16%</text>
+
+              <rect x="142" y="354" width="476" height="46" rx="23" fill="#17201d"/>
+              <text x="380" y="383" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">关键不是预测更多未来，而是让动作选择并利用未来</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文把“预测—规划错位”拆成两个层次。AACA 决定什么未来信息进入规划，Flow Policy GRPO 决定这些信息最后被优化成怎样的轨迹；两者分别回答“看什么”和“怎么做”。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，LLaWA 的世界模型不是外置模拟器。</strong>历史视频、问题、车身状态、生成文本、未来视频 token 与动作 query 被放入同一因果序列，动作不需要另起一个搜索循环去反演世界模型。</p>
+            <p><strong>第二，真正关键的是 action-as-query。</strong>未来视频特征本身依然很密；AACA 让潜在动作从“文本语义 + 未来动态”联合记忆中主动取证，主消融中仅加入 AACA 就把 PDMS 从 82.1 提到 86.5。</p>
+            <p><strong>第三，文本的收益要等到奖励微调才充分显现。</strong>SFT 阶段文本只增加 0.1 PDMS；经过 Flow Policy GRPO 后，有文本版本比无文本版本高 2.1，说明语义更像奖励探索的结构化脚手架，而不是独立动作答案。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">先分清三种输出：话、未来画面，以及真正执行的轨迹</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">WORLD ACTION MODEL（世界—动作模型）</span>
+            <p><strong>英译中：</strong>在同一个模型里同时预测环境怎样演化与智能体怎样行动。</p>
+            <p><strong>怎么理解：</strong>LLaWA-AR 先生成驾驶决策文本，再生成未来视觉 token，最后得到潜在动作表示；LLaWA-Flow 才把这个表示解码为连续轨迹。文本和未来视频是规划条件，不是最终控制量。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">DECISION ALIGNMENT（决策对齐）</span>
+            <p><strong>英译中：</strong>让模型的中间表示与训练目标都围绕最终决策效用组织。</p>
+            <p><strong>怎么理解：</strong>表示对齐负责从未来预测中压出与自车动作有关的部分；目标对齐负责把动作从“像日志”推向“在给定场景奖励下更安全、进度更好”。这不是同一件事，论文因此采用 SFT → RL 两阶段训练。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">NAVDECISION（决策语义数据）</span>
+            <p><strong>英译中：</strong>从 NAVSIM 多视角历史、车身状态与导航命令自动构造的驾驶问答监督。</p>
+            <p><strong>怎么理解：</strong>流水线先生成场景感知、实体、风险与粗决策，再融合成包含动作、位置、速度和理由的细决策，最后用 LLM 评分与运动学检查过滤。它给“未来应该怎么开”加了语言层，但并不替代真实轨迹监督。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY FORECASTING DOES NOT AUTOMATICALLY PLAN</p>
+          <h2 id="problem-title">旧世界的断点：未来预测很丰富，动作接口却很贫乏</h2>
+
+          <figure class="svg-figure" aria-labelledby="llawa-gap-title llawa-gap-desc">
+            <svg viewBox="0 0 760 360" role="img" aria-labelledby="llawa-gap-title llawa-gap-desc">
+              <title id="llawa-gap-title">世界预测到规划的两条失败链</title>
+              <desc id="llawa-gap-desc">密集重建会保留决策无关信息，简单共享特征把噪声一起交给规划器；模仿学习只优化日志似然，导致保守动作。LLaWA 分别用 AACA 和奖励微调截断两条失败链。</desc>
+              <defs>
+                <marker id="llawa-gap-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="360" fill="#fbfaf6"/>
+              <text x="36" y="42" fill="#bd4c32" font-size="13" font-weight="700">表示失败链</text>
+              <rect x="34" y="61" width="160" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="114" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">重建完整未来</text>
+              <text x="114" y="115" text-anchor="middle" fill="#52605b" font-size="12">像素/视觉 token 很密</text>
+              <path d="M205 97H251" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-gap-arrow)"/>
+              <rect x="255" y="61" width="184" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="347" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">背景与远处运动混入</text>
+              <text x="347" y="115" text-anchor="middle" fill="#52605b" font-size="12">共享特征没有选择机制</text>
+              <path d="M450 97H496" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-gap-arrow)"/>
+              <rect x="500" y="61" width="224" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="612" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">AACA：让动作自己提问</text>
+              <text x="612" y="115" text-anchor="middle" fill="#52605b" font-size="12">只取当前轨迹需要的证据</text>
+
+              <text x="36" y="191" fill="#24624e" font-size="13" font-weight="700">目标失败链</text>
+              <rect x="34" y="210" width="160" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="114" y="240" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">行为克隆</text>
+              <text x="114" y="264" text-anchor="middle" fill="#52605b" font-size="12">最大化示范轨迹似然</text>
+              <path d="M205 246H251" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-gap-arrow)"/>
+              <rect x="255" y="210" width="184" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="347" y="240" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">保守不一定更优</text>
+              <text x="347" y="264" text-anchor="middle" fill="#52605b" font-size="12">安全与行驶进度失衡</text>
+              <path d="M450 246H496" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-gap-arrow)"/>
+              <rect x="500" y="210" width="224" height="72" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="612" y="240" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">GRPO：比较同场景候选</text>
+              <text x="612" y="264" text-anchor="middle" fill="#52605b" font-size="12">用相对规划奖励更新流策略</text>
+              <text x="380" y="329" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">一个模块修“信息接口”，另一个模块修“优化目标”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>世界模型与规划器只共享 backbone，并不能保证共享的是有用未来；同样，拥有有用表示也不能保证模仿目标会产生最合适的轨迹。LLaWA 的两项核心设计各自对准一条失败链。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">文本先说清意图，未来视频补足动态，动作再从两者中取证</h2>
+
+          <figure class="svg-figure" aria-labelledby="llawa-pipe-title llawa-pipe-desc">
+            <svg viewBox="0 0 760 350" role="img" aria-labelledby="llawa-pipe-title llawa-pipe-desc">
+              <title id="llawa-pipe-title">LLaWA 的训练与推理链</title>
+              <desc id="llawa-pipe-desc">历史多视角视频、车身状态、问题和动作查询进入自回归模型，按文本、未来视觉、潜在动作顺序生成。动作通过 AACA 读取文本和未来视觉，流匹配头生成轨迹，随后只微调规划器。</desc>
+              <defs>
+                <marker id="llawa-pipe-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="350" fill="#fbfaf6"/>
+              <rect x="32" y="60" width="136" height="88" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="100" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">历史 2 秒</text>
+              <text x="100" y="116" text-anchor="middle" fill="#52605b" font-size="12">多视角视频</text>
+              <text x="100" y="136" text-anchor="middle" fill="#52605b" font-size="12">ego state + 问题</text>
+              <path d="M178 104H216" stroke="#355e7c" stroke-width="2" marker-end="url(#llawa-pipe-arrow)"/>
+              <rect x="220" y="48" width="126" height="58" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="283" y="73" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">① 决策文本</text>
+              <text x="283" y="94" text-anchor="middle" fill="#52605b" font-size="11">语义意图</text>
+              <rect x="220" y="120" width="126" height="58" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="283" y="145" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">② 未来视频 token</text>
+              <text x="283" y="166" text-anchor="middle" fill="#52605b" font-size="11">时空动态</text>
+              <path d="M360 77H398" stroke="#355e7c" stroke-width="2" marker-end="url(#llawa-pipe-arrow)"/>
+              <path d="M360 149H398" stroke="#355e7c" stroke-width="2" marker-end="url(#llawa-pipe-arrow)"/>
+              <rect x="402" y="72" width="146" height="96" rx="48" fill="#17201d"/>
+              <text x="475" y="111" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">AACA</text>
+              <text x="475" y="137" text-anchor="middle" fill="#d8d4ca" font-size="12">action Q · text/video K,V</text>
+              <text x="475" y="156" text-anchor="middle" fill="#d8d4ca" font-size="11">→ decision-aware ĥa</text>
+              <path d="M562 120H600" stroke="#355e7c" stroke-width="2" marker-end="url(#llawa-pipe-arrow)"/>
+              <rect x="604" y="70" width="126" height="100" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="667" y="100" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">DiT Flow</text>
+              <text x="667" y="126" text-anchor="middle" fill="#52605b" font-size="12">高斯噪声</text>
+              <text x="667" y="148" text-anchor="middle" fill="#52605b" font-size="12">→ 连续轨迹</text>
+              <path d="M667 184V225" stroke="#86321f" stroke-width="2" marker-end="url(#llawa-pipe-arrow)"/>
+              <rect x="492" y="229" width="238" height="78" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="611" y="258" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Stage 2 · Flow Policy GRPO</text>
+              <text x="611" y="282" text-anchor="middle" fill="#52605b" font-size="12">冻结 AR 世界骨干 · 只更新规划器</text>
+              <text x="611" y="301" text-anchor="middle" fill="#52605b" font-size="11">组内相对奖励 + BC 约束防漂移</text>
+              <rect x="32" y="229" width="406" height="78" rx="5" fill="#fffef9" stroke="#aaa69c"/>
+              <text x="52" y="257" fill="#17201d" font-size="14" font-weight="700">Stage 1 · 联合 SFT</text>
+              <text x="52" y="282" fill="#52605b" font-size="12">文本交叉熵 + 未来视觉交叉熵 + 流匹配动作损失</text>
+              <text x="52" y="301" fill="#52605b" font-size="11">NavDecision 提供语义；真实未来视频与人类轨迹提供动态和动作监督</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>因果顺序很重要：动作表示位于文本和未来视频之后，因此能读取二者；第二阶段又冻结这套表示，只改变轨迹生成器，避免奖励更新破坏已经学到的世界知识。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="AACA 公式说明">
+            <div class="formula-card__label">公式拆解 · 动作怎样读取未来</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">ĥ<sub>a</sub></span> = Attention(<span class="formula-symbol">h<sub>a</sub></span>, [<span class="formula-symbol">h<sub>y</sub></span>; <span class="formula-symbol">h<sub>v</sub></span>], [<span class="formula-symbol">h<sub>y</sub></span>; <span class="formula-symbol">h<sub>v</sub></span>])
+            </div>
+            <p class="formula-card__caption">这条公式回答：潜在动作在送入连续规划器前，怎样从语言计划与未来视觉中只拿自己需要的证据。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>h<sub>a</sub></dt><dd>自回归模型产出的潜在动作 hidden state，作为查询；它代表“我现在要决定哪段轨迹”。</dd></div>
+              <div class="formula-legend__row"><dt>h<sub>y</sub></dt><dd>生成文本的 hidden state，提供转向、减速、让行等高层语义。</dd></div>
+              <div class="formula-legend__row"><dt>h<sub>v</sub></dt><dd>生成未来视频 token 的 hidden state，提供车道、车辆与交通灯怎样随时间变化。</dd></div>
+              <div class="formula-legend__row"><dt>ĥ<sub>a</sub></dt><dd>筛选后的决策表示，持续条件化 DiT 中的流速度场。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：不是把整段未来塞给规划器，而是先让“候选动作”提出问题，再从文本和预测未来里检索答案。AACA 的查询方向正是消融中最有效的 action → text+video。</div>
+          </div>
+
+          <h3>Flow Policy GRPO 改的是动作分布，不是世界骨干</h3>
+          <p>标准流匹配从高斯噪声出发，以 ĥ<sub>a</sub> 条件化每一步速度场。RL 阶段把原本确定性的流转移写成带步长相关噪声的高斯转移，同一场景采样 G 条轨迹，用 PDM 奖励做组内标准化优势，再以行为克隆项约束策略不要偏离参考规划器。论文最优设置为 G=8、最小噪声 0.04、BC 权重 0.1。</p>
+
+          <h3>NavDecision 的价值是语义对齐，但它也引入自动标注依赖</h3>
+          <p>数据流水线得到 103,288 条结构化场景记录、967,651 条多轮决策问答，其中 102,800 条细决策用于 SFT。21 名标注者对 100 个行为平衡样本给出 2,100 次评分，总体均分 4.58/5；阈值 7.0 对“人类认为合格”的精度为 98.5%、召回率为 70.2%，保留约 67% 样本。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">最有说服力的不是总榜，而是阶段消融把三项增益串了起来</h2>
+
+          <div class="table-wrap" role="region" aria-label="LLaWA 关键实验结果" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>证据</th><th>对照</th><th>结果</th><th>能支持什么</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>NAVSIM-V1</td><td>DriveLaW / DriveVLA-W0</td><td>PDMS 90.7</td><td>在作者采用的非反应式规划基准上达到强结果</td></tr>
+                <tr><td>NAVSIM-V2</td><td>WorldRFT</td><td>EPDMS 86.8 vs 86.7</td><td>更严格指标下竞争力接近，而不是全面领先所有子项</td></tr>
+                <tr><td>困难动作子集</td><td>PWM</td><td>平均 PDMS 79.6 vs 75.5</td><td>右转与直行等难例有增益</td></tr>
+                <tr><td>未来视频</td><td>论文转录的各方法值</td><td>FVD 102.5 / 67.24</td><td>规划增强同时保留较强生成质量；非统一复现实验</td></tr>
+                <tr class="evidence-table__emphasis"><td>完整阶段消融</td><td>无 text / AACA / RL</td><td>82.1 → 86.5 → 86.6 → 90.7</td><td>AACA 是主要 SFT 增量，文本在 RL 后被激活</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="llawa-ablation-title llawa-ablation-desc">
+            <svg viewBox="0 0 660 300" role="img" aria-labelledby="llawa-ablation-title llawa-ablation-desc">
+              <title id="llawa-ablation-title">LLaWA 阶段消融的增益路径</title>
+              <desc id="llawa-ablation-desc">无文本无 AACA 的 SFT 为 82.1 PDMS；加入 AACA 为 86.5；加入文本为 86.6；无文本 RL 为 88.6；完整文本加 RL 为 90.7。</desc>
+              <rect width="660" height="300" fill="#fbfaf6"/>
+              <text x="42" y="42" fill="#17201d" font-size="15" font-weight="700">NAVSIM-V1 · PDMS</text>
+              <line x1="170" y1="255" x2="620" y2="255" stroke="#aaa69c"/>
+              <line x1="170" y1="55" x2="170" y2="255" stroke="#aaa69c"/>
+              <text x="154" y="255" text-anchor="end" fill="#52605b" font-size="11">80</text>
+              <text x="154" y="205" text-anchor="end" fill="#52605b" font-size="11">83</text>
+              <text x="154" y="155" text-anchor="end" fill="#52605b" font-size="11">86</text>
+              <text x="154" y="105" text-anchor="end" fill="#52605b" font-size="11">89</text>
+              <text x="154" y="55" text-anchor="end" fill="#52605b" font-size="11">92</text>
+              <rect x="194" y="220" width="58" height="35" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="223" y="213" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">82.1</text>
+              <text x="223" y="275" text-anchor="middle" fill="#52605b" font-size="10">SFT base</text>
+              <rect x="282" y="147" width="58" height="108" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="311" y="140" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">86.5</text>
+              <text x="311" y="275" text-anchor="middle" fill="#52605b" font-size="10">+ AACA</text>
+              <rect x="370" y="145" width="58" height="110" fill="#dcebe5" stroke="#24624e"/>
+              <text x="399" y="138" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">86.6</text>
+              <text x="399" y="275" text-anchor="middle" fill="#52605b" font-size="10">+ text</text>
+              <rect x="458" y="112" width="58" height="143" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="487" y="105" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">88.6</text>
+              <text x="487" y="275" text-anchor="middle" fill="#52605b" font-size="10">RL 无 text</text>
+              <rect x="546" y="77" width="58" height="178" fill="#17201d"/>
+              <text x="575" y="70" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">90.7</text>
+              <text x="575" y="275" text-anchor="middle" fill="#52605b" font-size="10">RL + text</text>
+              <path d="M400 120C445 72 520 60 568 62" fill="none" stroke="#86321f" stroke-width="1.5" stroke-dasharray="4 4"/>
+              <text x="470" y="42" fill="#86321f" font-size="11" font-weight="700">文本在奖励探索后贡献扩大</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>AACA 单独带来 +4.4，而文本在 SFT 只多 +0.1；但同样的文本在 RL 后使 88.6 变成 90.7。最合理的读法是三者有先后依赖：先筛证据，再组织语义，最后让奖励把语义兑现成动作。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">证据边界</span>
+            <p>nuScenes 的 RL 对照把平均位移从 0.67 m 降到 0.50 m、碰撞率从 0.45% 降到 0.16%，说明更新规则能迁移到不同奖励；但 NAVSIM 基准是非反应式模拟，公开表格中的视频生成基线又来自各自论文而非统一代码库，不能把所有排名视为严格同条件比较。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它证明了世界预测可以被规划利用，但离闭环驾驶系统还有几层距离</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>动作查询优于无选择共享</h3>
+              <p>AACA 的有无、K/V 来源与融合顺序均有对照；action 查询直接读取 text+video 是主表最强设置。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>闭环指标仍是非反应式模拟</h3>
+              <p>NAVSIM 会从日志世界评估轨迹，周围交通参与者不会响应自车动作，不等于真实交互式闭环部署。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>真实车上的端到端时延与安全</h3>
+              <p>论文没有实车结果，也没有将文本、未来视频生成、动作解码和系统 I/O 合并成完整控制周期。</p>
+            </article>
+          </div>
+
+          <h3>185.3 ms 不是整条链路的推理时延</h3>
+          <p>附录明确说明动作生成平均 185.3 ms，不含前面的文本与视频生成阶段。由于自回归顺序要求文本和未来视频先完成，真实控制频率必须看完整串行延迟，而非只看 LLaWA-Flow。</p>
+
+          <h3>投稿版没有报告多训练种子不确定性</h3>
+          <p>训练与消融使用固定随机种子 10086，表中没有跨训练种子的置信区间。NAVSIM-V2 上 86.8 与 WorldRFT 的 86.7、文本 SFT 的 +0.1、DiT 相对 MLP 的 +0.3 等小差异，都不宜被解读为稳定显著优势。</p>
+
+          <h3>奖励只在给定指标定义内“更好”</h3>
+          <p>Flow Policy GRPO 依赖 PDM 或位移—碰撞奖励；它把模型推向这些指标，而不是证明获得了通用驾驶价值函数。奖励遗漏的舒适性、罕见法规情形或对他车的长期影响，仍可能被策略忽略。</p>
+
+          <h3>语义决策仍有执行粒度缺口</h3>
+          <p>论文自己的失败例显示：模型能说对“左转”或“减速”，却会低估转向曲率或制动力度。高层语言没有自然包含动作强度；作者建议继续标注曲率、制动强度与驾驶风格。</p>
+
+          <h3>NavDecision 质量检查仍依赖同类模型链</h3>
+          <p>Qwen-3.5-VL-235B 参与自动标注与重生成，LLM 评分器又参与筛选。人类抽检说明阈值精度高，但只覆盖 100 个行为平衡样本；长尾场景、标注模型系统性偏差与训练数据泄漏仍需独立审计。</p>
+
+          <h3>当前材料是未公开预印本的初投稿包</h3>
+          <p>PDF 的投稿问卷在 2026-07-31 明确回答“没有预印本”，本页因此不把它写成 arXiv 论文，也不虚构公开项目链接。实验数字应视为作者在初投稿设置中的报告，等待后续评审、公开代码与独立复现。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li>用户提供的《LLaWA: A Unified Latent Language World Action Model for Autonomous Driving》IEEE Transactions on Multimedia 初投稿 PDF — 本页标题、作者、公式、NavDecision 统计、实验表与附录的唯一主要来源；投稿包 18 页，其中论文正文编号为 16 页。</li>
+            <li>PDF 内的投稿元数据 — 初次提交，生成于 2026-07-31；投稿问卷标明当时没有相同预印本。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>架构、训练设置、数据规模和实验数字是论文事实；“文本是奖励探索的语义脚手架”“两层对齐分别修信息接口与优化目标”“NAVSIM 不等于交互式闭环”等是依据论文设计与评测协议作出的分析判断。本页没有使用或假定未提供的代码仓库事实。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

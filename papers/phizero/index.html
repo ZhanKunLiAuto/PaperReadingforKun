@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="PhiZero: A World Model Built Around Physical Language">
+    <meta name="citation_author" content="Shuyao Shang">
+    <meta name="citation_author" content="Yuqi Wang">
+    <meta name="citation_author" content="Ruopeng Gao">
+    <meta name="citation_author" content="Xu Chen">
+    <meta name="citation_author" content="Tieniu Tan">
+    <meta name="citation_author" content="Lue Fan">
+    <meta name="citation_author" content="Zhaoxiang Zhang">
+    <meta name="citation_publication_date" content="2026-07-30">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.28624">
+    <meta name="citation_public_url" content="https://phi-zero.github.io/">
+    <meta name="description" content="从状态过渡压缩、显式过渡推理和生成先验三条线解读 PhiZero：256 个离散符号怎样承载四秒世界变化，reason-then-render 又为何不同于直接像素预测。">
+    <meta name="keywords" content="PhiZero, physical language, world model, video generation, FSQ, Q-Former, reason-then-render, physical AI">
+    <meta name="paper:read_at" content="2026-08-06">
+    <title>PhiZero：把世界变化写成一种可推理的离散语言</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/phizero/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.28624V1 · 2026-07-30 · 阅读于 2026-08-06</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“先想后画”</a></li>
+          <li><a href="#concepts">物理语言到底是什么</a></li>
+          <li><a href="#problem-chain">像素预测为何隐式又冗余</a></li>
+          <li><a href="#mechanism">tokenizer 与 reasoner 怎样接力</a></li>
+          <li><a href="#evidence">生成、理解与迁移证据</a></li>
+          <li><a href="#limits">符号、尺度与可观测性边界</a></li>
+          <li><a href="#sources">回到论文与项目页</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">PHYSICAL LANGUAGE · REASON THEN RENDER · OPEN-WORLD VIDEO</p>
+          <h1 id="paper-title" class="paper-title">PhiZero</h1>
+          <p class="paper-subtitle">
+            一篇试图把“下一段视频长什么样”改写成“世界发生了什么变化”的论文：先把状态过渡压缩成离散符号序列，再让 VLM 在这个过渡空间里推理，最后交给扩散模型渲染。
+          </p>
+          <div class="paper-byline">
+            <span>Shuyao Shang 等 7 位作者</span>
+            <span>中国科学院自动化研究所等</span>
+            <span>arXiv v1 · 25 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把直接在高维像素空间里隐式预测世界动态，变成先在紧凑、离散、可自回归建模的“物理语言”里显式预测状态过渡，再利用预训练视频扩散先验补回外观细节；目标是获得更物理一致、可控、可迁移的开放域世界模型。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="phi-overview-title phi-overview-desc">
+            <svg viewBox="0 0 760 430" role="img" aria-labelledby="phi-overview-title phi-overview-desc">
+              <title id="phi-overview-title">PhiZero 的问题、机制与证据总览</title>
+              <desc id="phi-overview-desc">直接像素预测将动态隐含在高维生成器中；PhiZero 用过渡级 Q-Former 和 FSQ 学习离散物理语言，VLM 推理这些符号，扩散模型再渲染未来视频。</desc>
+              <defs>
+                <marker id="phi-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="430" fill="#fbfaf6"/>
+              <text x="38" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">旧做法</text>
+              <rect x="34" y="66" width="190" height="238" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="100" fill="#17201d" font-size="17" font-weight="700">直接预测未来像素</text>
+              <text x="54" y="133" fill="#52605b" font-size="13">外观与动态混在一起</text>
+              <text x="54" y="158" fill="#52605b" font-size="13">物理演化只藏在参数里</text>
+              <text x="54" y="183" fill="#52605b" font-size="13">每次都要重建静态细节</text>
+              <line x1="54" y1="209" x2="204" y2="209" stroke="#d0aaa0"/>
+              <text x="54" y="239" fill="#17201d" font-size="14" font-weight="700">自然语言也不够细</text>
+              <text x="54" y="266" fill="#52605b" font-size="12">“球落下”无法编码</text>
+              <text x="54" y="288" fill="#52605b" font-size="12">连续形变、碰撞与液体细节</text>
+
+              <path d="M240 184H274" stroke="#86321f" stroke-width="2" marker-end="url(#phi-overview-arrow)"/>
+              <text x="276" y="45" fill="#355e7c" font-size="13" font-weight="700" letter-spacing="1.8">关键动作</text>
+              <rect x="274" y="66" width="226" height="69" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="294" y="94" fill="#17201d" font-size="15" font-weight="700">① 邻帧过渡 → 256 个离散符号</text>
+              <text x="294" y="117" fill="#52605b" font-size="12">Q-Former + FSQ · 25K 词表</text>
+              <rect x="274" y="151" width="226" height="69" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="294" y="179" fill="#17201d" font-size="15" font-weight="700">② VLM 自回归推理过渡</text>
+              <text x="294" y="202" fill="#52605b" font-size="12">首帧 + 动作意图 → physical language</text>
+              <rect x="274" y="236" width="226" height="69" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="294" y="264" fill="#17201d" font-size="15" font-weight="700">③ 扩散先验负责“画出来”</text>
+              <text x="294" y="287" fill="#52605b" font-size="12">首帧供外观 · 符号供变化</text>
+
+              <path d="M516 184H550" stroke="#86321f" stroke-width="2" marker-end="url(#phi-overview-arrow)"/>
+              <text x="552" y="45" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.8">证据落点</text>
+              <rect x="550" y="66" width="176" height="238" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="570" y="100" fill="#17201d" font-size="15" font-weight="700">Physics-IQ</text>
+              <text x="570" y="124" fill="#52605b" font-size="13">IQ-Score 41.2</text>
+              <text x="570" y="145" fill="#52605b" font-size="12">Wan2.2-5B：21.2</text>
+              <line x1="570" y1="165" x2="706" y2="165" stroke="#d8d4ca"/>
+              <text x="570" y="195" fill="#17201d" font-size="15" font-weight="700">压缩重建</text>
+              <text x="570" y="219" fill="#52605b" font-size="13">256 symbols</text>
+              <text x="570" y="240" fill="#52605b" font-size="12">PSNR 28.9 · SSIM .903</text>
+              <line x1="570" y1="260" x2="706" y2="260" stroke="#d8d4ca"/>
+              <text x="570" y="288" fill="#17201d" font-size="15" font-weight="700">过渡可迁移</text>
+              <text x="570" y="309" fill="#52605b" font-size="12">跨外观 / 跨形态 / sim-to-real</text>
+
+              <rect x="144" y="350" width="472" height="48" rx="24" fill="#17201d"/>
+              <text x="380" y="380" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">把“画面生成”拆成“状态过渡推理”与“外观渲染”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>PhiZero 的核心不是又发明一套视频 token，而是刻意限制过渡通道容量，让它只传“怎么变”；第一帧和扩散先验承担“长什么样”。只有分工成立，离散符号才有机会成为可复用的动态接口。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，“物理语言”不是牛顿定律的符号化版本。</strong>它是从视频重建任务里自监督学出的离散状态过渡码；论文明确承认这些码尚未对齐可解释物理变量或形式定律。</p>
+            <p><strong>第二，reason-then-render 的成立依赖一个精心设计的信息瓶颈。</strong>邻帧 Q-Former 抓局部过渡，FSQ 将其离散化，首帧提供静态外观，预训练扩散模型补细节，pure-noise warm-up 又迫使解码器真正使用过渡条件。</p>
+            <p><strong>第三，最强的实验证据是多类物理生成基准和结构消融；最弱的外推是“零样本迁移等于可执行控制”。</strong>跨人—机器人形态与 sim-to-real 展示证明视频过渡可重渲染，还没有证明机器人策略能照着这些视频稳定执行。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">“物理语言”有三个限定：离散、经验性、描述状态过渡</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">PHYSICAL LANGUAGE（物理语言）</span>
+            <p><strong>英译中：</strong>对视频中世界状态变化模式的紧凑离散编码。</p>
+            <p><strong>怎么理解：</strong>33 帧四秒视频经 VAE 得到 9 个时间状态；相邻 8 个区间各抽取 32 个符号，总计 256 个 token。它类似“变化词汇”，但每个词当前没有人类可读定义。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">REASON-THEN-RENDER（先推理、后渲染）</span>
+            <p><strong>英译中：</strong>先预测未来怎样变化，再把变化渲染成视频。</p>
+            <p><strong>怎么理解：</strong>Qwen3-VL-4B 根据首帧和高层动作意图，自回归输出 physical-language sequence；Wan2.2-5B 扩散解码器再以首帧与这些 token 为条件生成未来。动态推理与像素合成被分成两个概率因子。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">FINITE SCALAR QUANTIZATION（有限标量量化）</span>
+            <p><strong>英译中：</strong>把低维连续特征的每个标量压到有限等级，并用等级笛卡尔积形成离散词表。</p>
+            <p><strong>怎么理解：</strong>配置 (8, 5, 5, 5, 5, 5) 产生 25K 个可能符号，不需要单独学习 VQ codebook；优势是离散稳定，代价是符号语义由组合坐标隐式形成。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY PIXEL-FIRST IS NOT ENOUGH</p>
+          <h2 id="problem-title">旧方法的问题不是不会画，而是“变化规律”没有独立成为预测对象</h2>
+
+          <figure class="svg-figure" aria-labelledby="phi-gap-title phi-gap-desc">
+            <svg viewBox="0 0 760 360" role="img" aria-labelledby="phi-gap-title phi-gap-desc">
+              <title id="phi-gap-title">直接像素预测与物理语言的差别</title>
+              <desc id="phi-gap-desc">直接像素预测同时承担外观和动态，状态过渡被隐式分散在模型参数中；自然语言又太粗。PhiZero 用离散过渡瓶颈分离动态，再由首帧和生成先验恢复外观。</desc>
+              <defs>
+                <marker id="phi-gap-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="360" fill="#fbfaf6"/>
+              <text x="40" y="42" fill="#bd4c32" font-size="13" font-weight="700">像素路径</text>
+              <rect x="36" y="62" width="170" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="121" y="92" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">首帧 + 文本</text>
+              <text x="121" y="116" text-anchor="middle" fill="#52605b" font-size="12">一次性条件</text>
+              <path d="M216 98H265" stroke="#86321f" stroke-width="2" marker-end="url(#phi-gap-arrow)"/>
+              <rect x="269" y="62" width="204" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="371" y="92" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">高维视频生成器</text>
+              <text x="371" y="116" text-anchor="middle" fill="#52605b" font-size="12">外观、相机、动力学全混合</text>
+              <path d="M483 98H532" stroke="#86321f" stroke-width="2" marker-end="url(#phi-gap-arrow)"/>
+              <rect x="536" y="62" width="188" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="630" y="92" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">看似合理的未来</text>
+              <text x="630" y="116" text-anchor="middle" fill="#52605b" font-size="12">物理因果难直接查询</text>
+
+              <text x="40" y="191" fill="#24624e" font-size="13" font-weight="700">PhiZero 路径</text>
+              <rect x="36" y="211" width="170" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="121" y="241" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">首帧 + 动作意图</text>
+              <text x="121" y="265" text-anchor="middle" fill="#52605b" font-size="12">当前世界与启动动作</text>
+              <path d="M216 247H265" stroke="#86321f" stroke-width="2" marker-end="url(#phi-gap-arrow)"/>
+              <rect x="269" y="211" width="204" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="371" y="241" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">离散过渡序列</text>
+              <text x="371" y="265" text-anchor="middle" fill="#52605b" font-size="12">显式预测“怎样变”</text>
+              <path d="M483 247H532" stroke="#86321f" stroke-width="2" marker-end="url(#phi-gap-arrow)"/>
+              <rect x="536" y="211" width="188" height="72" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="630" y="241" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">扩散渲染未来</text>
+              <text x="630" y="265" text-anchor="middle" fill="#52605b" font-size="12">先验补外观与细节</text>
+              <text x="380" y="328" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">分离不是自动发生：必须防止解码器绕过过渡 token</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>下半条链的危险是扩散模型太强，可能只靠被部分加噪的目标与自身先验完成去噪，从而忽略 physical language。论文用纯噪声 warm-up 切断这条捷径，让新条件先变得不可忽略。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">Tokenizer 学“变化词典”，Reasoner 学“怎样写下一句变化”</h2>
+
+          <div class="formula-card" aria-label="PhiZero 概率分解公式说明">
+            <div class="formula-card__label">公式拆解 · 为什么叫 reason-then-render</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">p(V, z | I<sub>0</sub>, c)</span> = <span class="formula-symbol">p(z | I<sub>0</sub>, c)</span> · <span class="formula-symbol">p(V | I<sub>0</sub>, z)</span>
+            </div>
+            <p class="formula-card__caption">这条公式回答：未来视频生成怎样被拆成“预测状态过渡”与“按过渡渲染画面”两个可分别训练的任务。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>I<sub>0</sub></dt><dd>第一帧，既是当前世界状态，也直接提供静态外观。</dd></div>
+              <div class="formula-legend__row"><dt>c</dt><dd>高层动作或交互意图；训练 caption 被刻意限制为不泄露完整结果。</dd></div>
+              <div class="formula-legend__row"><dt>z</dt><dd>离散 physical-language sequence，描述从首帧到未来视频的状态过渡。</dd></div>
+              <div class="formula-legend__row"><dt>V</dt><dd>目标未来视频；解码器根据 I<sub>0</sub> 和 z 恢复。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：Reasoner 先回答“接下来发生哪种变化”，Decoder 再回答“这种变化在当前物体、材质与背景里看起来怎样”。如果 z 能跨外观复用，就说明两个因子至少部分解耦。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="phi-pipe-title phi-pipe-desc">
+            <svg viewBox="0 0 760 420" role="img" aria-labelledby="phi-pipe-title phi-pipe-desc">
+              <title id="phi-pipe-title">PhiZero 的两阶段模型结构</title>
+              <desc id="phi-pipe-desc">训练视频先经时空编码器和相邻状态 Q-Former，FSQ 得到物理语言，扩散解码器重建视频；随后冻结 tokenizer，用首帧和动作 caption 训练 VLM 预测物理语言。</desc>
+              <defs>
+                <marker id="phi-pipe-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="420" fill="#fbfaf6"/>
+              <text x="36" y="42" fill="#bd4c32" font-size="13" font-weight="700">A · 学会编码状态过渡</text>
+              <rect x="34" y="61" width="116" height="68" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="92" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">33 帧视频</text>
+              <text x="92" y="112" text-anchor="middle" fill="#52605b" font-size="11">4 秒 · 8 FPS</text>
+              <path d="M160 95H194" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="198" y="61" width="132" height="68" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="264" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">时空 Encoder</text>
+              <text x="264" y="112" text-anchor="middle" fill="#52605b" font-size="11">→ 9 个 latent states</text>
+              <path d="M340 95H374" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="378" y="61" width="148" height="68" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="452" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">相邻状态 Q-Former</text>
+              <text x="452" y="112" text-anchor="middle" fill="#52605b" font-size="11">8 区间 × 32 queries</text>
+              <path d="M536 95H570" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="574" y="61" width="152" height="68" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="650" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">FSQ：256 symbols</text>
+              <text x="650" y="112" text-anchor="middle" fill="#52605b" font-size="11">25K vocabulary</text>
+
+              <path d="M650 142V184" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="424" y="188" width="302" height="72" rx="5" fill="#17201d"/>
+              <text x="575" y="216" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">Wan2.2-5B Diffusion Decoder</text>
+              <text x="575" y="240" text-anchor="middle" fill="#d8d4ca" font-size="12">首帧外观 + z 过渡 · pure-noise warm-up 防绕行</text>
+              <path d="M412 224H350" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="198" y="188" width="142" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="269" y="216" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">重建目标视频</text>
+              <text x="269" y="240" text-anchor="middle" fill="#52605b" font-size="11">flow-matching loss</text>
+
+              <text x="36" y="311" fill="#24624e" font-size="13" font-weight="700">B · 学会根据意图预测过渡</text>
+              <rect x="34" y="330" width="188" height="62" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="128" y="356" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">首帧 + 高层动作 caption</text>
+              <text x="128" y="378" text-anchor="middle" fill="#52605b" font-size="11">不描述完整结果</text>
+              <path d="M234 361H282" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="286" y="330" width="194" height="62" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="383" y="356" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Qwen3-VL-4B Reasoner</text>
+              <text x="383" y="378" text-anchor="middle" fill="#52605b" font-size="11">next physical-token prediction</text>
+              <path d="M492 361H540" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-pipe-arrow)"/>
+              <rect x="544" y="330" width="182" height="62" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="635" y="356" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">预测 z → 冻结 Decoder</text>
+              <text x="635" y="378" text-anchor="middle" fill="#52605b" font-size="11">生成未来视频</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Tokenizer 先用真实完整视频“发明词汇”；Reasoner 再学习在只有首帧和动作意图时写出正确符号序列。推理时不会先看到目标视频，物理语言必须由 Reasoner 预测。</figcaption>
+          </figure>
+
+          <h3>数据课程把短时变化、长时变化与高分辨率渲染分开学</h3>
+          <p>Tokenizer 预训练从约 50K 小时池中筛出 10K 小时视频，按 1 秒、2 秒、4 秒逐步增加时长，再把输出分辨率从 256×448 提到 512×896。随后用 5M 个四秒真实/仿真 clip 做 SFT。Reasoner 先在同一 5M clip 上继续预训练，再用 800K 高运动质量样本与 200K 仿真样本做运动聚焦 SFT。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">证据分三层：会生成、会判断、过渡码能否换外观复用</h2>
+
+          <div class="table-wrap" role="region" aria-label="PhiZero 关键实验" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>问题</th><th>基准 / 对照</th><th>PhiZero</th><th>最接近强基线</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>物理结果是否接近真实实验</td><td>Physics-IQ Verified</td><td>IQ-Score 41.2</td><td>Cosmos3-Super 39.5</td></tr>
+                <tr><td>是否遵循物理规律</td><td>PhyGround</td><td>Physics 3.01 / Overall 2.97</td><td>Wan2.2-14B Overall 2.95</td></tr>
+                <tr><td>通用世界建模</td><td>WorldModelBench</td><td>Total 8.19</td><td>Runway 8.08</td></tr>
+                <tr><td>直觉物理判断</td><td>IntPhys2</td><td>56.34</td><td>Gemini-2.5 Flash 55.63</td></tr>
+                <tr><td>因果视频辨别</td><td>YoCausal</td><td>aggregate rank 2.0</td><td>Wan2.1/2.2-14B 3.5</td></tr>
+                <tr class="evidence-table__emphasis"><td>高压缩重建</td><td>500 个四秒视频</td><td>256 tokens · PSNR 28.9</td><td>VideoFlexTok 288 tokens · 25.2</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>结构消融</span>
+              <h3>生成先验最关键</h3>
+              <p>去掉扩散解码器，PSNR 28.9 → 26.6，是 Tokenizer 消融里最大下降，支持“瓶颈省略外观、先验补细节”的分工。</p>
+            </article>
+            <article class="claim-card claim-card--supported">
+              <span>Reasoner 消融</span>
+              <h3>自然语言提示不够</h3>
+              <p>Wan2.2-5B 从 21.2 经 prompt enhancement 到 26.6，仍远低于完整模型 41.2；去仿真数据为 37.7，改单阶段训练为 39.2。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>表征分析</span>
+              <h3>过渡码有运动结构</h3>
+              <p>驾驶转向与机器人夹爪动作在 PCA+UMAP 后形成流形或簇，但这是选定四类、每类 300 个样本的可视化，不是全词表可解释性证明。</p>
+            </article>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="phi-transfer-title phi-transfer-desc">
+            <svg viewBox="0 0 660 300" role="img" aria-labelledby="phi-transfer-title phi-transfer-desc">
+              <title id="phi-transfer-title">物理语言迁移实验的逻辑</title>
+              <desc id="phi-transfer-desc">从源视频编码状态过渡，编辑第一帧改变外观或形态，保持过渡符号不变，再解码。若生成视频保留源运动，就说明过渡表征可跨外观复用。</desc>
+              <defs>
+                <marker id="phi-transfer-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="660" height="300" fill="#fbfaf6"/>
+              <rect x="34" y="70" width="138" height="78" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="103" y="101" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">源视频</text>
+              <text x="103" y="126" text-anchor="middle" fill="#52605b" font-size="12">人手 / 人体 / 仿真</text>
+              <path d="M184 109H228" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-transfer-arrow)"/>
+              <rect x="232" y="70" width="146" height="78" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="305" y="101" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">固定 physical z</text>
+              <text x="305" y="126" text-anchor="middle" fill="#52605b" font-size="12">保留状态过渡</text>
+              <path d="M390 109H434" stroke="#355e7c" stroke-width="2" marker-end="url(#phi-transfer-arrow)"/>
+              <rect x="438" y="70" width="188" height="78" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="532" y="101" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">编辑首帧后重渲染</text>
+              <text x="532" y="126" text-anchor="middle" fill="#52605b" font-size="12">机器人 / 新背景 / 真实外观</text>
+              <rect x="112" y="194" width="436" height="62" rx="31" fill="#17201d"/>
+              <text x="330" y="220" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">若运动模式保留：说明 z 没被源外观完全绑死</text>
+              <text x="330" y="242" text-anchor="middle" fill="#d8d4ca" font-size="11">但仍不等于目标机器人动力学可执行或策略成功</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>这是一个“交换外观、冻结变化”的干预实验。它比单纯 UMAP 更直接检验解耦，但评估主要是定性视频；跨形态视觉一致不代表关节限制、接触力和控制频率都已匹配。</figcaption>
+          </figure>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它发明了可推理的过渡码，还没有得到可解释的物理定律</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>离散瓶颈能保留有用动态</h3>
+              <p>256 个符号在高压缩重建、生成基准、理解似然和跨外观重渲染上都有正证据，且关键组件消融方向一致。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>“物理”来自视觉经验</h3>
+              <p>模型学习训练视频里的经验规律，不显式满足守恒、接触或材料方程；数据偏差和视觉歧义会直接限制覆盖。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>长时、交互式闭环稳定性</h3>
+              <p>主模型固定生成四秒 clip；顺序控制展示说明可递推，但没有系统量化多段 rollout 的状态漂移与误差累积。</p>
+            </article>
+          </div>
+
+          <h3>符号还不能直接翻译成力、质量或接触</h3>
+          <p>论文附录明确写道：physical language 是经验状态过渡表征，不是符号物理定律。25K 个 FSQ index 的组合坐标没有对齐人类可解释变量，因此“显式推理”指模型显式预测中间序列，不等于人类能读懂推理链。</p>
+
+          <h3>纯视觉无法覆盖触觉与不可见动力学</h3>
+          <p>材料内部状态、微观粒子、摩擦系数、触觉接触和遮挡后的力学结果，可能产生相同或相似像素却需要不同预测。作者把触觉与微观动态列为现有覆盖盲区。</p>
+
+          <h3>计算规模仍然高，且没有完整成本对照</h3>
+          <p>Tokenizer 与 Reasoner 的多个阶段都使用 128 张 A100；总数据包括 10K 小时预训练视频、5M SFT clip 和 1M 运动聚焦 clip。论文没有给出总 GPU 小时、推理吞吐或相对直接视频模型的端到端成本。</p>
+
+          <h3>理解评测依赖模型自身似然，生成评测含 VLM 裁判</h3>
+          <p>IntPhys2、LikePhys 与 YoCausal 通过比较两段视频对应 physical-language sequence 的 Reasoner 对数似然来判别；PhyGround 与 WorldModelBench 又使用专用 VLM judge。结果支持内部一致性，但仍需要更广的人类物理判断、真实测量和独立 evaluator 校准。</p>
+
+          <h3>跨形态迁移是视频层演示，不是策略层验证</h3>
+          <p>把人体动作迁到 G1、把人手迁到 Sharpa dexterous hand，做法是保留过渡 z、编辑首帧后重渲染。目标视频可能视觉连贯，却没有机器人动作、控制器、碰撞或成功率评测；“零样本 motion transfer”应按这一范围理解。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.28624">论文摘要页：arXiv:2607.28624</a> — 标题、作者、提交日期与版本。</li>
+            <li><a href="https://arxiv.org/pdf/2607.28624">论文 PDF</a> — 本页方法、公式、数据规模、主表、消融、迁移展示与限制的主要来源，共 25 页。</li>
+            <li><a href="https://phi-zero.github.io/">PhiZero 官方项目页</a> — 论文首页提供的项目入口。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>模型结构、训练配置和实验数字是论文事实；“显式中间序列不等于可解释推理”“跨形态视频不等于可执行策略”“强扩散先验既是优势也是可能的绕行源”等是依据论文机制和证据范围作出的分析判断。本页未把未核验实现当作 repo 事实。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

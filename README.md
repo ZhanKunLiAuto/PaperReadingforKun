@@ -7,15 +7,21 @@
 - **目的优先**：先回答论文试图解决什么，再进入方法细节。
 - **机制可视化**：用结构化页面梳理问题链、核心机制和实验结论。
 - **证据与推断分开**：明确区分论文原始证据、合理推断与个人评论。
-- **交互式阅读**：支持划线、批注和评论，并保存在浏览器本地。
+- **交互式阅读**：支持划线、批注和评论；离线时暂存在浏览器，本地 bridge 在线时可写回论文页面。
 - **静态站点**：不依赖后端服务，可直接托管到 GitHub Pages。
 
 ## 当前收录
 
-- [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/)
-- [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/)
+| 论文 | 解读主线 |
+| --- | --- |
+| [PhiZero: A World Model Built Around Physical Language](papers/phizero/) | 用离散“物理语言”压缩状态变化，再以 reason-then-render 生成未来。 |
+| [LLaWA: A Unified Latent Language World Action Model for Autonomous Driving](papers/llawa/) | 统一文本、未来视频与潜在动作，并用 AACA 和 Flow Policy GRPO 对齐规划目标。 |
+| [INTACT: Isomorphic Intent-to-Action Learning for Search-Free World Models](papers/intact/) | 把意图映射到动作，减少潜在世界模型部署时对 CEM 搜索的依赖。 |
+| [Data Pyramid for Embodied Manipulation](papers/data-pyramid/) | 梳理真实机器人、UMI、人类视频、仿真与通用数据组成的数据金字塔。 |
+| [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
+| [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 2 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 6 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
@@ -26,6 +32,12 @@ python3 -m http.server 8000
 ```
 
 然后访问 [http://localhost:8000](http://localhost:8000)。
+
+如需将页面中的划线解释和个人评论写回 HTML，可在另一个终端启动本地 bridge：
+
+```bash
+python3 .agents/skills/paper-reading/scripts/bridge.py --site-root .
+```
 
 ## 新增论文解读
 
