@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Data Pyramid for Embodied Manipulation">
+    <meta name="citation_author" content="Yifan Ye">
+    <meta name="citation_author" content="Yankai Fu">
+    <meta name="citation_author" content="Yaoxu Lv">
+    <meta name="citation_author" content="Bohan Hou">
+    <meta name="citation_author" content="Jun Cen">
+    <meta name="citation_author" content="Lingdong Kong">
+    <meta name="citation_author" content="Duo Zheng">
+    <meta name="citation_author" content="Tianxing Chen">
+    <meta name="citation_author" content="Jiaming Liu">
+    <meta name="citation_author" content="Ziang Cao">
+    <meta name="citation_author" content="Yunfan Lou">
+    <meta name="citation_author" content="Wei Chow">
+    <meta name="citation_author" content="Xian Sun">
+    <meta name="citation_author" content="Yingshuo Wang">
+    <meta name="citation_author" content="Kuangzhi Ge">
+    <meta name="citation_author" content="Xiaowei Chi">
+    <meta name="citation_author" content="Xidong Zhang">
+    <meta name="citation_author" content="Zhibo Pang">
+    <meta name="citation_author" content="Yiwu Zhong">
+    <meta name="citation_author" content="Sirui Han">
+    <meta name="citation_author" content="Zhihe Lu">
+    <meta name="citation_author" content="Weihao Yuan">
+    <meta name="citation_author" content="Qifeng Chen">
+    <meta name="citation_author" content="Michael Yu Wang">
+    <meta name="citation_author" content="Yao Mu">
+    <meta name="citation_author" content="Ziwei Liu">
+    <meta name="citation_author" content="Jianfei Yang">
+    <meta name="citation_author" content="Ping Luo">
+    <meta name="citation_author" content="Shanghang Zhang">
+    <meta name="citation_publication_date" content="2026-07-27">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.24744">
+    <meta name="description" content="以可扩展性和机器人对齐为主轴解读具身操作数据金字塔：真实机器人、UMI、人类第一/第三视角、仿真与通用数据各自提供什么，为什么最优数据配方仍是开放问题。">
+    <meta name="keywords" content="Data Pyramid, embodied manipulation, robot data, UMI, egocentric data, simulation, data recipe, VLA, world action model">
+    <meta name="paper:read_at" content="2026-08-06">
+    <title>Data Pyramid：具身操作真正缺的不是更多数据，而是正确的数据配方</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/data-pyramid/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.24744V1 · 2026-07-27 · 阅读于 2026-08-06</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住两条主轴</a></li>
+          <li><a href="#concepts">六个维度怎样评价数据</a></li>
+          <li><a href="#problem-chain">五层数据各补哪块缺口</a></li>
+          <li><a href="#mechanism">从数据层到模型配方</a></li>
+          <li><a href="#evidence">规模趋势与对齐方式</a></li>
+          <li><a href="#limits">分类边界与六个开放问题</a></li>
+          <li><a href="#sources">回到综述原文</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">SCALABILITY · ROBOT ALIGNMENT · HETEROGENEOUS DATA RECIPES</p>
+          <h1 id="paper-title" class="paper-title">Data Pyramid</h1>
+          <p class="paper-subtitle">
+            一篇不再按模型架构，而是按“数据离真实机器人有多近、又能扩到多大”重排具身操作生态的综述；它最重要的价值不是排出高低，而是给混合数据配方一套共同语言。
+          </p>
+          <div class="paper-byline">
+            <span>Yifan Ye 等 29 位作者</span>
+            <span>北京大学、南洋理工、港科大、新加坡国立、港大等</span>
+            <span>arXiv v1 · 72 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              回答具身基础模型应该用什么数据：将真实机器人、UMI、人类第一/第三视角、仿真与通用数据放进同一比较框架，解释每一层在可扩展性、机器人对齐、质量、多样性、复用性与物理保真度上的收益和债务，并把这些属性连接到 embodied brain、VLA 与 WAM 的训练配方。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="pyramid-overview-title pyramid-overview-desc">
+            <svg viewBox="0 0 760 510" role="img" aria-labelledby="pyramid-overview-title pyramid-overview-desc">
+              <title id="pyramid-overview-title">具身操作数据金字塔总览</title>
+              <desc id="pyramid-overview-desc">金字塔从上到下依次是真实机器人、UMI、人类第一第三视角、仿真和通用数据。向上机器人对齐和真实执行保真更强，向下可扩展性、覆盖和复用更强。</desc>
+              <defs>
+                <marker id="pyramid-axis-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="510" fill="#fbfaf6"/>
+              <text x="380" y="38" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">机器人对齐 / 真实执行保真</text>
+              <path d="M118 438V56" stroke="#86321f" stroke-width="2" marker-end="url(#pyramid-axis-arrow)"/>
+              <text x="88" y="270" transform="rotate(-90 88 270)" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">向上：更直接可执行、更昂贵</text>
+
+              <polygon points="380,66 302,138 458,138" fill="#bd4c32" stroke="#86321f"/>
+              <text x="380" y="112" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">真实机器人</text>
+              <polygon points="302,150 458,150 522,220 238,220" fill="#d48a71" stroke="#9a5b46"/>
+              <text x="380" y="190" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">UMI-style</text>
+              <polygon points="238,232 522,232 584,302 176,302" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="380" y="274" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Egocentric / Exocentric</text>
+              <polygon points="176,314 584,314 646,384 114,384" fill="#dcebe5" stroke="#24624e"/>
+              <text x="380" y="356" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Simulation</text>
+              <polygon points="114,396 646,396 704,466 56,466" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="438" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">General image / video / language / 3D</text>
+
+              <path d="M682 70V446" stroke="#355e7c" stroke-width="2" marker-end="url(#pyramid-axis-arrow)"/>
+              <text x="712" y="270" transform="rotate(90 712 270)" text-anchor="middle" fill="#355e7c" font-size="13" font-weight="700">向下：更可扩展、更广覆盖</text>
+              <text x="380" y="495" text-anchor="middle" fill="#52605b" font-size="12">排序是六维综合判断，不保证每个单项都严格单调</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>金字塔不是“上层高级、下层低级”。上层给可执行动作、真实接触与平台约束，下层给规模、场景、语义与时间先验；一个基础模型通常要用下层拓宽世界，再用上层把知识落到机器人。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，没有一层数据同时拥有最高规模、最高物理保真和直接可执行动作。</strong>金字塔把“数据不够”具体化为不同缺口：真实机器人缺规模，UMI 缺平台动力学，人类视频缺机器人动作，仿真缺真实物理，通用数据缺接触和因果后果。</p>
+            <p><strong>第二，近年的明确趋势是从单一机器人轨迹走向异质混合。</strong>但“数据源越多越好”并未被证明；论文同时指出只用机器人数据的模型也能很强，真正缺少的是 compute-matched、架构匹配、分阶段的数据配方消融。</p>
+            <p><strong>第三，动作对齐比文件格式统一更难。</strong>跨机器人数据即使都存成统一张量，动作维度、物理语义、坐标系、TCP、绝对/增量模式与控制频率仍可能冲突；配方问题最终会落到表示与几何语义。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">两条主轴决定位置，四个补充维度决定“值不值得用”</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SCALABILITY（可扩展性）</span>
+            <p><strong>英译中：</strong>在硬件、人力、复位、安全监督和边际生成成本约束下，数据源能多高效地继续增长。</p>
+            <p><strong>怎么理解：</strong>仿真搭好资产与任务管线后可并行生成；真实机器人每小时都要占硬件、操作员与复位资源。规模也不能只看条数，重复的单技能轨迹未必扩大状态—动作覆盖。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ROBOT ALIGNMENT（机器人对齐）</span>
+            <p><strong>英译中：</strong>观察、表示与监督信号能多直接地服务真实机器人学习和执行。</p>
+            <p><strong>怎么理解：</strong>同平台真实轨迹动作可直接执行；UMI 提供末端轨迹但要 IK/控制器落地；人类视频需重建和 retarget；通用图文只能提供认知先验。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="six-dims-title six-dims-desc">
+            <svg viewBox="0 0 660 360" role="img" aria-labelledby="six-dims-title six-dims-desc">
+              <title id="six-dims-title">数据金字塔的六个评价维度</title>
+              <desc id="six-dims-desc">核心轴是可扩展性和机器人对齐，补充维度是质量、多样性、复用性和物理保真度；同一个数据源需要六维共同判断。</desc>
+              <rect width="660" height="360" fill="#fbfaf6"/>
+              <circle cx="330" cy="180" r="72" fill="#17201d"/>
+              <text x="330" y="172" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">一个数据源</text>
+              <text x="330" y="198" text-anchor="middle" fill="#d8d4ca" font-size="12">不是只看样本数</text>
+              <rect x="42" y="48" width="164" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="124" y="78" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Scalability</text>
+              <text x="124" y="101" text-anchor="middle" fill="#52605b" font-size="11">扩一条数据要付多少成本</text>
+              <line x1="206" y1="111" x2="275" y2="145" stroke="#355e7c"/>
+              <rect x="454" y="48" width="164" height="70" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="536" y="78" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Robot alignment</text>
+              <text x="536" y="101" text-anchor="middle" fill="#52605b" font-size="11">离真实执行还有几步</text>
+              <line x1="454" y1="111" x2="385" y2="145" stroke="#bd4c32"/>
+              <rect x="24" y="248" width="142" height="66" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="95" y="276" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Quality</text>
+              <text x="95" y="299" text-anchor="middle" fill="#52605b" font-size="11">有效、同步、任务相关</text>
+              <line x1="166" y1="266" x2="270" y2="214" stroke="#aaa69c"/>
+              <rect x="181" y="266" width="142" height="66" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="252" y="294" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Diversity</text>
+              <text x="252" y="317" text-anchor="middle" fill="#52605b" font-size="11">任务、环境、结果覆盖</text>
+              <line x1="286" y1="266" x2="307" y2="247" stroke="#24624e"/>
+              <rect x="337" y="266" width="142" height="66" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="408" y="294" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Reusability</text>
+              <text x="408" y="317" text-anchor="middle" fill="#52605b" font-size="11">跨任务与跨形态复用</text>
+              <line x1="374" y1="266" x2="353" y2="247" stroke="#9c7b1f"/>
+              <rect x="494" y="248" width="142" height="66" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="565" y="276" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Physical fidelity</text>
+              <text x="565" y="299" text-anchor="middle" fill="#52605b" font-size="11">接触、延迟、噪声、材料</text>
+              <line x1="494" y1="266" x2="390" y2="214" stroke="#bd4c32"/>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>“真实”不自动等于高质量，“大规模”不自动等于多样，“可 retarget”也不自动等于动力学可执行。四个补充维度防止主轴把复杂数据价值压成一条线。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">FIVE SOURCES, FIVE DIFFERENT DEBTS</p>
+          <h2 id="problem-title">每往下一层，都放松一部分机器人耦合，换取一种新的可扩展性</h2>
+
+          <div class="table-wrap" role="region" aria-label="五层具身数据比较" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>层</th><th>主要得到什么</th><th>为什么能扩</th><th>最关键的债务</th><th>最适合承担的角色</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Real Robot</td><td>传感—动作—后果闭环、真实接触与延迟</td><td>遥操作、策略 rollout、跨机构汇聚</td><td>硬件、人力、复位、安全；平台耦合</td><td>最终动作 grounding 与恢复行为</td></tr>
+                <tr><td>UMI</td><td>真实场景、末端 6-DoF、夹爪/触觉</td><td>机器人不在采集环，可带到日常环境</td><td>跟踪/标定、IK、相机和动力学 gap</td><td>可扩展末端示范与跨平台预训练</td></tr>
+                <tr><td>Ego / Exo</td><td>人手灵巧性、真实物理、长程任务结构</td><td>可穿戴采集覆盖人、场景和物体</td><td>遮挡、姿态重建、人—机器人形态/接触 gap</td><td>affordance、动作先验、任务分解</td></tr>
+                <tr><td>Simulation</td><td>可执行动作、privileged labels、可控失败</td><td>并行、低边际成本、无硬件磨损</td><td>感知与交互 sim-to-real；规模可能重复</td><td>技能合成、预训练、受控评测</td></tr>
+                <tr><td>General</td><td>语义、空间、3D、视频、常识与规划</td><td>Web/benchmark 规模、与 embodiment 无关</td><td>没有本体感知、接触力与可执行动作</td><td>认知底座与世界先验</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="layer-chain-title layer-chain-desc">
+            <svg viewBox="0 0 760 360" role="img" aria-labelledby="layer-chain-title layer-chain-desc">
+              <title id="layer-chain-title">从真实机器人到底层通用数据的耦合放松链</title>
+              <desc id="layer-chain-desc">真实机器人保留完整平台闭环；UMI 去掉机器人但保留末端；人类视频去掉机器人夹爪但保留真实物理；仿真恢复动作但近似物理；通用数据只保留语义与视觉覆盖。</desc>
+              <defs>
+                <marker id="layer-chain-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="360" fill="#fbfaf6"/>
+              <rect x="30" y="70" width="126" height="94" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="93" y="101" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Real Robot</text>
+              <text x="93" y="127" text-anchor="middle" fill="#52605b" font-size="11">机器人 + 动作</text>
+              <text x="93" y="147" text-anchor="middle" fill="#52605b" font-size="11">+ 真实物理</text>
+              <path d="M168 117H196" stroke="#86321f" stroke-width="2" marker-end="url(#layer-chain-arrow)"/>
+              <rect x="200" y="70" width="126" height="94" rx="5" fill="#d48a71" stroke="#9a5b46"/>
+              <text x="263" y="101" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">UMI</text>
+              <text x="263" y="127" text-anchor="middle" fill="#52605b" font-size="11">去掉机器人</text>
+              <text x="263" y="147" text-anchor="middle" fill="#52605b" font-size="11">保留末端轨迹</text>
+              <path d="M338 117H366" stroke="#86321f" stroke-width="2" marker-end="url(#layer-chain-arrow)"/>
+              <rect x="370" y="70" width="126" height="94" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="433" y="101" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Human Video</text>
+              <text x="433" y="127" text-anchor="middle" fill="#52605b" font-size="11">去掉机器人夹爪</text>
+              <text x="433" y="147" text-anchor="middle" fill="#52605b" font-size="11">保留现实交互</text>
+              <path d="M508 117H536" stroke="#86321f" stroke-width="2" marker-end="url(#layer-chain-arrow)"/>
+              <rect x="540" y="70" width="126" height="94" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="603" y="101" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Simulation</text>
+              <text x="603" y="127" text-anchor="middle" fill="#52605b" font-size="11">恢复机器人动作</text>
+              <text x="603" y="147" text-anchor="middle" fill="#52605b" font-size="11">但近似物理</text>
+
+              <path d="M603 176V218" stroke="#86321f" stroke-width="2" marker-end="url(#layer-chain-arrow)"/>
+              <rect x="450" y="222" width="216" height="78" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="558" y="251" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">General Data</text>
+              <text x="558" y="276" text-anchor="middle" fill="#52605b" font-size="11">放弃动作 grounding · 换 Web-scale 认知覆盖</text>
+              <rect x="54" y="222" width="340" height="78" rx="5" fill="#17201d"/>
+              <text x="224" y="251" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">这不是单向淘汰，而是互补监督栈</text>
+              <text x="224" y="276" text-anchor="middle" fill="#d8d4ca" font-size="11">下层教“看懂世界”，上层教“在这个身体里做出来”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>仿真在顺序上位于人类视频下方，不是因为它不含机器人动作，而是综合考虑了真实物理保真与资产/技能覆盖。论文也强调各维度不严格单调，因此不要把金字塔读成单一分数榜。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">FROM TAXONOMY TO TRAINING RECIPE</p>
+          <h2 id="mechanism-title">数据层不是直接相加：先决定模型需要什么能力，再解决动作与几何对齐</h2>
+
+          <figure class="svg-figure" aria-labelledby="recipe-title recipe-desc">
+            <svg viewBox="0 0 760 430" role="img" aria-labelledby="recipe-title recipe-desc">
+              <title id="recipe-title">五层数据到三类模型的训练配方</title>
+              <desc id="recipe-desc">通用与人类视频提供语义和时序先验，仿真提供可控动力学，UMI 与真实机器人提供动作 grounding。Embodied brain 主要读取认知监督，VLA 需要可执行动作，WAM 同时使用无动作和有动作数据。</desc>
+              <defs>
+                <marker id="recipe-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="430" fill="#fbfaf6"/>
+              <text x="36" y="40" fill="#bd4c32" font-size="13" font-weight="700">数据角色</text>
+              <rect x="34" y="58" width="186" height="68" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="127" y="86" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">通用 + Ego/Exo</text>
+              <text x="127" y="109" text-anchor="middle" fill="#52605b" font-size="11">语义、时序、affordance、任务结构</text>
+              <rect x="34" y="146" width="186" height="68" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="127" y="174" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Simulation</text>
+              <text x="127" y="197" text-anchor="middle" fill="#52605b" font-size="11">可控交互、privileged labels、失败</text>
+              <rect x="34" y="234" width="186" height="68" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="127" y="262" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">UMI + Real Robot</text>
+              <text x="127" y="285" text-anchor="middle" fill="#52605b" font-size="11">末端/关节动作、真实接触、部署约束</text>
+
+              <path d="M234 92H282" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <path d="M234 180H282" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <path d="M234 268H282" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <rect x="286" y="70" width="190" height="224" rx="6" fill="#17201d"/>
+              <text x="381" y="104" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">对齐与配方层</text>
+              <text x="381" y="139" text-anchor="middle" fill="#d8d4ca" font-size="12">何时预训练 / 何时 post-train</text>
+              <text x="381" y="170" text-anchor="middle" fill="#d8d4ca" font-size="12">source sampling ratio</text>
+              <text x="381" y="201" text-anchor="middle" fill="#d8d4ca" font-size="12">action-space alignment</text>
+              <text x="381" y="232" text-anchor="middle" fill="#d8d4ca" font-size="12">coordinate-frame alignment</text>
+              <text x="381" y="263" text-anchor="middle" fill="#f1d778" font-size="12" font-weight="700">mask / adapter / semantic slots</text>
+
+              <path d="M490 118H536" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <path d="M490 182H536" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <path d="M490 246H536" stroke="#355e7c" stroke-width="2" marker-end="url(#recipe-arrow)"/>
+              <rect x="540" y="74" width="186" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="633" y="103" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Embodied Brain</text>
+              <text x="633" y="127" text-anchor="middle" fill="#52605b" font-size="11">感知、推理、记忆、高层规划</text>
+              <rect x="540" y="162" width="186" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="633" y="191" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">VLA</text>
+              <text x="633" y="215" text-anchor="middle" fill="#52605b" font-size="11">语言/视觉 → 可执行动作</text>
+              <rect x="540" y="250" width="186" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="633" y="279" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">WAM</text>
+              <text x="633" y="303" text-anchor="middle" fill="#52605b" font-size="11">未来预测 + 动作生成/评估</text>
+
+              <rect x="86" y="354" width="588" height="50" rx="25" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="380" y="376" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">常见 WAM 配方：大规模 action-free 视频预训练 → action-conditioned 数据 grounding</text>
+              <text x="380" y="394" text-anchor="middle" fill="#52605b" font-size="10">无动作数据学世界怎样变化；有动作数据学哪种动作造成这种变化</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>数据不应直接倒进同一个 batch。先按模型能力决定监督角色，再决定阶段、比例和对齐接口；否则下层规模会淹没上层动作信号，跨 embodiment 数值又可能互相冲突。</figcaption>
+          </figure>
+
+          <h3>跨 embodiment 的动作空间有三种主流解法</h3>
+          <p><strong>Embodiment-specific projection</strong> 保留各机器人原生动作，由专属 adapter/head 接入共享 backbone；<strong>fixed-dimensional padding</strong> 统一张量形状但不保证同一维含义一致；<strong>semantic action slots</strong> 给每一块预先定义臂关节、末端位姿、夹爪或灵巧手语义，并 mask 不适用维度。第三种语义更强，但需要更严格的数据标准化。</p>
+
+          <h3>几何对齐要写清坐标，而不是只写“6-DoF”</h3>
+          <p>相同末端运动在 robot-base、world、camera 与 wrist frame 中会得到不同数字。论文把 robot-centric、camera-centric、wrist-centric 分开讨论，并强调原点、轴、左右手系、TCP、绝对/增量、旋转表示和物理单位都应成为一等元数据。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE &amp; TRENDS</p>
+          <h2 id="evidence-title">这是一篇生态综述：它提供规模与配方趋势，不提供单一方法的因果实验</h2>
+
+          <div class="table-wrap" role="region" aria-label="具身数据规模趋势示例" tabindex="0">
+            <table class="evidence-table">
+              <thead>
+                <tr><th>层</th><th>论文列举的规模例子</th><th>趋势</th><th>不能据此推出什么</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Real Robot</td><td>AgiBot World Beta：1M trajectories / 近 3K h；Open X：&gt;2M trajectories</td><td>从单技能到多任务、多平台、千小时</td><td>条数多不等于轨迹和任务多样</td></tr>
+                <tr><td>UMI</td><td>FastUMI-100K：100K；RealOmni：约 789.8K</td><td>从单臂 RGB 到双臂、灵巧手、触觉</td><td>采集轨迹不等于目标机器人可直接执行</td></tr>
+                <tr><td>Ego</td><td>Xperience-10M：10M h（论文图示）；EgoScale：20,854 h action-labeled pretraining</td><td>从视频叙事到动作化、姿态与多传感器</td><td>人类动作规模不自动跨越形态和接触 gap</td></tr>
+                <tr><td>Simulation</td><td>Dex1B：1B；InternData-A1：637K / 7.4K h</td><td>并行量大、任务和资产持续扩展</td><td>规模不保证物理保真或行为多样</td></tr>
+                <tr><td>Mixed recipes</td><td>Qwen-RobotManip：约 38.1K h；Xiaomi-Robotics-1：&gt;100K h UMI pretraining</td><td>2026 年出现数万到十万小时异质配方</td><td>不同处理、过滤和阶段使小时数不可直接横比</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>综述事实</span>
+              <h3>数据源越来越异质</h3>
+              <p>论文逐模型整理 2023–2026 年 VLA/WAM 配方，显示真实机器人之外，通用、ego、仿真与 UMI 的组合变得常见。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>趋势判断</span>
+              <h3>Ego 正从辅助变成预训练底座</h3>
+              <p>越来越多系统把第一视角人类数据作为主要或独立预训练源，但其收益仍依赖动作恢复、retarget 与机器人 post-training。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>尚无答案</span>
+              <h3>最优比例与阶段</h3>
+              <p>论文没有也不声称给出 universal recipe；不同 backbone、动作表示、预算与任务可能对应不同最优混合。</p>
+            </article>
+          </div>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">怎么使用这篇综述的证据</span>
+            <p>它最适合做数据审计清单与研究地图：检查项目是否缺触觉、失败、坐标元数据、真实 post-training 或 action-free pretraining。它不适合被引用成“某层数据必然优于另一层”的性能定律，因为表中规模、过滤、任务、模型和指标并不受控。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">OPEN PROBLEMS &amp; TAXONOMY BOUNDARIES</p>
+          <h2 id="limits-title">金字塔解决了命名问题，真正的工程难题集中在“采什么、怎么采、怎么混”</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>不同数据源提供互补监督</h3>
+              <p>对采集链、模态、动作形式、物理属性与模型用途的系统盘点清楚显示，没有单一层覆盖全部能力。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>分类边界</span>
+              <h3>金字塔不是可计算排名</h3>
+              <p>六个维度没有统一量表或权重；UMI、仿真和 ego 的具体系统差异可能大于类别均值。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>更多数据源是否总能提升</h3>
+              <p>机器人-only 模型仍可很强；缺少固定 compute、模型与总样本预算下的逐层增减实验。</p>
+            </article>
+          </div>
+
+          <h3>一，触觉仍是数据金字塔缺失的接触层</h3>
+          <p>RGB-D 能看到几何和运动，却无法直接给出滑移、局部形变、摩擦、握持稳定与力分布。现有触觉数据受传感器型号、格式、覆盖面积和标定限制，还没有像相机数据一样形成跨平台标准。</p>
+
+          <h3>二，失败不是低质量垃圾，而是恢复监督</h3>
+          <p>成功示范偏置让策略很少看到部署时真正会进入的错误状态。未来数据应记录失败前上下文、发生时刻、原因类别、状态变化、恢复动作与恢复结果，而不是只留二元成功标签。</p>
+
+          <h3>三，跨层采集需要更轻、更自动、更会挑数据</h3>
+          <p>可穿戴 tracking、手套、EMG、触觉与 force sensing 仍有遮挡、漂移、佩戴、同步和用户负担。真正可扩展的管线还要自动标定，并主动把采集预算分给不确定、稀缺或行为信息量高的区域。</p>
+
+          <h3>四，跨 embodiment 对齐需要几何语义，不只是统一 schema</h3>
+          <p>未来数据集应把坐标约定、标定参数与控制器模式作为 first-class metadata，并在变换可信时规范到共享 frame。否则同一动作在不同数据集里可能给出相互冲突的数值监督。</p>
+
+          <h3>五，人类第一视角更适合提供交互先验，不宜冒充精确机器人标签</h3>
+          <p>人手与机器人手在拓扑、自由度、柔顺性、摩擦和力限上不同。更稳妥的分工是：人类视频提供任务意图、affordance、抓取选择、接触序列与长程结构，机器人数据负责落地动作与接触动力学。</p>
+
+          <h3>六，数据配方需要架构感知、阶段感知和预算感知</h3>
+          <p>固定比例、curriculum 与 adaptive mixture 谁更好仍没有系统结论。同一数据源对 VLM、VLA、扩散 WAM 或自回归 WAM 的价值可能不同；未来实验应固定训练 compute 与总数据预算，报告每一层的边际收益。</p>
+
+          <h3>综述本身也有时间与分类局限</h3>
+          <p>论文是 2026-07-27 的 v1，覆盖快速变化的 2026 年模型和部分尚待独立核验的大规模报告；72 页附录式资料非常广，但类别内异质性、数据许可、隐私、去重、泄漏与可访问性没有被同等深入量化。它是一张高价值地图，不是封闭定论。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.24744">论文摘要页：arXiv:2607.24744</a> — 标题、作者、发布日期与版本。</li>
+            <li><a href="https://arxiv.org/pdf/2607.24744">论文 PDF</a> — 本页五层分类、六个维度、数据表、模型配方、动作对齐与未来方向的主要来源，共 72 页。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>数据集/模型规模、类别定义与作者总结是论文事实；“金字塔是共同语言而不是排行榜”“人类视频更适合先验而非精确动作标签”“配方需要固定 compute 的边际实验”等是基于综述材料作出的分析判断。本文汇总的跨论文数字采用各来源自己的口径，不能当作同条件 benchmark。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

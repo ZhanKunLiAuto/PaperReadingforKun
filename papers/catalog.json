@@ -1,6 +1,139 @@
 {
-  "updatedAt": "2026-08-04",
+  "updatedAt": "2026-08-06",
   "papers": [
+    {
+      "slug": "phizero",
+      "title": "PhiZero: A World Model Built Around Physical Language",
+      "authors": [
+        "Shuyao Shang",
+        "Yuqi Wang",
+        "Ruopeng Gao",
+        "Xu Chen",
+        "Tieniu Tan",
+        "Lue Fan",
+        "Zhaoxiang Zhang"
+      ],
+      "publicationDate": "2026-07-30",
+      "readAt": "2026-08-06",
+      "description": "从状态过渡压缩、显式过渡推理和生成先验三条线解读 PhiZero：256 个离散符号怎样承载四秒世界变化，reason-then-render 又为何不同于直接像素预测。",
+      "tags": [
+        "PhiZero",
+        "physical language",
+        "world model",
+        "video generation",
+        "FSQ",
+        "Q-Former",
+        "reason-then-render",
+        "physical AI"
+      ],
+      "sourceUrl": "https://phi-zero.github.io/",
+      "href": "papers/phizero/"
+    },
+    {
+      "slug": "llawa",
+      "title": "LLaWA: A Unified Latent Language World Action Model for Autonomous Driving",
+      "authors": [
+        "Jinjin Cao",
+        "Yongjia Ma",
+        "Shaoyang Peng",
+        "Xuancheng Zhang",
+        "Donglin Di",
+        "Xiangkai Huang",
+        "Zhikang Liu",
+        "Kun Zhan",
+        "Guojun Qi"
+      ],
+      "publicationDate": "2026-07-31",
+      "readAt": "2026-08-06",
+      "description": "从表示对齐与目标对齐两条线解读 LLaWA：文本—未来视频—潜在动作如何因果串联，AACA 怎样筛选决策相关未来信息，Flow Policy GRPO 又如何把预测能力转成规划收益。",
+      "tags": [
+        "LLaWA",
+        "autonomous driving",
+        "world action model",
+        "AACA",
+        "flow matching",
+        "GRPO",
+        "NavDecision",
+        "NAVSIM"
+      ],
+      "sourceUrl": "",
+      "href": "papers/llawa/"
+    },
+    {
+      "slug": "intact",
+      "title": "INTACT: Isomorphic Intent-to-Action Learning for Search-Free World Models",
+      "authors": [
+        "Junhan Sun",
+        "Hao Zhao",
+        "Guofeng Zhang"
+      ],
+      "publicationDate": "2026-07-28",
+      "readAt": "2026-08-06",
+      "description": "从前向世界模型的动作反演缺口解读 INTACT：局部物理意图与未来目标意图如何共用一个条件动作律，把部署时 CEM 搜索改造成零候选直接控制与低预算验证。",
+      "tags": [
+        "INTACT",
+        "JEPA",
+        "latent world model",
+        "intent-to-action",
+        "search-free control",
+        "CEM",
+        "inverse dynamics",
+        "goal-conditioned imitation"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2607.26056",
+      "href": "papers/intact/"
+    },
+    {
+      "slug": "data-pyramid",
+      "title": "Data Pyramid for Embodied Manipulation",
+      "authors": [
+        "Yifan Ye",
+        "Yankai Fu",
+        "Yaoxu Lv",
+        "Bohan Hou",
+        "Jun Cen",
+        "Lingdong Kong",
+        "Duo Zheng",
+        "Tianxing Chen",
+        "Jiaming Liu",
+        "Ziang Cao",
+        "Yunfan Lou",
+        "Wei Chow",
+        "Xian Sun",
+        "Yingshuo Wang",
+        "Kuangzhi Ge",
+        "Xiaowei Chi",
+        "Xidong Zhang",
+        "Zhibo Pang",
+        "Yiwu Zhong",
+        "Sirui Han",
+        "Zhihe Lu",
+        "Weihao Yuan",
+        "Qifeng Chen",
+        "Michael Yu Wang",
+        "Yao Mu",
+        "Ziwei Liu",
+        "Jianfei Yang",
+        "Ping Luo",
+        "Shanghang Zhang"
+      ],
+      "publicationDate": "2026-07-27",
+      "readAt": "2026-08-06",
+      "description": "以可扩展性和机器人对齐为主轴解读具身操作数据金字塔：真实机器人、UMI、人类第一/第三视角、仿真与通用数据各自提供什么，为什么最优数据配方仍是开放问题。",
+      "tags": [
+        "Data Pyramid",
+        "embodied manipulation",
+        "robot data",
+        "UMI",
+        "egocentric data",
+        "simulation",
+        "data recipe",
+        "VLA",
+        "world action model"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2607.24744",
+      "href": "papers/data-pyramid/"
+    },
     {
       "slug": "fomovla",
       "title": "FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models",
