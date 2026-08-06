@@ -14,6 +14,7 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [Video Generation Models are General-Purpose Vision Learners](papers/genception/) | 解析 GenCeption 如何把视频生成骨干改造成多任务感知模型，并审视“通用视觉学习器”的证据边界。 |
 | [PhiZero: A World Model Built Around Physical Language](papers/phizero/) | 用离散“物理语言”压缩状态变化，再以 reason-then-render 生成未来。 |
 | [LLaWA: A Unified Latent Language World Action Model for Autonomous Driving](papers/llawa/) | 统一文本、未来视频与潜在动作，并用 AACA 和 Flow Policy GRPO 对齐规划目标。 |
 | [INTACT: Isomorphic Intent-to-Action Learning for Search-Free World Models](papers/intact/) | 把意图映射到动作，减少潜在世界模型部署时对 CEM 搜索的依赖。 |
@@ -21,7 +22,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 6 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 7 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
