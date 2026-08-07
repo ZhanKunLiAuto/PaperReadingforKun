@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Auto-JEPA: A Latent World Model of Continuous Intent for End-to-End Autonomous Driving">
+    <meta name="citation_author" content="Jiwei Yang">
+    <meta name="citation_author" content="Zhengxian Chen">
+    <meta name="citation_author" content="Chaosheng Huang">
+    <meta name="citation_author" content="Jun Li">
+    <meta name="citation_publication_date" content="2026-07-31">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.20931">
+    <meta name="description" content="从动作相关世界模型、连续意图表征、非参数轨迹检索和候选筛选四条线解读 Auto-JEPA，并核对 NAVSIM 结果、语义遮挡证据与固定记忆边界。">
+    <meta name="keywords" content="Auto-JEPA, latent world model, joint-embedding prediction, trajectory retrieval, autonomous driving, NAVSIM, V-JEPA 2">
+    <meta name="paper:read_at" content="2026-08-08">
+    <title>Auto-JEPA：世界模型不必预测整个世界，只需预测会改变行动的部分</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/auto-jepa/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.20931V1 · 2026-07-31 · 阅读于 2026-08-08</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住目的与判断</a></li>
+          <li><a href="#concepts">理解“连续意图”是什么</a></li>
+          <li><a href="#problem-chain">为何不预测完整未来</a></li>
+          <li><a href="#mechanism">从意图到可执行轨迹</a></li>
+          <li><a href="#evidence">证据能支持到哪一步</a></li>
+          <li><a href="#limits">记忆检索留下哪些债</a></li>
+          <li><a href="#sources">回到论文与代码</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">ACTION-ORIENTED WORLD MODEL · CONTINUOUS INTENT · RETRIEVAL PLANNING</p>
+          <h1 id="paper-title" class="paper-title">Auto-JEPA</h1>
+          <p class="paper-subtitle">
+            它把世界模型的问题从“未来画面会长什么样”改写成“当前场景意味着自车接下来该怎样运动”，再用这个连续意图去检索真实轨迹，而不是让网络直接回归坐标。
+          </p>
+          <div class="paper-byline">
+            <span>Jiwei Yang、Zhengxian Chen、Chaosheng Huang、Jun Li</span>
+            <span>清华大学车辆与运载学院、智能绿色车辆与交通全国重点实验室</span>
+            <span>arXiv v1 · 12 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              让端到端驾驶模型只压缩那些会改变未来自车动作的场景信息，避免为不相关背景、车辆和纹理付出稠密未来重建成本；同时把预测结果直接变成规划接口，在没有目标框、占据图、周车轨迹标签或学习式轨迹生成器的条件下，输出运动学上可执行的四秒轨迹。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <svg viewBox="0 0 760 444" role="img" aria-labelledby="overview-title overview-desc">
+              <title id="overview-title">Auto-JEPA 的问题、动作与证据总览</title>
+              <desc id="overview-desc">稠密世界模型预测大量与当前规划无关的未来内容；Auto-JEPA 先学习轨迹潜空间，再预测连续意图、检索三百条轨迹并通过场景评分器与可行域门控选择；NAVSIM 与语义遮挡实验提供证据。</desc>
+              <defs>
+                <marker id="auto-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="444" fill="#fbfaf6"/>
+              <text x="38" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">01 / 旧问题</text>
+              <rect x="34" y="67" width="202" height="236" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="101" fill="#17201d" font-size="17" font-weight="700">完整未来重建</text>
+              <text x="54" y="133" fill="#52605b" font-size="13">视频 / Occupancy / BEV</text>
+              <text x="54" y="157" fill="#52605b" font-size="13">保存丰富世界细节</text>
+              <line x1="54" y1="178" x2="216" y2="178" stroke="#d3a99d"/>
+              <text x="54" y="208" fill="#17201d" font-size="15" font-weight="700">但规划只问</text>
+              <text x="54" y="235" fill="#52605b" font-size="13">哪些视觉线索会改变</text>
+              <text x="54" y="258" fill="#52605b" font-size="13">未来自车轨迹？</text>
+              <text x="54" y="286" fill="#86321f" font-size="12" font-weight="700">容量浪费 + 误差传播</text>
+
+              <path d="M248 184H278" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#auto-overview-arrow)"/>
+              <text x="282" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">02 / 关键动作</text>
+              <rect x="278" y="67" width="230" height="68" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="96" fill="#17201d" font-size="16" font-weight="700">轨迹自编码器定义意图空间</text>
+              <text x="298" y="119" fill="#52605b" font-size="12">8 个时间 token · 8×1024</text>
+              <rect x="278" y="151" width="230" height="68" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="180" fill="#17201d" font-size="16" font-weight="700">视觉 JEPA 预测未来意图</text>
+              <text x="298" y="203" fill="#52605b" font-size="12">图像 + 自车历史 + 导航</text>
+              <rect x="278" y="235" width="230" height="68" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="264" fill="#17201d" font-size="16" font-weight="700">检索 → 评分 → DAC 门控</text>
+              <text x="298" y="287" fill="#52605b" font-size="12">固定记忆把意图落成几何</text>
+
+              <path d="M520 184H550" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#auto-overview-arrow)"/>
+              <text x="554" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.8">03 / 证据落点</text>
+              <rect x="550" y="67" width="176" height="236" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="570" y="101" fill="#17201d" font-size="16" font-weight="700">NAVSIM v1</text>
+              <text x="570" y="126" fill="#52605b" font-size="13">91.3 PDMS</text>
+              <text x="570" y="148" fill="#52605b" font-size="12">1 个前视相机</text>
+              <line x1="570" y1="166" x2="706" y2="166" stroke="#d8d4ca"/>
+              <text x="570" y="195" fill="#17201d" font-size="16" font-weight="700">NAVSIM v2</text>
+              <text x="570" y="220" fill="#52605b" font-size="13">89.1 EPDMS</text>
+              <line x1="570" y1="238" x2="706" y2="238" stroke="#d8d4ca"/>
+              <text x="570" y="267" fill="#17201d" font-size="15" font-weight="700">动态体遮挡响应</text>
+              <text x="570" y="289" fill="#52605b" font-size="12">随机等面积遮挡的 2.97×</text>
+
+              <path d="M136 326V358H638V326" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="166" y="350" width="444" height="61" rx="30" fill="#17201d"/>
+              <text x="388" y="375" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">预测的是行动后果，不是完整场景</text>
+              <text x="388" y="397" fill="#d8d4ca" text-anchor="middle" font-size="12">收益来自意图检索与选择的完整链条，而非单一 latent loss</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Auto-JEPA 的新意不只是“把未来预测放到 latent 空间”，而是把预测目标限定为未来自车轨迹的表征，并让该表征在推理时承担检索键。世界模型、非参数记忆和场景选择器因此形成一条真正输出规划的链。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，Auto-JEPA 是动作导向的潜在世界模型。</strong>它不预测周围车辆未来状态，也不生成未来画面；“世界”只通过它对四秒自车运动的影响被保留下来。因此它适合规划，却不能替代仿真或显式多智能体预测。</p>
+            <p><strong>第二，连续意图并不是离散左转/右转类别。</strong>8 个时间对齐 token 共同编码一条具体轨迹的几何、速度和加速度；预测 latent 与 110,335 条真实轨迹 latent 做余弦检索，Top-300 再接受安全与质量筛选。</p>
+            <p><strong>第三，最有说服力的证据不是 91.3 分本身，而是“去掉意图会崩、动态体遮挡更敏感”。</strong>固定意图原型令 PDMS 从 91.3 降到 52.6；全验证集上，动态交通参与者遮挡引起的平均 latent 变化是随机等面积遮挡的 2.97 倍。不过主结果只有单次确定性评测，仍缺多随机种子与真实闭环验证。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">先分清三个对象：未来意图、轨迹几何与场景质量</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONTINUOUS DRIVING INTENT（连续驾驶意图）</span>
+            <p><strong>英译中：</strong>对一条未来自车运动实现的连续潜在表示。</p>
+            <p><strong>怎么理解：</strong>它不是“保持车道”这种标签，也不是一句语言解释，而是 8×1024 的序列特征。每个 token 对应未来一个时间点，8 个 token 合起来描述 0.5 秒间隔、共四秒的运动。不同速度、曲率和制动强度可以在 latent 中连续变化。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">NON-PARAMETRIC TRAJECTORY RETRIEVAL（非参数轨迹检索）</span>
+            <p><strong>英译中：</strong>不训练一个坐标生成器，而是从固定样本库中找最接近预测意图的真实轨迹。</p>
+            <p><strong>怎么理解：</strong>检索提供“画得出来的坐标”，还继承了日志轨迹的运动学合理性；代价是系统永远不能输出记忆和 Top-K 候选都没覆盖的动作。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SCENE-CONDITIONED SELECTION（场景条件选择）</span>
+            <p><strong>英译中：</strong>在意图相似的候选里，结合当前场景重新判断哪条最安全、最有效。</p>
+            <p><strong>怎么理解：</strong>余弦相似度只回答“像不像想做的动作”；CLOVER 初始化的 scorer 回答“放在这个场景里质量如何”；DAC gate 则专门预测驶离可行驶区域的风险。三者不可互相替代。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="separation-title separation-desc">
+            <svg viewBox="0 0 640 324" role="img" aria-labelledby="separation-title separation-desc">
+              <title id="separation-title">意图、轨迹和质量评分的责任分工</title>
+              <desc id="separation-desc">预测意图定义适合的运动类型，固定轨迹记忆提供具体坐标，场景评分和可行域门控判断候选在当前道路上的安全与效用，最后输出一条轨迹。</desc>
+              <defs>
+                <marker id="auto-sep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="640" height="324" fill="#fbfaf6"/>
+              <rect x="28" y="78" width="142" height="118" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="99" y="111" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">预测意图 Ẑ</text>
+              <text x="99" y="139" text-anchor="middle" fill="#52605b" font-size="12">想怎样运动？</text>
+              <text x="99" y="163" text-anchor="middle" fill="#52605b" font-size="12">连续 latent 查询</text>
+              <text x="99" y="185" text-anchor="middle" fill="#86321f" font-size="11">不含显式坐标</text>
+              <path d="M180 137H222" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-sep-arrow)"/>
+              <rect x="226" y="58" width="168" height="158" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="310" y="91" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">固定轨迹记忆</text>
+              <text x="310" y="119" text-anchor="middle" fill="#52605b" font-size="12">110,335 条 GT 轨迹</text>
+              <text x="310" y="143" text-anchor="middle" fill="#52605b" font-size="12">余弦 Top-300</text>
+              <path d="M266 169Q310 128 354 169" fill="none" stroke="#355e7c" stroke-width="2"/>
+              <circle cx="276" cy="165" r="4" fill="#355e7c"/>
+              <circle cx="310" cy="147" r="4" fill="#24624e"/>
+              <circle cx="344" cy="165" r="4" fill="#bd4c32"/>
+              <text x="310" y="201" text-anchor="middle" fill="#86321f" font-size="11">给出 8×2 坐标</text>
+              <path d="M404 137H446" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-sep-arrow)"/>
+              <rect x="450" y="58" width="162" height="158" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="531" y="91" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">场景选择</text>
+              <text x="531" y="120" text-anchor="middle" fill="#52605b" font-size="12">Scorer：效用排序</text>
+              <text x="531" y="145" text-anchor="middle" fill="#52605b" font-size="12">Gate：DAC 风险过滤</text>
+              <text x="531" y="171" text-anchor="middle" fill="#52605b" font-size="12">若全部过滤则回退</text>
+              <text x="531" y="199" text-anchor="middle" fill="#86321f" font-size="11">输出最终轨迹 Y*</text>
+              <path d="M99 232V270H531V232" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="315" y="295" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">意图负责召回 · 记忆负责几何 · 评分与门控负责精排</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>把这篇论文只概括成“轨迹最近邻”会漏掉关键设计。Top-1 直接检索只有 87.6 PDMS；扩大到 Top-300 并加入 scorer/gate 才到 91.3。反过来，没有场景化意图、只用固定 codebook medoid，即便保留 scorer 与 gate 也只有 52.6。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY PREDICT LESS</p>
+          <h2 id="problem-title">旧世界模型的矛盾：信息越完整，未必越适合当前规划</h2>
+
+          <figure class="svg-figure" aria-labelledby="failure-title failure-desc">
+            <svg viewBox="0 0 760 382" role="img" aria-labelledby="failure-title failure-desc">
+              <title id="failure-title">稠密未来预测与动作导向预测的因果差异</title>
+              <desc id="failure-desc">稠密预测要求模型保存所有可观察内容，背景与不相关交通体消耗容量并可能传播误差；动作导向预测只让会改变未来自车轨迹的视觉线索进入意图表征。</desc>
+              <defs>
+                <marker id="auto-fail-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="382" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">完整世界目标</text>
+              <rect x="34" y="62" width="180" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="124" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">预测所有未来内容</text>
+              <text x="124" y="116" text-anchor="middle" fill="#52605b" font-size="12">像素、占据、周车状态</text>
+              <path d="M224 98H272" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#auto-fail-arrow)"/>
+              <rect x="276" y="62" width="188" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="370" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">容量覆盖无关细节</text>
+              <text x="370" y="116" text-anchor="middle" fill="#52605b" font-size="12">不相干车辆也必须预测</text>
+              <path d="M474 98H522" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#auto-fail-arrow)"/>
+              <rect x="526" y="62" width="198" height="72" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="625" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">感知/预测误差下传</text>
+              <text x="625" y="116" text-anchor="middle" fill="#52605b" font-size="12">却未必改变即时动作</text>
+
+              <text x="38" y="190" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.7">动作导向目标</text>
+              <rect x="34" y="210" width="180" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="124" y="239" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">预测未来自车 latent</text>
+              <text x="124" y="264" text-anchor="middle" fill="#52605b" font-size="12">只由 GT 轨迹定义目标</text>
+              <path d="M224 246H272" fill="none" stroke="#24624e" stroke-width="2" marker-end="url(#auto-fail-arrow)"/>
+              <rect x="276" y="210" width="188" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="370" y="239" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">视觉线索按行动后果压缩</text>
+              <text x="370" y="264" text-anchor="middle" fill="#52605b" font-size="12">互动前车影响更大</text>
+              <path d="M474 246H522" fill="none" stroke="#24624e" stroke-width="2" marker-end="url(#auto-fail-arrow)"/>
+              <rect x="526" y="210" width="198" height="72" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="625" y="239" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">latent 直接参与规划</text>
+              <text x="625" y="264" text-anchor="middle" fill="#52605b" font-size="12">检索键 → 候选 → 轨迹</text>
+
+              <rect x="153" y="316" width="454" height="43" rx="21" fill="#17201d"/>
+              <text x="380" y="343" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">不是“知道得越少越好”，而是“预测目标必须与决策接口对齐”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文不是证明完整世界模型没有价值。互动仿真、反事实生成与多主体预测仍需要场景级未来；Auto-JEPA 只论证：对它研究的单车四秒轨迹规划接口，未来自车运动是更直接、计算更集中的预测目标。</figcaption>
+          </figure>
+
+          <h3>动作相关性不是人工标注，而是由未来轨迹目标间接产生</h3>
+          <p>视觉编码器从未接收目标框、动态体类别、周车身份或交互标签。训练信号只要求预测的 latent 靠近未来自车轨迹 latent。若某辆车会迫使自车制动或绕行，它的视觉存在有助于降低 intent loss；若一辆相邻车不影响自车轨迹，保留它对 loss 的帮助很小。这就是论文所谓的 selective focus。</p>
+
+          <h3>但“只关注相关信息”仍是经验结论，不是可识别性保证</h3>
+          <p>轨迹监督并不能数学上阻止 latent 编码天气、道路风格或数据集捷径；它只让这些信息在没有预测收益时缺少保留动力。语义遮挡实验支持模型确实更依赖动态交通体，但没有互信息约束、反事实因果干预或跨域去捷径实验来证明 latent 只包含行动相关因素。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">两阶段训练，四个责任模块：从坐标学出意图，再从场景预测意图</h2>
+
+          <figure class="svg-figure" aria-labelledby="pipeline-title pipeline-desc">
+            <svg viewBox="0 0 760 470" role="img" aria-labelledby="pipeline-title pipeline-desc">
+              <title id="pipeline-title">Auto-JEPA 的训练与推理流程</title>
+              <desc id="pipeline-desc">第一阶段用轨迹自编码器建立八个时间 token 的潜空间并冻结编码器；第二阶段将四帧图像、四个历史位置和导航命令输入 JEPA 预测器，与未来轨迹 latent 对齐；推理时预测 latent 检索三百条轨迹，再经评分器和 DAC 门控选择。</desc>
+              <defs>
+                <marker id="auto-pipe-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="470" fill="#fbfaf6"/>
+              <text x="36" y="39" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">STAGE 1 · DEFINE THE TARGET SPACE</text>
+              <rect x="34" y="57" width="132" height="62" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="100" y="84" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">GT 未来轨迹 Y</text>
+              <text x="100" y="105" text-anchor="middle" fill="#52605b" font-size="11">8 点 · 4 秒</text>
+              <path d="M176 88H218" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="222" y="50" width="154" height="76" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="299" y="80" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Trajectory Encoder</text>
+              <text x="299" y="103" text-anchor="middle" fill="#52605b" font-size="11">4 层 Transformer</text>
+              <path d="M386 88H428" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="432" y="50" width="128" height="76" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="496" y="80" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Z+ · 8×1024</text>
+              <text x="496" y="103" text-anchor="middle" fill="#52605b" font-size="11">冻结目标空间</text>
+              <path d="M570 88H612" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="616" y="57" width="110" height="62" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="671" y="84" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Decoder</text>
+              <text x="671" y="105" text-anchor="middle" fill="#52605b" font-size="11">训练后丢弃</text>
+
+              <line x1="34" y1="153" x2="726" y2="153" stroke="#d8d4ca" stroke-dasharray="5 5"/>
+              <text x="36" y="183" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">STAGE 2 · PREDICT THE INTENT</text>
+              <rect x="34" y="202" width="152" height="132" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="110" y="232" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">当前上下文 X</text>
+              <text x="110" y="260" text-anchor="middle" fill="#52605b" font-size="12">4 帧前视图像</text>
+              <text x="110" y="284" text-anchor="middle" fill="#52605b" font-size="12">4 个历史位置</text>
+              <text x="110" y="308" text-anchor="middle" fill="#52605b" font-size="12">导航命令</text>
+              <path d="M196 268H238" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="242" y="202" width="176" height="132" rx="5" fill="#17201d"/>
+              <text x="330" y="235" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">JEPA Predictor</text>
+              <text x="330" y="262" text-anchor="middle" fill="#d8d4ca" font-size="12">冻结 V-JEPA 2 视觉编码器</text>
+              <text x="330" y="286" text-anchor="middle" fill="#d8d4ca" font-size="12">24 层 · 16 头 · 1024 维</text>
+              <text x="330" y="312" text-anchor="middle" fill="#f1d778" font-size="11">输出 Ẑ · 8×1024</text>
+              <path d="M428 268H470" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="474" y="202" width="116" height="132" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="532" y="235" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">三重对齐</text>
+              <text x="532" y="262" text-anchor="middle" fill="#52605b" font-size="11">Smooth L1</text>
+              <text x="532" y="284" text-anchor="middle" fill="#52605b" font-size="11">Token Cosine</text>
+              <text x="532" y="306" text-anchor="middle" fill="#52605b" font-size="11">Batch InfoNCE</text>
+              <path d="M600 268H628" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#auto-pipe-arrow)"/>
+              <rect x="632" y="202" width="94" height="132" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="679" y="239" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">轨迹记忆</text>
+              <text x="679" y="268" text-anchor="middle" fill="#52605b" font-size="11">Top-300</text>
+              <text x="679" y="291" text-anchor="middle" fill="#52605b" font-size="11">Scorer</text>
+              <text x="679" y="314" text-anchor="middle" fill="#52605b" font-size="11">DAC Gate</text>
+
+              <path d="M110 361V391H679V361" fill="none" stroke="#86321f" stroke-width="1.7" stroke-dasharray="5 5"/>
+              <rect x="169" y="383" width="451" height="56" rx="28" fill="#17201d"/>
+              <text x="394" y="407" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">推理时没有未来图像、坐标回归或迭代采样</text>
+              <text x="394" y="427" text-anchor="middle" fill="#d8d4ca" font-size="11">但仍依赖固定记忆、预训练 scorer 和独立 gate</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Stage 1 先决定“什么样的 latent 才算一种未来运动”；Stage 2 才学习“从当前场景猜这个 latent”。把同一个冻结 trajectory encoder 同时用于训练目标与记忆编码，是 latent 可以直接拿去检索的关键。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="轨迹意图空间公式说明">
+            <div class="formula-card__label">公式拆解 · 连续意图怎样被定义</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">Z+</span> = E<sub>traj</sub>(<span class="formula-symbol">Y</span>) ∈ ℝ<sup>8×1024</sup>, &nbsp; Ŷ = D<sub>traj</sub>(<span class="formula-symbol">Z+</span>)
+            </div>
+            <p class="formula-card__caption">这条公式回答：怎样把 8×2 的未来坐标变成既保留时间结构、又适合作为 JEPA 预测目标和检索键的表示。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>Y</dt>
+                <dd>8 个二维 waypoint，0.5 秒一个点，覆盖未来四秒；训练前坐标按 64 缩放。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>E<sub>traj</sub></dt>
+                <dd>4 层 Transformer 轨迹编码器，1024 隐藏维、16 头、8 组 Fourier 频率；预训练后冻结。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>Z+</dt>
+                <dd>目标意图 latent。8 个 token 对应 8 个未来时间位置，共同表示一条连续运动，而不是 8 个动作类别。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>D<sub>traj</sub></dt>
+                <dd>训练期轻量解码器，用坐标、终点、速度与加速度一致性损失验证 latent 能重建轨迹；随后丢弃。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：先训练一把“轨迹尺子”。只要视觉预测落在这把尺子的某个位置，就可以到用同一把尺子编码的日志记忆里，找回一条具体、真实出现过的运动轨迹。</div>
+          </div>
+
+          <h3>三项 joint-embedding loss 各修一类问题</h3>
+          <p>Feature Smooth L1 对齐归一化后的局部特征值；token-wise cosine 逐时间点对齐运动语义；batch InfoNCE 把一条完整 latent 展平后，与同 batch 其他场景拉开，避免所有场景坍缩到相似表示。总损失为 L<sub>intent</sub>=0.1L<sub>feat</sub>+2.0L<sub>cos</sub>+L<sub>NCE</sub>，InfoNCE 温度 τ=0.07。</p>
+
+          <div class="formula-card" aria-label="检索与选择公式说明">
+            <div class="formula-card__label">公式拆解 · 意图怎样落成最终轨迹</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">r<sub>n</sub></span> = Norm(vec(Ẑ))<sup>⊤</sup> Norm(vec(Z<sub>n</sub>)), &nbsp; <span class="formula-symbol">Y*</span> = Y<sub>arg max s<sub>k</sub>, p<sup>DAC</sup><sub>k</sub>≤0.2</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：先按 latent 相似性召回哪些轨迹，再在当前场景中允许哪条候选获胜。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>r<sub>n</sub></dt>
+                <dd>预测意图与第 n 条记忆轨迹的扁平余弦相似度；越大越适合作为候选，取前 300 条。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>s<sub>k</sub></dt>
+                <dd>场景条件 scorer 对第 k 条候选的综合质量分，输入当前场景特征、自车上下文与候选轨迹。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>p<sup>DAC</sup><sub>k</sub></dt>
+                <dd>独立 gate 预测候选违反 drivable area 的概率；大于 0.2 时屏蔽，若全部被屏蔽则恢复未门控排序。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：检索负责“别漏掉合适动作”，scorer 负责“在当前场景里挑最好”，gate 负责“把可能驶出可行域的先剔除”。最后两步不能补造候选，因此系统上限仍由意图召回和记忆覆盖决定。</div>
+          </div>
+
+          <h3>“端到端”指接口，不等于所有模块联合训练</h3>
+          <p>传感器输入直接得到轨迹，过程没有显式感知输出，因而接口上是端到端；但优化是分阶段的：轨迹 AE、intent predictor、scorer 与 DAC gate 分开训练，scorer 和 gate 的梯度不会回到视觉编码器或 JEPA predictor。更准确的描述是“端到端规划接口 + 模块化训练”。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">四组证据：主表、组件消融、候选规模与遮挡响应</h2>
+
+          <h3>主结果：单前视相机，在两个 NAVSIM 协议下都保持竞争力</h3>
+          <div class="table-wrap" role="region" aria-label="Auto-JEPA 的 NAVSIM 主结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>协议</th><th>NC</th><th>DAC</th><th>EP</th><th>关键附加项</th><th>总分</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>NAVSIM v1 navtest</td><td>98.4</td><td>98.3</td><td>87.1</td><td>TTC 95.0 / Comfort 100.0</td><td><strong>91.3 PDMS</strong></td></tr>
+                <tr class="evidence-table__emphasis"><td>NAVSIM v2（更新实现）</td><td>98.5</td><td>98.7</td><td>90.5</td><td>TL 99.7 / LK 94.7 / EC 75.2</td><td><strong>89.1 EPDMS</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>v1 使用完整 12,146 场景 navtest；v2 使用更新后的官方实现并开启 human-behavior filtering。论文也报告旧实现为 85.6 EPDMS，主要差异在 traffic-light 与 lane-keeping。因此 89.1 必须和相同评测版本比较，不能与旧协议结果直接混排。</p>
+
+          <h3>组件消融：意图决定系统有没有“方向”，scorer 决定精排，gate 做小幅安全修正</h3>
+          <div class="table-wrap" role="region" aria-label="Auto-JEPA 组件消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>Intent</th><th>Scorer</th><th>Gate</th><th>NC</th><th>DAC</th><th>EP</th><th>PDMS</th><th>读法</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>✗</td><td>✓</td><td>✓</td><td>83.1</td><td>85.3</td><td>37.8</td><td>52.6</td><td>固定 medoid 无场景方向</td></tr>
+                <tr><td>✓</td><td>✗</td><td>✓</td><td>98.1</td><td>96.4</td><td>81.7</td><td>87.6</td><td>Top-1 意图检索已很强</td></tr>
+                <tr><td>✓</td><td>✓</td><td>✗</td><td>98.5</td><td>97.9</td><td>86.9</td><td>91.0</td><td>scorer 提供主要精排增益</td></tr>
+                <tr class="evidence-table__emphasis"><td>✓</td><td>✓</td><td>✓</td><td>98.4</td><td>98.3</td><td>87.1</td><td>91.3</td><td>gate 提升 DAC 0.4</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这些行不是按顺序累加：无 scorer 行仍有 gate，无 gate 行仍有 scorer。条件比较显示，保留 gate 时 scorer 带来 +3.7 PDMS；保留 scorer 时 gate 只带来 +0.3 PDMS，但 DAC +0.4。论文最强的因果证据是 intent 行：没有场景化意图，后两级无法从固定候选中心挽救规划。</p>
+
+          <h3>候选规模：主要收益发生在 1 → 200，继续堆候选已接近饱和</h3>
+          <div class="table-wrap" role="region" aria-label="候选池规模敏感性" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>Top-K</th><th>1</th><th>200</th><th>300</th><th>结论</th></tr></thead>
+              <tbody><tr class="evidence-table__emphasis"><td>PDMS</td><td>87.6</td><td>91.1</td><td>91.3</td><td>200→300 仅 +0.2，扩大池子的边际收益已很小</td></tr></tbody>
+            </table>
+          </div>
+
+          <h3>语义遮挡：模型确实更依赖动态交通参与者，但这不是对象级感知评测</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="occlusion-title occlusion-desc">
+            <svg viewBox="0 0 640 338" role="img" aria-labelledby="occlusion-title occlusion-desc">
+              <title id="occlusion-title">动态体与随机遮挡的意图变化对比</title>
+              <desc id="occlusion-desc">在一万五千三百六十四个验证样本上，对四帧一致遮挡动态交通参与者区域时，平均一减余弦相似度为零点零八；遮挡等面积随机区域为零点零二七，前者是后二者的二点九七倍，并在百分之七十一点一的样本中更大。</desc>
+              <rect width="640" height="338" fill="#fbfaf6"/>
+              <text x="38" y="43" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">15,364 VALIDATION SAMPLES · SAME MASK ACROSS FOUR FRAMES</text>
+              <text x="38" y="91" fill="#17201d" font-size="15" font-weight="700">平均意图变化 Δ = 1 − cosine（越大表示越依赖被遮区域）</text>
+              <text x="38" y="138" fill="#52605b" font-size="13">等面积随机遮挡</text>
+              <rect x="188" y="119" width="135" height="30" rx="3" fill="#aaa69c"/>
+              <text x="335" y="140" fill="#52605b" font-size="13">0.027</text>
+              <text x="38" y="198" fill="#52605b" font-size="13">动态参与者遮挡</text>
+              <rect x="188" y="179" width="400" height="30" rx="3" fill="#bd4c32"/>
+              <text x="600" y="200" fill="#86321f" font-size="13" font-weight="700">0.080</text>
+              <line x1="38" y1="239" x2="602" y2="239" stroke="#d8d4ca"/>
+              <text x="38" y="270" fill="#17201d" font-size="14" font-weight="700">相对响应：2.97×</text>
+              <text x="38" y="299" fill="#17201d" font-size="14" font-weight="700">逐样本更大比例：71.1%</text>
+              <text x="286" y="270" fill="#52605b" font-size="12">历史自车位置与导航命令保持不变</text>
+              <text x="286" y="299" fill="#52605b" font-size="12">遮挡依赖投影动态体区域，分析时才用标注</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>它说明预测 latent 对动态体区域的依赖高于同面积图像缺失，并配合单车遮挡案例显示互动前车比不相关车辆引起更大轨迹变化。它没有证明模型能正确识别每个对象，也没有分离遮挡纹理、位置和对象身份的影响。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">证据链最稳的部分</span>
+            <p><strong>规划分数、组件消融和遮挡分析指向同一个机制：</strong>场景化连续意图承担候选召回的主要责任，scorer 负责从多条相近几何中精排，gate 只做有限的可行域补丁；模型对会改变自车动作的交通参与者表现出更强响应。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">这条路线把生成难题变成检索难题，也把上限交给了记忆与校准</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>未来自车 latent 可作为规划接口</h3>
+              <p>同一轨迹编码器连接监督与检索；移除 intent 后性能断崖式下降，说明 latent 不是只在训练期提供辅助正则。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>选择性关注不等于完整因果理解</h3>
+              <p>遮挡实验显示相对敏感度差异，却没有验证对象身份、交互关系和未来反事实是否被正确建模。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>真实闭环与分布外记忆覆盖</h3>
+              <p>NAVSIM 是数据驱动、非反应式评测；论文没有证明固定记忆在新城市、极端行为或交互闭环中仍能召回可行动作。</p>
+            </article>
+          </div>
+
+          <h3>第一，固定轨迹记忆决定可达动作空间</h3>
+          <p>若合适的急刹、绕障或非常规转弯从未进入 110,335 条记忆，预测器、scorer 和 gate 都无法合成它。Top-200 到 Top-300 的饱和说明简单扩大候选数量已接近当前组合的上限；更广记忆、分层索引、条件生成或局部轨迹优化才可能扩展可达集合。</p>
+
+          <h3>第二，召回之后仍有评分与门控校准问题</h3>
+          <p>scorer 可能把合法候选打低分，gate 可能拒绝边界合法轨迹或放过驶出可行域的轨迹。全部候选被过滤时的 fallback 只保证有输出，不保证安全。论文提出 uncertainty-aware scoring、hard-negative training 等方向，但当前系统没有可证明的安全兜底。</p>
+
+          <h3>第三，“无需感知标注”不能理解成完全无结构监督</h3>
+          <p>intent predictor 不用对象框、占据或周车轨迹标签，这是事实；但轨迹 AE 需要未来自车 GT，scorer 和 gate 的 75,823 个训练场景使用 NAVSIM/CLOVER 离线 evaluator 生成碰撞、DAC、TTC、舒适度和进度标签。整套系统仍依赖强任务监督，只是没有中间感知标签。</p>
+
+          <h3>第四，主表不是端到端联合学习的单一收益</h3>
+          <p>视觉编码器冻结，scorer 从公开 CLOVER scorer 初始化后单独适配，gate 也独立训练。因此 91.3 是“V-JEPA 视觉特征 + intent predictor + 固定记忆 + CLOVER 初始化 scorer + gate”的系统结果，不能全部归因于 JEPA 预测目标。</p>
+
+          <h3>第五，主结果只有一次完整 navtest 运行</h3>
+          <p>论文明确说明所有 benchmark 数字来自选定 checkpoint 的一次确定性全量评测，不是独立重训模型的均值；没有标准差或置信区间。15,364 个遮挡样本提供了稳定的数据内干预统计，但无法替代模型训练随机性的重复实验。</p>
+
+          <h3>第六，它不是用于显式未来仿真的通用世界模型</h3>
+          <p>Auto-JEPA 不输出其他交通体状态、未来图像或可反事实编辑的环境轨迹。若应用需要交互仿真、长时 rollout 或“如果前车突然加速会怎样”的环境级查询，动作导向 latent 不足以提供答案。论文的有效范围是当前观察到四秒自车轨迹的规划接口。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.20931">论文摘要页：arXiv:2607.20931</a> — 标题、作者、版本与提交信息。</li>
+            <li><a href="https://arxiv.org/pdf/2607.20931">论文 PDF</a> — 本页方法、公式、NAVSIM 表格、语义遮挡、附录实现与限制的主要来源，共 12 页。</li>
+            <li><a href="https://github.com/NoctYang/Auto-JEPA">作者给出的代码与模型仓库</a> — 链接来自论文摘要；本页没有把未逐文件核验的实现细节当作 repo 事实。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>结构、训练配置、样本数和评测数值是论文事实；“端到端规划接口 + 模块化训练”“完整系统分数不能全部归因于 JEPA”“选择性敏感不等于因果可识别”“固定记忆把生成难题改成覆盖与校准问题”等是依据论文设计和证据范围作出的分析判断。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -1,6 +1,59 @@
 {
-  "updatedAt": "2026-08-06",
+  "updatedAt": "2026-08-08",
   "papers": [
+    {
+      "slug": "wam-diff2",
+      "title": "WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA",
+      "authors": [
+        "Zhihao Zhu",
+        "Hanlin Shang",
+        "Mingwang Xu",
+        "Feipeng Cai",
+        "Zhuolin He",
+        "Yaoyi Li",
+        "Jianhua Han",
+        "Hang Xu",
+        "Siyu Zhu"
+      ],
+      "publicationDate": "2026-08-02",
+      "readAt": "2026-08-08",
+      "description": "从块因果离散扩散、三级 AR-to-Diffusion 蒸馏、统一多任务 VLA 与系统级加速四条线解读 WAM-Diff2，并拆分模型收益、候选选择和硬件优化的证据边界。",
+      "tags": [
+        "WAM-Diff2",
+        "vision-language-action",
+        "discrete diffusion",
+        "block-causal attention",
+        "knowledge distillation",
+        "autonomous driving",
+        "NAVSIM"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2608.01035",
+      "href": "papers/wam-diff2/"
+    },
+    {
+      "slug": "auto-jepa",
+      "title": "Auto-JEPA: A Latent World Model of Continuous Intent for End-to-End Autonomous Driving",
+      "authors": [
+        "Jiwei Yang",
+        "Zhengxian Chen",
+        "Chaosheng Huang",
+        "Jun Li"
+      ],
+      "publicationDate": "2026-07-31",
+      "readAt": "2026-08-08",
+      "description": "从动作相关世界模型、连续意图表征、非参数轨迹检索和候选筛选四条线解读 Auto-JEPA，并核对 NAVSIM 结果、语义遮挡证据与固定记忆边界。",
+      "tags": [
+        "Auto-JEPA",
+        "latent world model",
+        "joint-embedding prediction",
+        "trajectory retrieval",
+        "autonomous driving",
+        "NAVSIM",
+        "V-JEPA 2"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2607.20931",
+      "href": "papers/auto-jepa/"
+    },
     {
       "slug": "genception",
       "title": "Video Generation Models are General-Purpose Vision Learners",

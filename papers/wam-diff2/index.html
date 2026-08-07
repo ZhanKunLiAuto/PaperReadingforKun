@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA">
+    <meta name="citation_author" content="Zhihao Zhu">
+    <meta name="citation_author" content="Hanlin Shang">
+    <meta name="citation_author" content="Mingwang Xu">
+    <meta name="citation_author" content="Feipeng Cai">
+    <meta name="citation_author" content="Zhuolin He">
+    <meta name="citation_author" content="Yaoyi Li">
+    <meta name="citation_author" content="Jianhua Han">
+    <meta name="citation_author" content="Hang Xu">
+    <meta name="citation_author" content="Siyu Zhu">
+    <meta name="citation_publication_date" content="2026-08-02">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.01035">
+    <meta name="description" content="从块因果离散扩散、三级 AR-to-Diffusion 蒸馏、统一多任务 VLA 与系统级加速四条线解读 WAM-Diff2，并拆分模型收益、候选选择和硬件优化的证据边界。">
+    <meta name="keywords" content="WAM-Diff2, vision-language-action, discrete diffusion, block-causal attention, knowledge distillation, autonomous driving, NAVSIM">
+    <meta name="paper:read_at" content="2026-08-08">
+    <title>WAM-Diff2：怎样把自回归驾驶 VLA 改造成并行扩散模型</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/wam-diff2/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2608.01035V1 · 2026-08-02 · 阅读于 2026-08-08</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住目的与判断</a></li>
+          <li><a href="#concepts">看懂块扩散与暴露偏差</a></li>
+          <li><a href="#problem-chain">为什么不能直接换解码器</a></li>
+          <li><a href="#mechanism">三级蒸馏怎样搭桥</a></li>
+          <li><a href="#evidence">拆开质量、速度与稳健性</a></li>
+          <li><a href="#limits">哪些“高效”不能混读</a></li>
+          <li><a href="#sources">回到论文材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">AR-TO-DIFFUSION · BLOCK-CAUSAL ATTENTION · HIERARCHICAL DISTILLATION</p>
+          <h1 id="paper-title" class="paper-title">WAM-Diff2</h1>
+          <p class="paper-subtitle">
+            它不重新训练一个只会规划的扩散策略，而是尝试保住成熟自回归 VLA 的理解、感知和规划能力，再把逐 token 解码改造成块内并行、迭代去噪的离散扩散。
+          </p>
+          <div class="paper-byline">
+            <span>Zhihao Zhu、Hanlin Shang、Mingwang Xu 等 9 位作者</span>
+            <span>复旦大学、颖望智能技术有限公司</span>
+            <span>arXiv v1 · 16 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把预训练自回归驾驶通才转换成可并行解码的多任务离散扩散 VLA，同时尽量保住场景问答、目标定位和轨迹规划能力；核心要解决的不是一个普通模型压缩问题，而是因果注意力与双向注意力、next-token 训练与迭代去噪之间的架构范式断层。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <svg viewBox="0 0 760 456" role="img" aria-labelledby="overview-title overview-desc">
+              <title id="overview-title">WAM-Diff2 的问题、机制与证据总览</title>
+              <desc id="overview-desc">自回归 VLA 具有多任务能力但逐 token 解码慢且有暴露偏差，专用扩散策略并行但能力窄；WAM-Diff2 用块因果注意力和三级蒸馏转换 Qwen3-VL，并在多任务、规划和速度测试中验证。</desc>
+              <defs>
+                <marker id="wam-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="456" fill="#fbfaf6"/>
+              <text x="38" y="44" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">01 / 两难</text>
+              <rect x="34" y="65" width="206" height="104" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="96" fill="#17201d" font-size="16" font-weight="700">自回归驾驶通才</text>
+              <text x="54" y="124" fill="#52605b" font-size="13">理解 + 感知 + 规划</text>
+              <text x="54" y="149" fill="#86321f" font-size="12">逐 token 慢 · 前缀错误累积</text>
+              <rect x="34" y="188" width="206" height="104" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="219" fill="#17201d" font-size="16" font-weight="700">专用扩散策略</text>
+              <text x="54" y="247" fill="#52605b" font-size="13">并行精炼 + 低延迟</text>
+              <text x="54" y="272" fill="#355e7c" font-size="12">从头训练 · 通常只做规划</text>
+
+              <path d="M252 179H282" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#wam-overview-arrow)"/>
+              <text x="286" y="44" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">02 / 转换桥</text>
+              <rect x="282" y="65" width="226" height="66" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="302" y="93" fill="#17201d" font-size="16" font-weight="700">块因果注意力：B=1→32</text>
+              <text x="302" y="115" fill="#52605b" font-size="12">块内双向 · 块间因果</text>
+              <rect x="282" y="147" width="226" height="66" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="302" y="175" fill="#17201d" font-size="16" font-weight="700">块级蒸馏：4→8→16→32</text>
+              <text x="302" y="197" fill="#52605b" font-size="12">扩散教师对齐同一 noisy state</text>
+              <rect x="282" y="229" width="226" height="66" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="302" y="257" fill="#17201d" font-size="16" font-weight="700">模型级蒸馏：8B→2B</text>
+              <text x="302" y="279" fill="#52605b" font-size="12">同范式教师传递多任务语义</text>
+
+              <path d="M520 179H550" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#wam-overview-arrow)"/>
+              <text x="554" y="44" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">03 / 结果</text>
+              <rect x="550" y="65" width="176" height="230" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="570" y="96" fill="#17201d" font-size="15" font-weight="700">原生 B=32 规划</text>
+              <text x="570" y="121" fill="#52605b" font-size="13">88.3 / 88.6</text>
+              <text x="570" y="141" fill="#52605b" font-size="11">NAVSIM v1 / v2</text>
+              <line x1="570" y1="159" x2="706" y2="159" stroke="#d8d4ca"/>
+              <text x="570" y="186" fill="#17201d" font-size="15" font-weight="700">Vanilla 解码</text>
+              <text x="570" y="211" fill="#52605b" font-size="13">44.5→124.8 TPS</text>
+              <text x="570" y="231" fill="#52605b" font-size="11">2.8×</text>
+              <line x1="570" y1="249" x2="706" y2="249" stroke="#d8d4ca"/>
+              <text x="570" y="276" fill="#17201d" font-size="14" font-weight="700">+系统优化 673.4 TPS</text>
+
+              <path d="M137 319V356H638V319" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="146" y="349" width="484" height="72" rx="36" fill="#17201d"/>
+              <text x="388" y="377" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">核心不是“扩散天然更强”，而是“渐进转换避免能力坍塌”</text>
+              <text x="388" y="400" text-anchor="middle" fill="#d8d4ca" font-size="12">模型改造、候选选择、FlashInfer 与 CUDA Graph 的收益必须分开记账</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>WAM-Diff2 把 B=1 的自回归看作块生成的极限情况，通过逐渐放大 block size，把一次剧烈架构切换拆成多次小步迁移。最终速度有两层：算法层的块扩散带来 2.8× vanilla 吞吐，系统层 FlashInfer 与 CUDA Graph 再把累计加速推到 15.1×。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，论文真正解决的是“架构翻译”，不是提出一个全新的驾驶 backbone。</strong>视觉编码器、统一 tokenizer 和 decoder-only Transformer 继承 Qwen3-VL；创新集中在 block-causal mask、masked discrete diffusion 以及三级蒸馏课程。</p>
+            <p><strong>第二，同范式教师比更强但异范式教师重要。</strong>2B 扩散学生从 8B 扩散教师蒸馏得到 88.3 PDMS；换成 8B 自回归教师只有 79.9。Top-K token 分布重合也更高，支持“先完成 AR→Diffusion，再做跨尺度压缩”的顺序。</p>
+            <p><strong>第三，“性能等价”和“15.1×”都要加限定词。</strong>任务专用规划中 B=32 与 AR 基线相当或略高；统一多任务 checkpoint 在 DriveBench、LingoQA、COCO 和 NAVSIM 上仍有 0.7–2.9 分损失。15.1×是 token decoding latency 在叠加 CUDA 系统优化后的结果，不是整条传感器到控制链的端到端加速。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">三个概念：暴露偏差、吸收态离散扩散与块因果注意力</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">EXPOSURE BIAS（暴露偏差）</span>
+            <p><strong>英译中：</strong>训练时模型总看到正确历史 token，推理时却必须继续消费自己可能出错的输出，由此产生训练—推理分布错位。</p>
+            <p><strong>怎么理解：</strong>轨迹坐标被序列化成 token 后，前面一个数值 token 的误差会成为后面所有 token 的条件。自回归模型不能回头改早期承诺；块扩散则在同一 block 内反复查看并修改整组 token。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ABSORBING DISCRETE DIFFUSION（吸收态离散扩散）</span>
+            <p><strong>英译中：</strong>正向过程逐步把真实 token 替换成不会再恢复的特殊 [MASK] 状态，反向模型学习从被遮序列重建干净 token。</p>
+            <p><strong>怎么理解：</strong>推理从全 [MASK] 开始，每一步并行预测所有位置，固定高置信 token，再把低置信位置继续遮住重猜。计算步数由 denoising step T 决定，而不是输出长度 L；论文观察到大多数任务在 8–16 步附近饱和。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">BLOCK-CAUSAL ATTENTION（块因果注意力）</span>
+            <p><strong>英译中：</strong>同一生成块内 token 可以双向看见彼此，不同块之间仍保持从前到后的因果依赖。</p>
+            <p><strong>怎么理解：</strong>B=1 时每个块只有一个 token，退化为标准 AR；B 越大，同步精炼的 token 越多、硬件并行度越高，但从原始 causal 模型迁移的难度也越大。B=32 是论文最终高吞吐配置。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="mask-title mask-desc">
+            <svg viewBox="0 0 640 344" role="img" aria-labelledby="mask-title mask-desc">
+              <title id="mask-title">自回归、块扩散与全块并行的注意力差异</title>
+              <desc id="mask-desc">自回归 B 等于一逐 token 生成，块扩散在每个块内双向并行、块间保持因果，增大 B 可以减少顺序块数但提高迁移难度。</desc>
+              <defs>
+                <marker id="wam-mask-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="640" height="344" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">SEQUENCE y₁ … y₈</text>
+              <text x="34" y="86" fill="#17201d" font-size="15" font-weight="700">B=1 · 自回归</text>
+              <g fill="#f4ded5" stroke="#bd4c32">
+                <rect x="154" y="64" width="42" height="42" rx="3"/><rect x="206" y="64" width="42" height="42" rx="3"/><rect x="258" y="64" width="42" height="42" rx="3"/><rect x="310" y="64" width="42" height="42" rx="3"/><rect x="362" y="64" width="42" height="42" rx="3"/><rect x="414" y="64" width="42" height="42" rx="3"/><rect x="466" y="64" width="42" height="42" rx="3"/><rect x="518" y="64" width="42" height="42" rx="3"/>
+              </g>
+              <text x="175" y="90" text-anchor="middle" fill="#17201d" font-size="12">1</text><text x="227" y="90" text-anchor="middle" fill="#17201d" font-size="12">2</text><text x="279" y="90" text-anchor="middle" fill="#17201d" font-size="12">3</text><text x="331" y="90" text-anchor="middle" fill="#17201d" font-size="12">4</text><text x="383" y="90" text-anchor="middle" fill="#17201d" font-size="12">5</text><text x="435" y="90" text-anchor="middle" fill="#17201d" font-size="12">6</text><text x="487" y="90" text-anchor="middle" fill="#17201d" font-size="12">7</text><text x="539" y="90" text-anchor="middle" fill="#17201d" font-size="12">8</text>
+
+              <text x="34" y="171" fill="#17201d" font-size="15" font-weight="700">B=4 · 块扩散</text>
+              <rect x="154" y="141" width="198" height="58" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <rect x="362" y="141" width="198" height="58" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="253" y="168" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">y₁ y₂ y₃ y₄</text>
+              <text x="253" y="188" text-anchor="middle" fill="#52605b" font-size="11">块内双向精炼</text>
+              <text x="461" y="168" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">y₅ y₆ y₇ y₈</text>
+              <text x="461" y="188" text-anchor="middle" fill="#52605b" font-size="11">条件依赖前一块</text>
+              <path d="M354 170H360" stroke="#355e7c" stroke-width="2" marker-end="url(#wam-mask-arrow)"/>
+
+              <text x="34" y="256" fill="#17201d" font-size="15" font-weight="700">B=8 · 更大并行块</text>
+              <rect x="154" y="226" width="406" height="58" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="357" y="253" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">y₁ y₂ y₃ y₄ y₅ y₆ y₇ y₈</text>
+              <text x="357" y="273" text-anchor="middle" fill="#52605b" font-size="11">一次并行预测 · 多轮置信度重遮罩</text>
+              <path d="M175 313H539" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#wam-mask-arrow)"/>
+              <text x="357" y="334" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">B 增大：顺序块更少，吞吐更高；注意力分布迁移更难</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>块扩散不是把整段输出完全去掉顺序关系。块间仍然 causal，只有块内 token 互相可见并共同去噪。论文用 B 的课程学习把 AR 与大块扩散连成一条连续路径。</figcaption>
+          </figure>
+
+          <h3>多任务统一来自输出接口，而不是三个独立 head</h3>
+          <p>图像、指令与 noisy response token 进入同一 token 空间；驾驶问答输出自然语言，COCO grounding 输出 JSON 坐标，NAVSIM 输出 8 个未来 waypoint 的扁平坐标序列。任务身份由指令和输出格式隐式指定，没有任务专用 projection head。这也解释了为何坐标量化和严格格式会成为扩散解码的敏感点。</p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY DIRECT CONVERSION FAILS</p>
+          <h2 id="problem-title">把 causal mask 一次换成双向 mask，会同时打破注意力习惯与训练分布</h2>
+
+          <figure class="svg-figure" aria-labelledby="gap-title gap-desc">
+            <svg viewBox="0 0 760 386" role="img" aria-labelledby="gap-title gap-desc">
+              <title id="gap-title">直接从自回归到扩散的失败链</title>
+              <desc id="gap-desc">自回归模型在正确前缀和单向注意力下做下一 token 预测，直接切换到带噪序列、块内双向注意力和迭代去噪会造成分布、目标和注意力三重变化，NAVSIM PDMS 从八十八点一下降到八十四点一。</desc>
+              <defs>
+                <marker id="wam-gap-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="386" fill="#fbfaf6"/>
+              <rect x="34" y="62" width="190" height="226" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="129" y="96" text-anchor="middle" fill="#17201d" font-size="17" font-weight="700">AR 教师的世界</text>
+              <text x="54" y="134" fill="#52605b" font-size="13">输入：干净 GT 前缀</text>
+              <text x="54" y="162" fill="#52605b" font-size="13">注意力：严格单向</text>
+              <text x="54" y="190" fill="#52605b" font-size="13">目标：下一个 token</text>
+              <text x="54" y="218" fill="#52605b" font-size="13">推理：错误不可回改</text>
+              <line x1="54" y1="240" x2="204" y2="240" stroke="#d3a99d"/>
+              <text x="129" y="269" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">成熟语义藏在这套分布里</text>
+
+              <path d="M236 175H282" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#wam-gap-arrow)"/>
+              <rect x="286" y="83" width="188" height="184" rx="5" fill="#17201d"/>
+              <text x="380" y="116" text-anchor="middle" fill="#fffef9" font-size="16" font-weight="700">直接切换</text>
+              <text x="380" y="151" text-anchor="middle" fill="#d8d4ca" font-size="13">clean → noisy</text>
+              <text x="380" y="179" text-anchor="middle" fill="#d8d4ca" font-size="13">causal → bidirectional</text>
+              <text x="380" y="207" text-anchor="middle" fill="#d8d4ca" font-size="13">next-token → denoise</text>
+              <text x="380" y="241" text-anchor="middle" fill="#f1d778" font-size="12" font-weight="700">三项同时变化</text>
+
+              <path d="M486 175H532" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#wam-gap-arrow)"/>
+              <rect x="536" y="62" width="190" height="226" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="631" y="96" text-anchor="middle" fill="#17201d" font-size="17" font-weight="700">扩散学生的世界</text>
+              <text x="556" y="134" fill="#52605b" font-size="13">输入：中间 noisy state</text>
+              <text x="556" y="162" fill="#52605b" font-size="13">注意力：块内双向</text>
+              <text x="556" y="190" fill="#52605b" font-size="13">目标：重建整块 token</text>
+              <text x="556" y="218" fill="#52605b" font-size="13">推理：多轮重遮罩</text>
+              <line x1="556" y1="240" x2="706" y2="240" stroke="#b7cbd7"/>
+              <text x="631" y="269" text-anchor="middle" fill="#355e7c" font-size="12" font-weight="700">Direct adaptation：84.1 PDMS</text>
+
+              <rect x="174" y="321" width="412" height="42" rx="21" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="347" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">三级课程分别处理：注意力迁移、去噪分布、模型容量</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Direct AR-to-diffusion adaptation 只有 84.1 PDMS，比 88.1 的 AR 基线低 4.0。Stage I 先让网络适应更大的可见块；Stage II 再用已稳定的扩散小块教师教 noisy-state 去噪；Stage III 最后才解决 8B→2B 的能力压缩。</figcaption>
+          </figure>
+
+          <h3>为什么普通 off-policy 蒸馏不够</h3>
+          <p>如果扩散学生只在干净目标或 AR 教师产生的序列上学习，它仍未见过自己推理时造成的中间错误。Stage II 把 teacher 与 student 放在相同的 corrupted state ỹ<sub>t</sub> 上比较，使训练输入更接近学生真实去噪路径。论文借鉴 on-policy 思路，但公式描述的是对同一噪声状态的分布蒸馏，并非完整在线 rollout 强化学习。</p>
+
+          <h3>为什么跨尺度蒸馏要等到两边都变成扩散</h3>
+          <p>8B AR 与 2B diffusion 即使面对同一上下文，也会因为可见性和迭代状态不同而形成不同 token 分布；8B diffusion 与 2B diffusion 的“思考模式”更一致。Top-5 预测集合重合率从 AR 教师的 51.2% 提高到 diffusion 教师的 58.2%，对应 PDMS 从 79.9 恢复到 88.3。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">三级蒸馏怎样把一座断桥拆成可以走的小台阶</h2>
+
+          <figure class="svg-figure" aria-labelledby="stages-title stages-desc">
+            <svg viewBox="0 0 760 474" role="img" aria-labelledby="stages-title stages-desc">
+              <title id="stages-title">WAM-Diff2 的三级转换流程</title>
+              <desc id="stages-desc">第一阶段从自回归 B 等于一逐步扩大块到三十二并继承前一模型权重，第二阶段由稳定的小块扩散教师递归蒸馏更大块学生，第三阶段由八十亿参数块三十二扩散教师蒸馏二十亿参数学生。</desc>
+              <defs>
+                <marker id="wam-stage-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="474" fill="#fbfaf6"/>
+              <text x="38" y="44" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">STAGE I · PROGRESSIVE BLOCK-WISE ADAPTATION</text>
+              <g fill="#f4ded5" stroke="#bd4c32"><rect x="38" y="65" width="102" height="52" rx="4"/></g>
+              <text x="89" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">AR · B=1</text><text x="89" y="106" text-anchor="middle" fill="#52605b" font-size="10">next-token</text>
+              <path d="M150 91H184" stroke="#355e7c" stroke-width="2" marker-end="url(#wam-stage-arrow)"/>
+              <g fill="#f1e8c9" stroke="#9c7b1f"><rect x="188" y="65" width="92" height="52" rx="4"/><rect x="324" y="65" width="92" height="52" rx="4"/><rect x="460" y="65" width="92" height="52" rx="4"/><rect x="596" y="65" width="92" height="52" rx="4"/></g>
+              <text x="234" y="97" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=4</text><text x="370" y="97" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=8</text><text x="506" y="97" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=16</text><text x="642" y="97" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=32</text>
+              <path d="M290 91H320" stroke="#355e7c" stroke-width="2" marker-end="url(#wam-stage-arrow)"/><path d="M426 91H456" stroke="#355e7c" stroke-width="2" marker-end="url(#wam-stage-arrow)"/><path d="M562 91H592" stroke="#355e7c" stroke-width="2" marker-end="url(#wam-stage-arrow)"/>
+              <text x="380" y="139" text-anchor="middle" fill="#52605b" font-size="12">每一步从前一 block size 初始化，逐渐放宽注意力可见范围</text>
+
+              <line x1="38" y1="165" x2="722" y2="165" stroke="#d8d4ca" stroke-dasharray="5 5"/>
+              <text x="38" y="195" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">STAGE II · PARADIGM-CONSISTENT BLOCK DISTILLATION</text>
+              <g fill="#dcebe5" stroke="#24624e"><rect x="38" y="216" width="144" height="70" rx="5"/><rect x="218" y="216" width="144" height="70" rx="5"/><rect x="398" y="216" width="144" height="70" rx="5"/><rect x="578" y="216" width="144" height="70" rx="5"/></g>
+              <text x="110" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=4 教师</text><text x="110" y="268" text-anchor="middle" fill="#52605b" font-size="11">稳定扩散 anchor</text>
+              <text x="290" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=8 学生</text><text x="290" y="268" text-anchor="middle" fill="#52605b" font-size="11">同 noisy state</text>
+              <text x="470" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=16 学生</text><text x="470" y="268" text-anchor="middle" fill="#52605b" font-size="11">递归变成教师</text>
+              <text x="650" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">B=32 学生</text><text x="650" y="268" text-anchor="middle" fill="#52605b" font-size="11">JSD 对齐</text>
+              <path d="M192 251H214" stroke="#24624e" stroke-width="2" marker-end="url(#wam-stage-arrow)"/><path d="M372 251H394" stroke="#24624e" stroke-width="2" marker-end="url(#wam-stage-arrow)"/><path d="M552 251H574" stroke="#24624e" stroke-width="2" marker-end="url(#wam-stage-arrow)"/>
+
+              <line x1="38" y1="312" x2="722" y2="312" stroke="#d8d4ca" stroke-dasharray="5 5"/>
+              <text x="38" y="342" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">STAGE III · MODEL-WISE CROSS-SCALE DISTILLATION</text>
+              <rect x="116" y="365" width="190" height="72" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="211" y="395" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">8B · B=32 Diffusion</text>
+              <text x="211" y="419" text-anchor="middle" fill="#52605b" font-size="11">高容量同范式教师</text>
+              <path d="M318 401H442" stroke="#86321f" stroke-width="2" marker-end="url(#wam-stage-arrow)"/>
+              <text x="380" y="389" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">JSD · own trajectories</text>
+              <rect x="454" y="365" width="190" height="72" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="549" y="395" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">2B · B=32 Diffusion</text>
+              <text x="549" y="419" text-anchor="middle" fill="#52605b" font-size="11">最终高吞吐学生</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Stage I 改注意力，Stage II 教去噪，Stage III 补容量。顺序非常重要：如果直接让 AR 大模型跨范式教 diffusion 小模型，学生既要理解另一种注意力分布，又要承受参数压缩，实验中性能反而大幅下降。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="离散扩散公式说明">
+            <div class="formula-card__label">公式拆解 · 正向遮挡与反向并行精炼</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">Q<sub>t</sub></span> = (1−β<sub>t</sub>)I + β<sub>t</sub>1e<sub>mask</sub><sup>⊤</sup>, &nbsp; <span class="formula-symbol">p<sub>θ</sub>(o<sup>0</sup>|o<sup>t</sup>,c)</span>
+            </div>
+            <p class="formula-card__caption">这组公式回答：训练时怎样便宜地采样任意噪声状态，以及推理时模型究竟在预测什么。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>β<sub>t</sub></dt>
+                <dd>第 t 步的遮挡概率；越大，更多 token 被送入吸收态 [MASK]。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>I</dt>
+                <dd>保持 token 原样的身份转移；1e<sub>mask</sub><sup>⊤</sup> 把 token 送到统一 [MASK] 状态。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>o<sup>t</sup></dt>
+                <dd>任意噪声时刻的 token 序列，可由闭式边缘分布直接采样，不必逐步执行完整正向链。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>p<sub>θ</sub></dt>
+                <dd>给定多模态条件 c 与 noisy tokens，直接预测干净序列；推理中高置信位置固定，低置信位置继续重猜。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：训练时随机把答案的一部分涂黑，模型学习一次看整块并补全；推理时先全涂黑，再用少量轮次逐渐把最有把握的答案“显影”。</div>
+          </div>
+
+          <div class="formula-card" aria-label="JSD 蒸馏公式说明">
+            <div class="formula-card__label">公式拆解 · 为什么用对称 JSD</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">JSD(p∥q)</span> = ½KL(p∥(p+q)/2) + ½KL(q∥(p+q)/2)
+            </div>
+            <p class="formula-card__caption">这条公式回答：怎样在同一 noisy state 上对齐教师与学生 token 分布，同时避免只让一方覆盖另一方的单向偏置。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>p</dt>
+                <dd>稳定小块或 8B 扩散教师在某个 token 位置的完整词表分布。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>q</dt>
+                <dd>大块或 2B 扩散学生在相同条件与 noisy state 下的分布。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>(p+q)/2</dt>
+                <dd>两者混合分布；让 teacher→student 与 student→teacher 两个方向都参与约束。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：既不只追教师最高峰，也不只要求覆盖教师所有尾部。论文中 JSD 为 88.3 PDMS，forward KL 为 88.2、reverse KL 为 88.0；方向符合作者解释，但 0.1–0.3 的差距很小，不能单凭这张表断言 JSD 普遍最优。</div>
+          </div>
+
+          <h3>训练账：语义地基、注意力迁移与蒸馏都不是免费</h3>
+          <p>统一多任务语料含 981,361 个样本：NAVSIM 103,288、DriveLM 346,978、LingoQA 413,829、COCO detection 117,266；另有 SimLingo 2,024,407 个闭环规划样本。全局 batch 128、32 张 Ascend 910C；附录表列出三个阶段 1,376、240、264 NPU 小时。若已有成熟 AR VLA，可跳过可选的多任务 AR 预训练，但渐进适配和蒸馏成本仍在。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">把“保性能”“更稳”和“更快”拆成三本账</h2>
+
+          <h3>第一本账：统一多任务 checkpoint 保住大部分能力，但并非无损</h3>
+          <div class="table-wrap" role="region" aria-label="WAM-Diff2 统一多任务性能与吞吐" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>2B 设置</th><th>DriveBench</th><th>LingoQA</th><th>COCO mAP</th><th>NAVSIM v1</th><th>NAVSIM v2</th><th>Decode TPS</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>B=1 AR</td><td>51.23</td><td>68.40</td><td>39.20</td><td>88.14</td><td>88.32</td><td>44.5</td></tr>
+                <tr><td>B=4</td><td>48.92</td><td>68.20</td><td>37.80</td><td>87.87</td><td>87.99</td><td>68.3 / 401.4</td></tr>
+                <tr><td>B=16</td><td>48.77</td><td>66.00</td><td>36.50</td><td>87.32</td><td>87.30</td><td>108.4 / 635.3</td></tr>
+                <tr class="evidence-table__emphasis"><td>B=32</td><td>48.80</td><td>65.80</td><td>36.30</td><td>87.44</td><td>87.50</td><td>124.8 / 673.4</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>斜线前是标准实现，后是 FlashInfer + CUDA Graph 优化。B=32 相对 AR：DriveBench −2.43、LingoQA −2.60、COCO −2.90、NAVSIM v1 −0.70、v2 −0.82，同时 vanilla TPS 2.8×。因此更准确的结论是“以小幅多任务退化换显著吞吐”，而非逐项严格 parity。</p>
+
+          <h3>第二本账：任务专用规划里，蒸馏后的 B=32 可追平 AR</h3>
+          <div class="table-wrap" role="region" aria-label="WAM-Diff2 任务专用 NAVSIM 结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>设置</th><th>NAVSIM v1 PDMS</th><th>NAVSIM v2 EPDMS</th><th>附加条件</th></tr></thead>
+              <tbody>
+                <tr><td>B=1 AR baseline</td><td>88.1</td><td>88.3</td><td>任务专用训练</td></tr>
+                <tr class="evidence-table__emphasis"><td>B=32 diffusion</td><td>88.3</td><td>88.6</td><td>原生输出，不依赖候选选择</td></tr>
+                <tr><td>B=32 diffusion*</td><td>91.1</td><td>90.7</td><td>外加 score-based candidate selection</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>91.1/90.7 是“WAM-Diff2 + 候选选择”的系统结果，不能用来代表纯扩散解码器；原生 B=32 是 88.3/88.6。论文把统一多任务与任务专用评测分开是合理的，但阅读表格时必须保持这两个训练协议和星号条件。</p>
+
+          <h3>三级蒸馏的累计消融支持“逐步搭桥”</h3>
+          <div class="table-wrap" role="region" aria-label="WAM-Diff2 三级转换消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>设置</th><th>NC</th><th>DAC</th><th>TTC</th><th>EP</th><th>PDMS</th><th>相对前一步</th></tr></thead>
+              <tbody>
+                <tr><td>AR baseline</td><td>98.4</td><td>96.2</td><td>94.8</td><td>82.4</td><td>88.1</td><td>—</td></tr>
+                <tr><td>直接 AR→Diffusion</td><td>97.9</td><td>93.0</td><td>93.2</td><td>78.5</td><td>84.1</td><td>−4.0</td></tr>
+                <tr><td>+ Block-wise distillation</td><td>98.2</td><td>95.7</td><td>95.0</td><td>81.6</td><td>87.7</td><td>+3.6</td></tr>
+                <tr class="evidence-table__emphasis"><td>+ Model-wise distillation</td><td>98.6</td><td>96.1</td><td>95.5</td><td>82.1</td><td>88.3</td><td>+0.6</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>直接转换的损失主要落在 DAC 与 EP；块级蒸馏找回绝大部分性能，模型级蒸馏再补 0.6。最终比 AR 高 0.2，数值上是追平而非大幅超越。实验没有报告多随机种子，因此 0.2 的优势不宜被解释为稳定的算法超越。</p>
+
+          <h3>第三本账：长时误差更小，但证据来自成对 open-loop waypoint</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="exposure-title exposure-desc">
+            <svg viewBox="0 0 640 350" role="img" aria-labelledby="exposure-title exposure-desc">
+              <title id="exposure-title">WAM-Diff2 的逐 waypoint 误差下降趋势</title>
+              <desc id="exposure-desc">在一万二千一百四十六个 NAVSIM 成对样本上，平均每个 waypoint 的 L2 误差从零点五九三五降到零点五五八九，下降百分之五点八；绝对改进从第一个点的零点零零二单调扩大到第八个点的零点零八二。</desc>
+              <rect width="640" height="350" fill="#fbfaf6"/>
+              <text x="38" y="43" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">12,146 PAIRED NAVSIM SAMPLES</text>
+              <text x="38" y="82" fill="#17201d" font-size="15" font-weight="700">相对 AR 的绝对 L2 误差下降</text>
+              <line x1="76" y1="268" x2="594" y2="268" stroke="#aaa69c"/>
+              <line x1="76" y1="112" x2="76" y2="268" stroke="#aaa69c"/>
+              <polyline points="94,264 158,256 222,244 286,225 350,215 414,188 478,159 542,121" fill="none" stroke="#bd4c32" stroke-width="3"/>
+              <g fill="#bd4c32"><circle cx="94" cy="264" r="5"/><circle cx="158" cy="256" r="5"/><circle cx="222" cy="244" r="5"/><circle cx="286" cy="225" r="5"/><circle cx="350" cy="215" r="5"/><circle cx="414" cy="188" r="5"/><circle cx="478" cy="159" r="5"/><circle cx="542" cy="121" r="5"/></g>
+              <text x="94" y="294" text-anchor="middle" fill="#52605b" font-size="11">1</text><text x="158" y="294" text-anchor="middle" fill="#52605b" font-size="11">2</text><text x="222" y="294" text-anchor="middle" fill="#52605b" font-size="11">3</text><text x="286" y="294" text-anchor="middle" fill="#52605b" font-size="11">4</text><text x="350" y="294" text-anchor="middle" fill="#52605b" font-size="11">5</text><text x="414" y="294" text-anchor="middle" fill="#52605b" font-size="11">6</text><text x="478" y="294" text-anchor="middle" fill="#52605b" font-size="11">7</text><text x="542" y="294" text-anchor="middle" fill="#52605b" font-size="11">8</text>
+              <text x="318" y="322" text-anchor="middle" fill="#52605b" font-size="12">Future waypoint index</text>
+              <text x="94" y="248" fill="#86321f" font-size="11" font-weight="700">0.002</text>
+              <text x="542" y="106" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">0.082</text>
+              <rect x="365" y="63" width="229" height="39" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="479" y="87" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">平均：0.5935 → 0.5589（−5.8%）</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>越到远期，WAM-Diff2 相对 AR 的误差改进越大，符合“允许块内回改可缓解序列漂移”的机制。它仍是 NAVSIM 的 open-loop 成对 waypoint 误差；把它直接称为闭环安全提升，需要 Bench2Drive 或真实闭环的独立证据。</figcaption>
+          </figure>
+
+          <h3>Bench2Drive：总体闭环指标略降，部分安全子项改善</h3>
+          <p>AR baseline 的 Success Rate / Driving Score 为 51.96% / 80.51，B=32 为 49.55% / 78.93，整体略低；Emergency Braking 从 60.34% 升至 61.67%，但 Traffic Sign 从 89.25% 降至 85.26%。因此闭环表支持“高并行配置仍有竞争力”，不支持“所有闭环鲁棒性都优于 AR”。</p>
+
+          <h3>速度：2.8×来自算法，15.1×来自算法与系统共同作用</h3>
+          <div class="table-wrap" role="region" aria-label="WAM-Diff2 延迟优化分解" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>配置</th><th>Latency / token</th><th>相对前一步</th><th>累计</th><th>NAVSIM 规划</th></tr></thead>
+              <tbody>
+                <tr><td>AR baseline（Qwen3-VL）</td><td>22.7 ms</td><td>—</td><td>1.0×</td><td>88.14</td></tr>
+                <tr><td>AR→Diffusion</td><td>8.1 ms</td><td>2.8×</td><td>2.8×</td><td>87.44</td></tr>
+                <tr><td>+ FlashInfer</td><td>4.6 ms</td><td>1.7×</td><td>4.9×</td><td>87.28</td></tr>
+                <tr class="evidence-table__emphasis"><td>+ CUDA Graph</td><td>1.5 ms</td><td>3.1×</td><td>15.1×</td><td>87.28</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这张表证明固定解码配置下 token 级延迟显著降低；它没有包含视觉编码、输入预处理、控制栈，也没有把不同任务的输出长度统一成端到端 wall-clock。模型质量主实验在 Ascend 910C 上完成，FlashInfer/CUDA Graph 则在兼容 CUDA 的平台单独评估，因而 15.1×应读作系统级解码 microbenchmark。</p>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">证据链最稳的部分</span>
+            <p><strong>逐级消融 + 教师范式对照 + token 重合率共同支持层级转换策略。</strong>直接转换会崩，扩散小块教师能恢复，扩散大模型比 AR 大模型更适合教扩散学生；速度收益也随 B 增大而连续上升。证据最弱的是把很小的最终分数差和 open-loop 误差外推成普遍闭环优势。</p>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它给出一条可扩展转换路线，但离“无损、通用、端到端高效”还有距离</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>渐进、同范式蒸馏优于直接转换</h3>
+              <p>84.1→87.7→88.3 的累计消融，以及 diffusion teacher 88.3 对 AR teacher 79.9，形成一致证据链。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>15.1×是解码栈加速</h3>
+              <p>它来自 diffusion、FlashInfer 和 CUDA Graph 的叠加，不等于视觉输入到车辆控制的端到端时延缩短 15.1×。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>真实道路闭环与跨 backbone 迁移</h3>
+              <p>方法只在 Qwen3-VL 家族与仿真/离线驾驶基准中验证，尚未展示真实车、异构 VLA 或安全关键长时闭环。</p>
+            </article>
+          </div>
+
+          <h3>第一，离散坐标 token 会引入量化与格式脆弱性</h3>
+          <p>轨迹点与 bbox 都由统一文本 tokenizer 输出。论文自己指出空间量化可能破坏高精度轨迹平滑度；COCO mAP 也随 B 增大从 39.2 降到 36.3，比规划更早出现退化。连续动作解码、残差细化或混合离散—连续 head 是自然补丁。</p>
+
+          <h3>第二，学生上限受初始 AR 教师语义能力限制</h3>
+          <p>三级蒸馏能保住或搬运已有知识，不能创造教师从未学会的场景理解。论文把 Stage III 描述为继承 8B 高层能力，但统一多任务 B=32 仍低于 2B AR 基线多项指标，也没有展示超越 8B 教师的知识发现。</p>
+
+          <h3>第三，训练与部署硬件账分开，跨平台结论要谨慎</h3>
+          <p>模型质量与大规模训练在 Ascend 910C 上，FlashInfer 与 CUDA Graph 的最终优化在 CUDA 平台上单独测量。这样可以证明实现路线可行，却不能直接给出一套单一硬件上的完整“质量—延迟—功耗”Pareto；车端部署还关心内存、功耗、编译稳定性和 batch=1 抖动。</p>
+
+          <h3>第四，解码 TPS 不是控制频率</h3>
+          <p>不同任务输出长度不同，diffusion 还要运行 8–16 个去噪 step。每 token 延迟与 TPS 适合比较生成内核，但自动驾驶真正关心的是一轮多相机编码、文本/状态融合、整段轨迹生成和控制下发的 p50/p99 时延。论文没有给出这条端到端链的统一数字。</p>
+
+          <h3>第五，高分系统结果混入外部候选选择</h3>
+          <p>NAVSIM 的 91.1/90.7 带星号，使用 score-based candidate selection；原生模型是 88.3/88.6。候选选择可以显著提高规划质量，但也引入额外计算与模型组件。评价“扩散解码器本身”时必须使用无星号结果。</p>
+
+          <h3>第六，稳健性主张仍缺强闭环统计</h3>
+          <p>12,146 个 NAVSIM 样本显示远期 waypoint 误差改善，是漂亮的成对证据；Bench2Drive 的 B=32 总体 Success Rate 与 Driving Score 却略低于 AR。论文没有报告多训练种子、置信区间、真实车辆干预次数或长时故障恢复，因而“缓解暴露偏差”比“提升闭环安全”更有证据。</p>
+
+          <h3>第七，训练流水线仍然昂贵</h3>
+          <p>论文把它定位成 low-cost 转换管线，但附录列出的三阶段合计 1,880 NPU 小时，另需构造 8B B=32 diffusion teacher。已有 AR VLA 时可跳过第一轮多任务预训练，却仍需要多 block size 适配、递归蒸馏和跨尺度蒸馏；“低成本”应相对于从头训练通用扩散 VLA，而不是绝对成本。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2608.01035">论文摘要页：arXiv:2608.01035</a> — 标题、作者、版本与提交信息。</li>
+            <li><a href="https://arxiv.org/pdf/2608.01035">论文 PDF</a> — 本页架构、公式、五类基准、速度分解、附录数据与训练配置的主要来源，共 16 页。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>block-causal 架构、三级蒸馏、所有表格数值和硬件说明是论文事实；“统一多任务并非逐项无损”“15.1×不是端到端控制时延”“0.2 PDMS 不足以声称稳定超越”“稳健性证据以 open-loop 为主”“低成本是相对从头训练而言”等是依据论文实验边界作出的分析判断。论文 PDF 未给出可核验的官方代码仓库链接，本页没有虚构 repo 事实。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
