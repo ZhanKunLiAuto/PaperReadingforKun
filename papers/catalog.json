@@ -2,6 +2,40 @@
   "updatedAt": "2026-08-06",
   "papers": [
     {
+      "slug": "genception",
+      "title": "Video Generation Models are General-Purpose Vision Learners",
+      "authors": [
+        "Letian Wang",
+        "Chuhan Zhang",
+        "Rishabh Kabra",
+        "Jasper Uijlings",
+        "Steven Waslander",
+        "Andrew Zisserman",
+        "Joao Carreira",
+        "Kaiming He",
+        "Misha Andriluka",
+        "Eduard Gabriel Bazavan",
+        "Andrei Zanfir",
+        "Cristian Sminchisescu"
+      ],
+      "publicationDate": "2026-07-10",
+      "readAt": "2026-08-06",
+      "description": "从生成式预训练、单步前馈改造、统一任务表示和证据边界四条线解读 GenCeption：视频生成模型何以迁移到多种视觉感知任务，以及它距离真正的通用视觉学习器还有多远。",
+      "tags": [
+        "GenCeption",
+        "video generation",
+        "generative pretraining",
+        "video diffusion",
+        "generalist vision",
+        "WAN 2.1",
+        "multi-task learning",
+        "synthetic data",
+        "perception"
+      ],
+      "sourceUrl": "https://genception.github.io/",
+      "href": "papers/genception/"
+    },
+    {
       "slug": "phizero",
       "title": "PhiZero: A World Model Built Around Physical Language",
       "authors": [
