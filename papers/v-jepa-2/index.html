@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning">
+    <meta name="citation_author" content="Mahmoud Assran">
+    <meta name="citation_author" content="Adrien Bardes">
+    <meta name="citation_author" content="David Fan">
+    <meta name="citation_author" content="Quentin Garrido">
+    <meta name="citation_author" content="Russell Howes">
+    <meta name="citation_author" content="Mojtaba Komeili">
+    <meta name="citation_author" content="Matthew Muckley">
+    <meta name="citation_author" content="Ammar Rizvi">
+    <meta name="citation_author" content="Claire Roberts">
+    <meta name="citation_author" content="Koustuv Sinha">
+    <meta name="citation_author" content="Artem Zholus">
+    <meta name="citation_author" content="Sergio Arnaud">
+    <meta name="citation_author" content="Abha Gejji">
+    <meta name="citation_author" content="Ada Martin">
+    <meta name="citation_author" content="Francois Robert Hogan">
+    <meta name="citation_author" content="Daniel Dugas">
+    <meta name="citation_author" content="Piotr Bojanowski">
+    <meta name="citation_author" content="Vasil Khalidov">
+    <meta name="citation_author" content="Patrick Labatut">
+    <meta name="citation_author" content="Francisco Massa">
+    <meta name="citation_author" content="Marc Szafraniec">
+    <meta name="citation_author" content="Kapil Krishnakumar">
+    <meta name="citation_author" content="Yong Li">
+    <meta name="citation_author" content="Xiaodong Ma">
+    <meta name="citation_author" content="Sarath Chandar">
+    <meta name="citation_author" content="Franziska Meier">
+    <meta name="citation_author" content="Yann LeCun">
+    <meta name="citation_author" content="Michael Rabbat">
+    <meta name="citation_author" content="Nicolas Ballas">
+    <meta name="citation_publication_date" content="2025-06-13">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2506.09985">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2506.09985">
+    <meta name="description" content="从无动作视频预训练、动作条件后训练与潜空间模型预测控制三条线解读 V-JEPA 2，核对规模化收益、视频理解与预测结果、机器人闭环实验及其零样本边界。">
+    <meta name="keywords" content="V-JEPA 2, JEPA, self-supervised video learning, latent world model, V-JEPA 2-AC, model predictive control, robot planning, video understanding">
+    <meta name="paper:read_at" content="2026-08-10">
+    <title>V-JEPA 2：先从视频学会世界怎样变化，再用少量动作数据学会怎样介入</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/v-jepa-2/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2506.09985V1 · 2025-06-13 · 阅读于 2026-08-10</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住三阶段能力链</a></li>
+          <li><a href="#concepts">分清表征、动力学与规划</a></li>
+          <li><a href="#problem-chain">为什么不直接生成未来视频</a></li>
+          <li><a href="#mechanism">从遮挡预测走到闭环控制</a></li>
+          <li><a href="#evidence">证据如何接住三类主张</a></li>
+          <li><a href="#limits">“零样本”还受哪些约束</a></li>
+          <li><a href="#sources">回到论文、代码与后续</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">OBSERVATION PRETRAINING · LATENT DYNAMICS · MODEL-PREDICTIVE CONTROL</p>
+          <h1 id="paper-title" class="paper-title">V-JEPA 2</h1>
+          <p class="paper-subtitle">
+            它把“看懂视频”“预测接下来会发生什么”“为机器人选择动作”放进同一个潜在表征空间，但没有假装只靠互联网视频就能自动长出控制能力。
+          </p>
+          <div class="paper-byline">
+            <span>Mahmoud Assran、Adrien Bardes、David Fan 等 29 位作者</span>
+            <span>FAIR at Meta、Mila、Polytechnique Montréal</span>
+            <span>arXiv v1 · 48 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把大规模、没有动作标签的互联网视频转化为可预测的物理世界表征，再用远少于预训练规模的机器人状态—动作数据补上“我的动作会怎样改变未来”这一层，最终让同一表征既支持视频理解与动作预判，也能在新实验室里通过规划完成抓取和放置。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="v2-overview-title v2-overview-desc">
+            <svg viewBox="0 0 760 448" role="img" aria-labelledby="v2-overview-title v2-overview-desc">
+              <title id="v2-overview-title">V-JEPA 2 从观察学习到机器人规划的总览</title>
+              <desc id="v2-overview-desc">互联网视频和图像先训练无动作 V-JEPA 2；表征经探针或语言对齐用于理解和预测；冻结编码器后用六十二小时机器人数据训练动作条件预测器，再以目标图像和模型预测控制实现闭环规划。</desc>
+              <defs>
+                <marker id="v2-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="448" fill="#fbfaf6"/>
+              <text x="35" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 先从观察学状态</text>
+              <rect x="32" y="62" width="202" height="246" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="52" y="96" fill="#17201d" font-size="17" font-weight="700">VideoMix22M</text>
+              <text x="52" y="123" fill="#52605b" font-size="13">超过 100 万小时视频</text>
+              <text x="52" y="146" fill="#52605b" font-size="13">+ 100 万张 ImageNet 图像</text>
+              <line x1="52" y1="166" x2="214" y2="166" stroke="#d3a99d"/>
+              <text x="52" y="196" fill="#17201d" font-size="15" font-weight="700">遮住时空块</text>
+              <text x="52" y="222" fill="#52605b" font-size="13">在 latent 中预测目标</text>
+              <text x="52" y="246" fill="#52605b" font-size="13">不重建每个像素细节</text>
+              <text x="52" y="281" fill="#86321f" font-size="12" font-weight="700">得到 V-JEPA 2 编码器</text>
+
+              <path d="M246 184H278" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-overview-arrow)"/>
+              <text x="282" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / 再补上动作因果</text>
+              <rect x="278" y="62" width="220" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="96" fill="#17201d" font-size="16" font-weight="700">冻结视觉编码器</text>
+              <text x="298" y="123" fill="#52605b" font-size="13">62 小时 DROID 原始轨迹</text>
+              <text x="298" y="147" fill="#52605b" font-size="13">动作 + 末端状态 + 视频</text>
+              <rect x="278" y="196" width="220" height="112" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="230" fill="#17201d" font-size="16" font-weight="700">300M 动作条件预测器</text>
+              <text x="298" y="257" fill="#52605b" font-size="13">teacher forcing + rollout</text>
+              <text x="298" y="281" fill="#52605b" font-size="13">预测下一帧的表征</text>
+
+              <path d="M510 184H542" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-overview-arrow)"/>
+              <text x="546" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / 三类能力出口</text>
+              <rect x="542" y="62" width="186" height="72" rx="5" fill="#fffef9" stroke="#aaa69c"/>
+              <text x="562" y="91" fill="#17201d" font-size="15" font-weight="700">理解</text>
+              <text x="562" y="116" fill="#52605b" font-size="12">分类 + VideoQA</text>
+              <rect x="542" y="150" width="186" height="72" rx="5" fill="#fffef9" stroke="#aaa69c"/>
+              <text x="562" y="179" fill="#17201d" font-size="15" font-weight="700">预测</text>
+              <text x="562" y="204" fill="#52605b" font-size="12">人类动作预判</text>
+              <rect x="542" y="238" width="186" height="72" rx="5" fill="#fffef9" stroke="#aaa69c"/>
+              <text x="562" y="267" fill="#17201d" font-size="15" font-weight="700">规划</text>
+              <text x="562" y="292" fill="#52605b" font-size="12">目标图像 + MPC</text>
+
+              <path d="M132 329V362H635V329" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="151" y="354" width="466" height="62" rx="31" fill="#17201d"/>
+              <text x="384" y="380" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">观察数据提供“世界状态”，交互数据提供“动作后果”</text>
+              <text x="384" y="402" fill="#d8d4ca" text-anchor="middle" font-size="12">规划能力来自二者的分阶段组合，不是纯视频预训练的直接产物</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先沿左到右看能力怎样逐层增加，再看最下方的边界。V-JEPA 2 从无动作视频学到可预测表征；V-JEPA 2-AC 才用机器人交互学到动作条件动力学；MPC 又在推理时搜索动作。把三层压成“看视频就会做机器人”会漏掉论文最重要的工程分工。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，这是一条分阶段世界模型路线，而不是一个端到端策略。</strong>无动作 V-JEPA 2 负责编码和预测视觉状态；V-JEPA 2-AC 在冻结编码器之上学习动作条件转移；控制时没有直接输出策略，而是反复搜索让预测终态最接近目标图像的动作。</p>
+            <p><strong>第二，潜空间预测的价值既是选择性，也是速度。</strong>模型不为草叶纹理等难预测细节支付像素重建成本；在论文的单卡规划对比中，V-JEPA 2-AC 每个动作约 16 秒，而 Cosmos 视频生成世界模型约 4 分钟，但 16 秒仍离高频实时控制很远。</p>
+            <p><strong>第三，理解、预测、规划的证据强度不同。</strong>大规模 benchmark 支持表征的运动理解和动作预判能力；机器人部分只覆盖两间实验室、两类物体、每项十次试验、手工目标图像与子目标。它证明 latent MPC 可行，却没有证明开放世界长程自主。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">先分清三个东西：状态表征、动作动力学与规划器</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">JOINT-EMBEDDING PREDICTIVE ARCHITECTURE（联合嵌入预测架构）</span>
+            <p><strong>英译中：</strong>让一个网络在学到的表征空间里预测另一个视图，而不是直接重建原始输入。</p>
+            <p><strong>怎么理解：</strong>同一视频的 masked view 进入在线编码器，完整 view 进入 EMA 目标编码器；预测器只需恢复被遮位置的目标表征。它仍然在“预测未来或缺失状态”，但允许表征忽略不可预测、与任务关系弱的像素细节。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION-FREE PRETRAINING（无动作预训练）</span>
+            <p><strong>英译中：</strong>训练数据只有视频或图像，没有记录拍摄者、人物或机器人采取了什么控制动作。</p>
+            <p><strong>怎么理解：</strong>这一步能学“画面通常怎样演化”和“哪些运动模式有意义”，却无法区分某个未来是环境自然变化，还是由指定控制量造成。因此它提供世界知识的底座，不提供可直接执行的动作接口。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION-CONDITIONED WORLD MODEL（动作条件世界模型）</span>
+            <p><strong>英译中：</strong>在当前视觉状态和机器人本体状态给定时，预测某个候选动作会把世界带到哪里。</p>
+            <p><strong>怎么理解：</strong>V-JEPA 2-AC 不生成 RGB 未来帧，而是输出下一时刻的 16×16×1408 特征图。动作、末端位姿和图像 token 在 block-causal Transformer 中交错，未来 token 只能读取当前与过去。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">MODEL-PREDICTIVE CONTROL（模型预测控制，MPC）</span>
+            <p><strong>英译中：</strong>用内部模型试演多组动作，只执行当前最优序列的第一步，然后观察新状态并重新规划。</p>
+            <p><strong>怎么理解：</strong>这里的“奖励”被目标图像距离替代。Cross-Entropy Method 反复采样动作、保留低能量样本并更新高斯分布；闭环重规划可以纠正一部分模型误差，但搜索成本会随时间跨度迅速增加。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="v2-roles-title v2-roles-desc">
+            <svg viewBox="0 0 680 326" role="img" aria-labelledby="v2-roles-title v2-roles-desc">
+              <title id="v2-roles-title">V-JEPA 2 系统中三个模块的责任边界</title>
+              <desc id="v2-roles-desc">编码器把当前画面和目标画面变成状态表征，动作条件预测器试演候选动作的未来表征，规划器比较预测终态和目标表征并选择动作。</desc>
+              <defs>
+                <marker id="v2-roles-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="680" height="326" fill="#fbfaf6"/>
+              <rect x="28" y="66" width="176" height="156" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="116" y="99" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">V-JEPA 2 编码器</text>
+              <text x="116" y="130" text-anchor="middle" fill="#52605b" font-size="12">当前图像 → zₖ</text>
+              <text x="116" y="154" text-anchor="middle" fill="#52605b" font-size="12">目标图像 → z₍g₎</text>
+              <line x1="52" y1="172" x2="180" y2="172" stroke="#9ab0bf"/>
+              <text x="116" y="198" text-anchor="middle" fill="#86321f" font-size="11">回答：现在 / 目标是什么状态</text>
+              <path d="M216 144H252" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-roles-arrow)"/>
+              <rect x="256" y="66" width="176" height="156" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="344" y="99" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">V-JEPA 2-AC</text>
+              <text x="344" y="130" text-anchor="middle" fill="#52605b" font-size="12">zₖ + sₖ + 候选动作</text>
+              <text x="344" y="154" text-anchor="middle" fill="#52605b" font-size="12">→ 想象终态 ẑₖ₊ₜ</text>
+              <line x1="280" y1="172" x2="408" y2="172" stroke="#9fc4b7"/>
+              <text x="344" y="198" text-anchor="middle" fill="#86321f" font-size="11">回答：这样做会发生什么</text>
+              <path d="M444 144H480" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-roles-arrow)"/>
+              <rect x="484" y="66" width="168" height="156" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="568" y="99" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">CEM + MPC</text>
+              <text x="568" y="130" text-anchor="middle" fill="#52605b" font-size="12">比较 ‖ẑₖ₊ₜ − z₍g₎‖₁</text>
+              <text x="568" y="154" text-anchor="middle" fill="#52605b" font-size="12">执行第一步并重规划</text>
+              <line x1="508" y1="172" x2="628" y2="172" stroke="#c7b671"/>
+              <text x="568" y="198" text-anchor="middle" fill="#86321f" font-size="11">回答：现在先做哪一步</text>
+              <path d="M568 238V274H116V238" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#v2-roles-arrow)"/>
+              <text x="342" y="299" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">闭环观测把执行后的真实画面重新送回编码器</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>三个模块回答不同问题。编码器本身不会选择动作；动力学模型本身也不知道任务目标；规划器依赖前两者给出的几何。论文的机器人能力是这条闭环链的系统结果。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY LATENT PREDICTION</p>
+          <h2 id="problem-title">旧瓶颈不是“没有视频”，而是两种数据各缺一半</h2>
+
+          <figure class="svg-figure" aria-labelledby="v2-problem-title v2-problem-desc">
+            <svg viewBox="0 0 760 392" role="img" aria-labelledby="v2-problem-title v2-problem-desc">
+              <title id="v2-problem-title">三条世界模型路线的数据与计算瓶颈</title>
+              <desc id="v2-problem-desc">只用机器人交互数据拥有动作因果但规模小；生成式视频模型能利用大数据但规划时逐像素生成昂贵；V-JEPA 2 先用观察视频学状态，再用少量交互数据学习动作条件转移。</desc>
+              <defs>
+                <marker id="v2-problem-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="392" fill="#fbfaf6"/>
+              <text x="36" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">两种旧路线</text>
+              <rect x="32" y="64" width="214" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="52" y="96" fill="#17201d" font-size="16" font-weight="700">只从交互数据学世界模型</text>
+              <text x="52" y="125" fill="#52605b" font-size="13">✓ 动作与结果成对</text>
+              <text x="52" y="149" fill="#86321f" font-size="13">✕ 真实机器人数据昂贵</text>
+              <rect x="32" y="198" width="214" height="112" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="52" y="230" fill="#17201d" font-size="16" font-weight="700">生成未来视频再做规划</text>
+              <text x="52" y="259" fill="#52605b" font-size="13">✓ 预测结果可直接观看</text>
+              <text x="52" y="283" fill="#86321f" font-size="13">✕ 每组候选动作都要生成像素</text>
+
+              <path d="M260 188H304" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#v2-problem-arrow)"/>
+              <text x="310" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">V-JEPA 2 的拆法</text>
+              <rect x="306" y="64" width="212" height="246" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="326" y="98" fill="#17201d" font-size="16" font-weight="700">观察阶段：学可预测状态</text>
+              <text x="326" y="126" fill="#52605b" font-size="13">22M 样本扩展视觉覆盖</text>
+              <text x="326" y="150" fill="#52605b" font-size="13">latent 目标跳过细枝末节</text>
+              <line x1="326" y1="171" x2="498" y2="171" stroke="#9ab0bf"/>
+              <text x="326" y="202" fill="#17201d" font-size="16" font-weight="700">交互阶段：只补动作转移</text>
+              <text x="326" y="230" fill="#52605b" font-size="13">冻结 1B 编码器</text>
+              <text x="326" y="254" fill="#52605b" font-size="13">训练 300M predictor</text>
+              <text x="326" y="286" fill="#86321f" font-size="12" font-weight="700">让稀缺数据承担更窄的问题</text>
+
+              <path d="M532 188H568" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#v2-problem-arrow)"/>
+              <text x="572" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">得到的收益</text>
+              <rect x="568" y="64" width="160" height="246" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="588" y="100" fill="#17201d" font-size="15" font-weight="700">数据分工</text>
+              <text x="588" y="126" fill="#52605b" font-size="12">规模来自互联网</text>
+              <text x="588" y="148" fill="#52605b" font-size="12">因果来自机器人</text>
+              <line x1="588" y1="171" x2="708" y2="171" stroke="#9fc4b7"/>
+              <text x="588" y="202" fill="#17201d" font-size="15" font-weight="700">计算分工</text>
+              <text x="588" y="228" fill="#52605b" font-size="12">预测 latent</text>
+              <text x="588" y="250" fill="#52605b" font-size="12">而非未来像素</text>
+              <text x="588" y="284" fill="#86321f" font-size="12" font-weight="700">可并行试演更多动作</text>
+              <text x="380" y="357" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">关键取舍：可视化忠实度让位给任务相关状态与规划吞吐</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>V-JEPA 2 没有消除交互数据需求，而是把它从“学习全部视觉世界”缩窄为“学习动作如何推动已学好的状态空间”。这也是 62 小时数据能够发挥作用的前提。</figcaption>
+          </figure>
+
+          <h3>为什么潜空间可能更适合规划</h3>
+          <p>像素生成目标会平均对待每个可见细节，但机器人动作通常只依赖物体、几何、接触与运动。JEPA 把训练压力放在可预测表征上：如果树叶的精确位置无法从上下文确定，模型没有必要为它分配与杯子位置相同的容量。规划时也无需为每条候选动作解码一段视频。</p>
+
+          <h3>但“忽略不可预测细节”不是自动等于“保留所有控制变量”</h3>
+          <p>潜空间是否真的保留深度、接触状态、遮挡关系和相机坐标，必须由下游证据验证。V-JEPA 2 的运动分类和动作预判很强，机器人也能闭环成功；但后续 <a href="../v-jepa-2-1/">V-JEPA 2.1</a> 恰好发现，原始 V-JEPA 2 的逐 patch 局部结构并不容易线性读出。这说明“全局可预测”与“局部几何清晰”不是同一件事。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">两次训练、一次在线搜索：能力怎样真正接起来</h2>
+
+          <div class="formula-card" aria-label="V-JEPA 2 遮挡预测目标说明">
+            <div class="formula-card__label">公式拆解 · 无动作预训练到底在预测什么</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L<sub>JEPA</sub></span> = ‖ P<sub>φ</sub>(Δ<sub>y</sub>, E<sub>θ</sub>(x)) − sg(E<sub>θ̄</sub>(y)) ‖<sub>1, masked</sub>
+            </div>
+            <p class="formula-card__caption">这条公式回答：只看到被遮视频 x 时，预测器能否恢复完整视频 y 在被遮位置上的目标表征。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>x / y</dt><dd>x 是删除若干时空 patch 的视图；y 是未遮挡的同一视频。</dd></div>
+              <div class="formula-legend__row"><dt>E<sub>θ</sub></dt><dd>在线编码器，读取可见 tubelet；tubelet 大小为 2×16×16。</dd></div>
+              <div class="formula-legend__row"><dt>E<sub>θ̄</sub></dt><dd>EMA 目标编码器；停止梯度后提供随训练缓慢变化的目标，降低表征坍塌风险。</dd></div>
+              <div class="formula-legend__row"><dt>Δ<sub>y</sub></dt><dd>携带被遮位置的可学习 mask token，让预测器知道要补哪里。</dd></div>
+              <div class="formula-legend__row"><dt>L1, masked</dt><dd>只在被遮 token 上计算 L1 距离；越小代表 latent 预测越接近目标。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：模型不是从过去像素绘制未来，而是从剩余线索恢复“完整视频应当表达什么”。3D RoPE 分别编码时间、高度和宽度，ViT-g 把这一目标扩展到约 10 亿参数。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="v2-train-title v2-train-desc">
+            <svg viewBox="0 0 760 450" role="img" aria-labelledby="v2-train-title v2-train-desc">
+              <title id="v2-train-title">V-JEPA 2 与 V-JEPA 2-AC 的两阶段训练</title>
+              <desc id="v2-train-desc">第一阶段用遮挡视频、在线编码器、EMA 编码器和预测器学习视频表征；第二阶段冻结编码器，将机器人帧、动作和七维末端状态交错输入块因果预测器，以教师强制和两步滚动损失预测未来表征。</desc>
+              <defs>
+                <marker id="v2-train-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="450" fill="#fbfaf6"/>
+              <text x="34" y="40" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">STAGE 1 · OBSERVATION</text>
+              <rect x="32" y="60" width="150" height="64" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="107" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">masked video x</text>
+              <text x="107" y="109" text-anchor="middle" fill="#52605b" font-size="11">只保留可见 tubelet</text>
+              <path d="M192 92H232" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="236" y="60" width="146" height="64" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="309" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Eθ + mask tokens</text>
+              <text x="309" y="109" text-anchor="middle" fill="#52605b" font-size="11">上下文 + 位置</text>
+              <path d="M392 92H432" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="436" y="60" width="132" height="64" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="502" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">predictor Pφ</text>
+              <text x="502" y="109" text-anchor="middle" fill="#52605b" font-size="11">预测 masked latent</text>
+              <path d="M578 92H618" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="622" y="60" width="106" height="64" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="675" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">L1</text>
+              <text x="675" y="109" text-anchor="middle" fill="#52605b" font-size="11">对齐 EMA 目标</text>
+              <path d="M107 138V168H675V138" fill="none" stroke="#aaa69c" stroke-width="1.4" stroke-dasharray="5 5"/>
+              <text x="391" y="191" text-anchor="middle" fill="#52605b" font-size="12">结果：可冻结、可缩放的 1B 视频编码器</text>
+
+              <text x="34" y="235" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">STAGE 2 · INTERACTION</text>
+              <rect x="32" y="255" width="160" height="104" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="112" y="284" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">4 秒 DROID 片段</text>
+              <text x="112" y="309" text-anchor="middle" fill="#52605b" font-size="11">16 帧 · 4 fps · 256²</text>
+              <text x="112" y="331" text-anchor="middle" fill="#52605b" font-size="11">7D state + 7D action Δ</text>
+              <text x="112" y="350" text-anchor="middle" fill="#86321f" font-size="10">不使用任务 / 成功 / 奖励标签</text>
+              <path d="M202 307H242" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="246" y="255" width="146" height="104" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="319" y="284" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">冻结 Eθ</text>
+              <text x="319" y="309" text-anchor="middle" fill="#52605b" font-size="11">每帧 16×16×1408</text>
+              <text x="319" y="332" text-anchor="middle" fill="#52605b" font-size="11">与 action / state 交错</text>
+              <path d="M402 307H442" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="446" y="255" width="160" height="104" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="526" y="284" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">block-causal Pφ</text>
+              <text x="526" y="309" text-anchor="middle" fill="#52605b" font-size="11">24 层 · 300M</text>
+              <text x="526" y="332" text-anchor="middle" fill="#52605b" font-size="11">预测 ẑₖ₊₁</text>
+              <path d="M616 307H646" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v2-train-arrow)"/>
+              <rect x="650" y="255" width="78" height="104" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="689" y="286" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">Lteacher</text>
+              <text x="689" y="312" text-anchor="middle" fill="#52605b" font-size="10">+</text>
+              <text x="689" y="338" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">Lrollout</text>
+              <path d="M112 379V408H689V379" fill="none" stroke="#aaa69c" stroke-width="1.4" stroke-dasharray="5 5"/>
+              <text x="400" y="432" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">两步 rollout 让模型在训练时见到自己的预测误差，而不只见真实历史</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>第一阶段更新编码器与无动作 predictor；第二阶段冻结前者并丢弃原 predictor，另训动作条件 predictor。论文没有用 62 小时数据微调整个 1B 编码器，这使机器人数据主要用于学习转移而不是重新学习视觉。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="V-JEPA 2 动作条件训练目标说明">
+            <div class="formula-card__label">公式拆解 · 为什么同时需要 teacher forcing 与 rollout</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L<sub>AC</sub></span> = L<sub>teacher-forcing</sub> + L<sub>rollout</sub>
+            </div>
+            <p class="formula-card__caption">这条公式回答：动作条件预测器怎样兼顾单步准确与把自身输出再次送回输入后的稳定性。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>Lteacher</dt><dd>每一步都读取真实 z<sub>k</sub>，预测真实 z<sub>k+1</sub>；训练信号稳定，但不会暴露推理时的累计误差。</dd></div>
+              <div class="formula-legend__row"><dt>Lrollout</dt><dd>把预测表征递归送回模型；论文用两步 rollout，并只穿过一个递归步骤反向传播。</dd></div>
+              <div class="formula-legend__row"><dt>a / s</dt><dd>a 是相邻帧末端状态之差，s 是位置、欧拉角与夹爪组成的 7 维状态。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：teacher forcing 教“下一步怎样对”，rollout 教“上一步稍微错了还能不能继续”。两者相加并不解决长程误差，只把模型训练得更接近 MPC 里反复自回归调用的条件。</div>
+          </div>
+
+          <div class="formula-card" aria-label="V-JEPA 2 模型预测控制目标说明">
+            <div class="formula-card__label">公式拆解 · 机器人怎样从目标图像反推出动作</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">a*</span> = arg min<sub>â₁:T</sub> ‖ P<sub>φ</sub>(â₁:T; s<sub>k</sub>, z<sub>k</sub>) − z<sub>g</sub> ‖<sub>1</sub>
+            </div>
+            <p class="formula-card__caption">这条公式回答：哪组候选动作会让模型想象出的终态最接近目标图像表征。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>z<sub>k</sub> / z<sub>g</sub></dt><dd>当前帧与目标帧经同一冻结编码器得到的特征图。</dd></div>
+              <div class="formula-legend__row"><dt>P<sub>φ</sub></dt><dd>动作条件世界模型，对整段候选动作进行 latent rollout。</dd></div>
+              <div class="formula-legend__row"><dt>‖·‖₁</dt><dd>目标条件能量；越小代表想象终态与目标更相似，不是外部奖励。</dd></div>
+              <div class="formula-legend__row"><dt>arg min</dt><dd>用 CEM 近似搜索；每轮保留低能量候选更新高斯，只执行 a* 的第一步。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：模型把控制变成“在 latent 地形上找低谷”。闭环重规划降低一次搜索失误的代价，但目标图像若没有表达中间步骤，贪心短视仍可能卡住，所以 pick-and-place 由人提供三个目标 / 子目标。</div>
+          </div>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">证据不是一张总榜：要按理解、预测、规划分别读</h2>
+
+          <h3>规模化先回答：这套自监督目标能否吃到更多数据、模型与分辨率</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2 规模化消融表">
+            <table class="evidence-table">
+              <thead><tr><th>ViT-L 基线后的累积改动</th><th>六项分类平均准确率</th><th>相对前一步</th><th>论文中的解释</th></tr></thead>
+              <tbody>
+                <tr><td>V-JEPA 1 配方</td><td>84.2</td><td>—</td><td>2M 视频、300M 模型</td></tr>
+                <tr><td>数据扩到 VM22M</td><td>85.2</td><td>+1.0</td><td>增加视觉覆盖，外观任务收益更明显</td></tr>
+                <tr><td>模型扩到 ViT-g 1B</td><td>86.7</td><td>+1.5</td><td>容量继续带来稳定收益</td></tr>
+                <tr><td>训练从 90K 延长到 252K</td><td>87.5</td><td>+0.8</td><td>warmup-constant-decay 支持长训练</td></tr>
+                <tr class="evidence-table__emphasis"><td>高时空分辨率 cooldown</td><td>88.2</td><td>+0.7</td><td>64 帧、384²；渐进训练约省 8.4× GPU 时间</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>边界：</strong>这是逐项累加的配方消融，不是对各因素所有组合的全因子实验；88.2 还使用了更长、更高分辨率的评估输入，因此不能只归因于表征训练。</p>
+
+          <h3>理解与预测：冻结编码器后仍能被相对轻量的读出头利用</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2 理解和预测证据表">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>能力</th><th>设置</th><th>V-JEPA 2 结果</th><th>关键对照</th><th>能支持的判断</th></tr></thead>
+              <tbody>
+                <tr><td>运动理解</td><td>SSv2 attentive probe</td><td>77.3 top-1</td><td>V-JEPA 74.3；InternVideo2s2 69.7</td><td>冻结表征包含强时序运动信息</td></tr>
+                <tr><td>动作预判</td><td>EK100，提前 1 秒，Recall@5</td><td>39.7 action</td><td>PlausiVL 27.6</td><td>比此前最好高 12.1 点，论文计为 44% 相对提升</td></tr>
+                <tr><td>VideoQA</td><td>1B encoder + Llama 3.1 8B</td><td>84.0 PT；44.5 MVP；76.9 TempCompass</td><td>PLM 8B：82.7 / 39.7 / 72.7</td><td>无语言预训练的编码器可经大规模对齐进入 MLLM</td></tr>
+                <tr><td>VideoQA 边界</td><td>同上</td><td>60.6 TVBench；73.5 MVBench</td><td>PLM 8B：63.5 / 77.1</td><td>并非所有视频问答基准都领先</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>规划：论文真正证明的是“在新环境里，latent MPC 可以闭环工作”</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2 机器人操控结果表">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>两实验室平均成功率</th><th>Reach</th><th>Grasp Cup</th><th>Grasp Box</th><th>Reach w/ Obj. Cup</th><th>Reach w/ Obj. Box</th><th>Pick & Place Cup</th><th>Pick & Place Box</th></tr></thead>
+              <tbody>
+                <tr><td>Octo（DROID 全量行为克隆）</td><td>100%</td><td>15%</td><td>0%</td><td>15%</td><td>70%</td><td>15%</td><td>10%</td></tr>
+                <tr class="evidence-table__emphasis"><td>V-JEPA 2-AC</td><td>100%</td><td>65%</td><td>25%</td><td>75%</td><td>75%</td><td>80%</td><td>65%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>模型权重和推理代码在两个实验室相同，两个环境都不在 DROID 中；视觉输入是未标定、低分辨率单目相机。每个单元格是 10 次试验。单目标 reach 的三组实验都进入 4 cm 以内，且误差单调下降。和 Cosmos 的 Lab 2 对比中，V-JEPA 2-AC 用 800 个样本、10 轮 CEM、horizon 1，每个动作约 16 秒；Cosmos 用 80 个样本仍约 4 分钟。</p>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>论文直接支持</span>
+              <h3>latent 动力学可以服务真实闭环 MPC</h3>
+              <p>两间新实验室、重复试验与模型基线共同表明结果不只是离线预测分数。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件支持</span>
+              <h3>少量交互数据可以补上动作因果</h3>
+              <p>62 小时相对视频预训练很小，但任务仍局限于固定相机桌面机械臂和 7D 末端控制。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>论文没有证明</span>
+              <h3>纯观察学习能直接产生通用机器人</h3>
+              <p>动作条件 predictor、目标图像、CEM 搜索、低层控制器和人工子目标缺一不可。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">最该记住的不是“零样本”，而是零样本发生在哪一层</h2>
+
+          <h3>第一，机器人环境是零样本，机器人形态与动作接口不是</h3>
+          <p>V-JEPA 2-AC 没在两间测试实验室收集数据，也没有为 cup / box 任务再训练；但训练和部署都是 Franka Panda、两指夹爪、7D 末端状态与相似的 operational-space controller。它展示环境与物体层面的迁移，不是跨机器人形态、跨控制接口的迁移。</p>
+
+          <h3>第二，任务仍由目标图像和人工子目标定义</h3>
+          <p>reach、grasp 和 reach-with-object 使用单张目标图；pick-and-place 使用“已抓住—移到附近—已经放好”三张图，并按 4 / 10 / 4 个控制步切换。模型没有从语言推断这些阶段，也没有自主发现子目标。论文把语言目标和层级长程预测列为未来工作。</p>
+
+          <h3>第三，相机坐标是隐式猜出来的，而且作者手工挑过机位</h3>
+          <p>动作以机器人基座坐标表达，但相机未标定，画面中常看不到基座。论文明确写到实际部署前手工尝试了不同相机位置，才选到对所有实验都较好的位置。附录显示机位变化会带来动作坐标轴旋转误差，因此“无需标定”不能理解成“对任意机位鲁棒”。</p>
+
+          <h3>第四，长程预测与搜索复杂度同时恶化</h3>
+          <p>自回归 rollout 会累计表征误差，动作序列的搜索空间又随 horizon 快速增长。主机器人表中的 horizon 为 1；pick-and-place 通过闭环与人工子目标拼接，而不是一次规划完整动作。论文结论把约 16 秒作为当前关注的最长预测尺度，离开放式长任务仍有明显距离。</p>
+
+          <h3>第五，成功率样本小，且不是训练随机性的重复实验</h3>
+          <p>每个对象—任务—实验室组合只有 10 次执行，足以展示可行性，但不足以给出很窄的置信区间；论文也没有报告多次独立后训练的均值和方差。20% 与 30% 这类差异对应两三次执行，解读时应保留离散样本的不确定性。</p>
+
+          <h3>第六，理解结果是系统级比较，不是完全控制变量</h3>
+          <p>论文尽量统一 attentive-probe 协议，但不同基础模型仍使用不同预训练数据；高分辨率 V-JEPA 2 还使用不同输入分辨率、时长与 crop 数。VideoQA 的领先来自 88.5M 视觉—语言样本对齐和 Llama 3.1 8B，不是“无需语言数据”。论文自己也把这些比较限定为系统层。</p>
+
+          <h3>第七，后续工作暴露了原表征的局部结构债</h3>
+          <p>V-JEPA 2 的全局运动理解很强，但 <a href="../v-jepa-2-1/">V-JEPA 2.1</a> 在冻结特征上测得 ADE20K 仅 22.2 mIoU、NYUv2 0.682 RMSE，并把问题追到未被监督的 context token。这不是推翻 V-JEPA 2，而是说明“会预测整体状态”并不保证“每个 patch 都是可定位的状态变量”。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2506.09985">论文摘要页：arXiv:2506.09985</a> — 标题、作者、版本与公开日期。</li>
+            <li><a href="https://arxiv.org/pdf/2506.09985">论文 PDF</a> — 本页方法、公式、VideoMix22M、分类 / 预判 / VideoQA 表格、机器人实验与附录限制的主要来源，共 48 页。</li>
+            <li><a href="https://github.com/facebookresearch/vjepa2">官方代码仓库：facebookresearch/vjepa2</a> — 链接来自论文首页；本页没有把未逐文件核验的实现细节写成 repo 事实。</li>
+            <li><a href="https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks">Meta 研究博客</a> — 论文首页给出的项目介绍入口；数值与边界仍以论文为准。</li>
+            <li><a href="../v-jepa-2-1/">配套阅读：V-JEPA 2.1</a> — 解释这套目标为何需要额外监督 context token 才能得到高质量稠密特征。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>训练规模、公式、benchmark 数值、部署设置和论文自述限制是论文事实；“三阶段能力链”“稀缺交互数据只承担更窄的问题”“零样本发生在环境层而非形态层”“强全局表征不等于逐 patch 状态清晰”等是依据论文设计与后续证据作出的分析判断。未修改用户提供的 PDF，也未把 PDF 复制进仓库。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
