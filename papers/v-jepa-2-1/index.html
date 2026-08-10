@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning">
+    <meta name="citation_author" content="Lorenzo Mur-Labadia">
+    <meta name="citation_author" content="Matthew Muckley">
+    <meta name="citation_author" content="Amir Bar">
+    <meta name="citation_author" content="Mido Assran">
+    <meta name="citation_author" content="Koustuv Sinha">
+    <meta name="citation_author" content="Mike Rabbat">
+    <meta name="citation_author" content="Yann LeCun">
+    <meta name="citation_author" content="Nicolas Ballas">
+    <meta name="citation_author" content="Adrien Bardes">
+    <meta name="citation_publication_date" content="2026-06-12">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2603.14482">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2603.14482">
+    <meta name="description" content="从 context token 的监督缺口、距离加权稠密预测、深层自监督和图像视频原生 tokenizer 解读 V-JEPA 2.1，并核对稠密任务、预测、机器人规划与模型缩放的证据边界。">
+    <meta name="keywords" content="V-JEPA 2.1, dense features, context loss, deep self-supervision, video self-supervised learning, semantic segmentation, depth estimation, world model">
+    <meta name="paper:read_at" content="2026-08-10">
+    <title>V-JEPA 2.1：被遮区域学会了语义，可见区域却未必知道自己在哪里</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/v-jepa-2-1/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2603.14482V3 · 2026-06-12 · 阅读于 2026-08-10</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住监督缺口</a></li>
+          <li><a href="#concepts">理解“稠密”到底指什么</a></li>
+          <li><a href="#problem-chain">可见 token 为何变成聚合器</a></li>
+          <li><a href="#mechanism">把监督铺回每层每个位置</a></li>
+          <li><a href="#evidence">哪些收益来自损失，哪些来自放大</a></li>
+          <li><a href="#limits">结果还留下哪些混杂因素</a></li>
+          <li><a href="#sources">回到原文与前作</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">DENSE PREDICTION · DEEP SELF-SUPERVISION · IMAGE–VIDEO TOKENIZATION</p>
+          <h1 id="paper-title" class="paper-title">V-JEPA 2.1</h1>
+          <p class="paper-subtitle">
+            这不是把 V-JEPA 2 简单放大一倍，而是追问一个更基础的问题：如果训练损失只检查被遮位置，模型为什么要让每个可见 patch 都保留清楚的局部身份？
+          </p>
+          <div class="paper-byline">
+            <span>Lorenzo Mur-Labadia、Matthew Muckley、Amir Bar 等 9 位作者</span>
+            <span>FAIR at Meta、Universidad de Zaragoza</span>
+            <span>arXiv v3 · 37 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              在不放弃 V-JEPA 擅长的全局运动理解和未来预测能力的前提下，让冻结视频编码器的每个时空 token 都能直接表达对象边界、深度、局部语义和跨帧对应；这样同一底座既能回答“整段视频发生了什么”，也能回答“这个像素附近是什么、离相机多远、下一帧还对应哪里”。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="v21-overview-title v21-overview-desc">
+            <svg viewBox="0 0 760 458" role="img" aria-labelledby="v21-overview-title v21-overview-desc">
+              <title id="v21-overview-title">V-JEPA 2.1 从监督缺口到稠密特征的总览</title>
+              <desc id="v21-overview-desc">原 V-JEPA 2 只监督被遮 token，导致可见 token 聚合全局信息而缺少局部结构；V-JEPA 2.1 加入距离加权 context loss、深层自监督、图像视频独立 tokenizer，并扩展数据和模型，最终改善深度、分割、跟踪、预测和规划。</desc>
+              <defs>
+                <marker id="v21-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="458" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 监督缺口</text>
+              <rect x="30" y="64" width="205" height="246" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="98" fill="#17201d" font-size="16" font-weight="700">只检查 masked token</text>
+              <text x="50" y="127" fill="#52605b" font-size="13">被遮位置必须可预测</text>
+              <text x="50" y="151" fill="#52605b" font-size="13">可见位置没有逐点目标</text>
+              <line x1="50" y1="172" x2="215" y2="172" stroke="#d3a99d"/>
+              <text x="50" y="202" fill="#17201d" font-size="15" font-weight="700">结果：context token</text>
+              <text x="50" y="229" fill="#52605b" font-size="13">可以充当全局汇总槽</text>
+              <text x="50" y="253" fill="#52605b" font-size="13">不必忠实描述本地 patch</text>
+              <text x="50" y="286" fill="#86321f" font-size="12" font-weight="700">全局强 · 局部碎</text>
+
+              <path d="M247 187H278" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-overview-arrow)"/>
+              <text x="282" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / 重新铺监督</text>
+              <rect x="278" y="64" width="226" height="70" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="93" fill="#17201d" font-size="15" font-weight="700">Weighted context loss</text>
+              <text x="298" y="117" fill="#52605b" font-size="12">离 mask 越近，监督权重越大</text>
+              <rect x="278" y="151" width="226" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="180" fill="#17201d" font-size="15" font-weight="700">Deep self-supervision</text>
+              <text x="298" y="204" fill="#52605b" font-size="12">三层中间特征 + 最终层一起学</text>
+              <rect x="278" y="238" width="226" height="72" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="267" fill="#17201d" font-size="15" font-weight="700">原生多模态 tokenizer</text>
+              <text x="298" y="291" fill="#52605b" font-size="12">图像 2D · 视频 3D · modality token</text>
+
+              <path d="M516 187H547" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-overview-arrow)"/>
+              <text x="551" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / 证据落点</text>
+              <rect x="547" y="64" width="181" height="246" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="567" y="98" fill="#17201d" font-size="15" font-weight="700">NYUv2 depth</text>
+              <text x="567" y="123" fill="#52605b" font-size="13">0.642 → 0.307 RMSE</text>
+              <line x1="567" y1="143" x2="708" y2="143" stroke="#d8d4ca"/>
+              <text x="567" y="172" fill="#17201d" font-size="15" font-weight="700">ADE20K</text>
+              <text x="567" y="197" fill="#52605b" font-size="13">24.4 → 47.9 mIoU</text>
+              <line x1="567" y1="217" x2="708" y2="217" stroke="#d8d4ca"/>
+              <text x="567" y="246" fill="#17201d" font-size="15" font-weight="700">Ego4D STA</text>
+              <text x="567" y="271" fill="#52605b" font-size="13">6.02 → 7.71 mAP</text>
+              <text x="567" y="297" fill="#86321f" font-size="11" font-weight="700">2B 最终模型</text>
+
+              <path d="M132 332V368H638V332" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="161" y="360" width="448" height="64" rx="32" fill="#17201d"/>
+              <text x="385" y="387" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">不是让模型“看更多”，而是让每个 token 对自己的位置负责</text>
+              <text x="385" y="409" fill="#d8d4ca" text-anchor="middle" font-size="12">最终收益还叠加了数据、模型规模与高分辨率 cooldown</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先看左侧为什么原损失允许局部信息消失，再看中间怎样把监督落到可见 token 和中间层。右侧最终分数来自完整配方；要判断核心算法是否成立，必须回到后文的同规模 ViT-L 消融，而不能只比较 1B 的 V-JEPA 2 与 2B 的 V-JEPA 2.1。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，V-JEPA 2 的 dense 弱点不是 token 数量不足，而是损失函数允许错误的责任分配。</strong>只有 masked token 被评分时，可见 token 最经济的策略可能是汇总全局上下文，而不是保存自己对应 patch 的边界和深度。</p>
+            <p><strong>第二，单加 context loss 会以全局语义为代价换局部结构。</strong>ViT-L 消融中，ADE20K 从 22.2 升到 33.8 mIoU，但 SSv2 从 72.8 降到 62.5；深层自监督才把 SSv2 拉回 72.1，并把 ADE20K 继续推到 38.6。论文真正的配方是“稠密约束 + 分层语义”，不是简单的 all-token loss。</p>
+            <p><strong>第三，最终 SOTA 是算法与规模共同作用的结果。</strong>2B 模型、VisionMix163M、原生图像 / 视频 tokenizer 和高分辨率 cooldown 一起把 NYUv2 做到 0.307 RMSE；同为 1B 时，V-JEPA 2.1 在 SSv2 和 EK100 action anticipation 反而略低于 V-JEPA 2，说明“2.1 全面替代 2”并不准确。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">“稠密特征”不是更多 token，而是每个 token 都有可定位的含义</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">DENSE FEATURE（稠密特征）</span>
+            <p><strong>英译中：</strong>在规则空间或时空网格上，每个局部位置都有一个能被下游直接利用的特征向量。</p>
+            <p><strong>怎么理解：</strong>如果汽车轮子、人的轮廓和物体深度在 patch token 中保持局部一致，线性层就能画出边界、回归深度，跨帧余弦相似度也能传播对象掩码。它强调“哪里是什么”，而不只是整段视频的类别。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONTEXT TOKEN（可见上下文 token）</span>
+            <p><strong>英译中：</strong>没有被 mask、直接进入 x-encoder 的 patch 表征。</p>
+            <p><strong>怎么理解：</strong>原 V-JEPA predictor 会同时输出 context 和 mask 位置的 token，但损失只检查后者。context token 因此可以互相交换并聚合全局信息，只要最终有助于猜出 mask；它们不必保持“我来自画面左下角这个轮子”的局部忠实性。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">DEEP SELF-SUPERVISION（深层自监督）</span>
+            <p><strong>英译中：</strong>不只监督网络最后一层，也把同一自监督目标施加到多个中间层。</p>
+            <p><strong>怎么理解：</strong>论文取三个中间 block 加最终层，将它们拼接并用 MLP 融合，predictor 为四个层级分别输出目标。这样局部信息不必一路穿过 40 层左右的网络后才在末端接受一次惩罚。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">MULTI-MODAL TOKENIZER（多模态 tokenizer）</span>
+            <p><strong>英译中：</strong>图像与视频共享 Transformer，但在进入网络前使用各自适合的 patch embedding。</p>
+            <p><strong>怎么理解：</strong>视频用 16×16×2 的 3D 卷积，图像用 16×16 的 2D 卷积，并加入 modality embedding。V-JEPA 2 把一张图复制成 16 帧静态视频；2.1 不再支付这笔计算，也不再给静态图像强加“零运动视频”的偏置。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="v21-dense-title v21-dense-desc">
+            <svg viewBox="0 0 680 330" role="img" aria-labelledby="v21-dense-title v21-dense-desc">
+              <title id="v21-dense-title">全局表征与稠密表征的差别</title>
+              <desc id="v21-dense-desc">全局表征可用多个 token 共同汇总场景和动作，适合分类；稠密表征要求每个 token 对应稳定空间位置和局部语义，适合深度、分割和跨帧跟踪。</desc>
+              <rect width="680" height="330" fill="#fbfaf6"/>
+              <text x="42" y="45" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">全局任务问：整段发生了什么？</text>
+              <rect x="38" y="66" width="276" height="184" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <g fill="#dfeaf1" stroke="#355e7c">
+                <rect x="62" y="92" width="42" height="42"/><rect x="110" y="92" width="42" height="42"/><rect x="158" y="92" width="42" height="42"/><rect x="206" y="92" width="42" height="42"/>
+                <rect x="62" y="140" width="42" height="42"/><rect x="110" y="140" width="42" height="42"/><rect x="158" y="140" width="42" height="42"/><rect x="206" y="140" width="42" height="42"/>
+              </g>
+              <path d="M83 113Q150 210 270 154M131 113Q182 198 270 154M179 161Q221 161 270 154" fill="none" stroke="#86321f" stroke-width="2"/>
+              <circle cx="270" cy="154" r="25" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="270" y="158" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">动作</text>
+              <text x="176" y="226" text-anchor="middle" fill="#52605b" font-size="12">token 可以共同汇总全局证据</text>
+
+              <text x="366" y="45" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.5">稠密任务问：每个位置分别是什么？</text>
+              <rect x="362" y="66" width="280" height="184" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <g stroke="#24624e">
+                <rect x="388" y="92" width="50" height="50" fill="#dfeaf1"/><rect x="444" y="92" width="50" height="50" fill="#f1e8c9"/><rect x="500" y="92" width="50" height="50" fill="#f4ded5"/><rect x="556" y="92" width="50" height="50" fill="#dfeaf1"/>
+                <rect x="388" y="148" width="50" height="50" fill="#dcebe5"/><rect x="444" y="148" width="50" height="50" fill="#f4ded5"/><rect x="500" y="148" width="50" height="50" fill="#f1e8c9"/><rect x="556" y="148" width="50" height="50" fill="#dcebe5"/>
+              </g>
+              <text x="413" y="122" text-anchor="middle" fill="#17201d" font-size="10">天空</text>
+              <text x="469" y="122" text-anchor="middle" fill="#17201d" font-size="10">车</text>
+              <text x="525" y="122" text-anchor="middle" fill="#17201d" font-size="10">人</text>
+              <text x="581" y="122" text-anchor="middle" fill="#17201d" font-size="10">背景</text>
+              <text x="502" y="226" text-anchor="middle" fill="#52605b" font-size="12">位置、语义与跨帧对应必须稳定</text>
+              <path d="M176 269V298H502V269" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="339" y="318" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">同一个 ViT 可以完成两者，但训练目标必须同时约束两种责任</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>全局分类允许“多个 token 合谋得出答案”；深度和分割要求“每个 token 对自己的位置负责”。V-JEPA 2.1 的工作不是减少全局交互，而是避免局部身份在全局聚合中被彻底冲淡。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">FAILURE CHAIN</p>
+          <h2 id="problem-title">为什么只监督 masked token，会让可见 token 失去局部结构</h2>
+
+          <figure class="svg-figure" aria-labelledby="v21-failure-title v21-failure-desc">
+            <svg viewBox="0 0 760 400" role="img" aria-labelledby="v21-failure-title v21-failure-desc">
+              <title id="v21-failure-title">原始 V-JEPA 损失产生局部结构缺口的因果链</title>
+              <desc id="v21-failure-desc">可见 context token 进入预测器但不接受逐点损失，因此只要能帮助预测 mask，它们可以聚合全局信息并舍弃局部身份，导致 PCA 特征碎片化、线性深度和分割表现差。</desc>
+              <defs>
+                <marker id="v21-failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="400" fill="#fbfaf6"/>
+              <rect x="30" y="72" width="154" height="116" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="107" y="105" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">x-encoder</text>
+              <text x="107" y="132" text-anchor="middle" fill="#52605b" font-size="12">只读取可见 patch</text>
+              <text x="107" y="157" text-anchor="middle" fill="#52605b" font-size="12">输出 context token</text>
+              <path d="M196 130H236" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#v21-failure-arrow)"/>
+              <rect x="240" y="72" width="166" height="116" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="323" y="105" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">predictor 输出两类 token</text>
+              <text x="323" y="132" text-anchor="middle" fill="#52605b" font-size="12">mask：有损失</text>
+              <text x="323" y="157" text-anchor="middle" fill="#86321f" font-size="12">context：无损失</text>
+              <path d="M418 130H458" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#v21-failure-arrow)"/>
+              <rect x="462" y="72" width="126" height="116" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="525" y="105" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">捷径</text>
+              <text x="525" y="132" text-anchor="middle" fill="#52605b" font-size="12">汇总全局信息</text>
+              <text x="525" y="157" text-anchor="middle" fill="#52605b" font-size="12">放弃局部身份</text>
+              <path d="M600 130H632" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#v21-failure-arrow)"/>
+              <rect x="636" y="72" width="94" height="116" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="683" y="105" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">结果</text>
+              <text x="683" y="132" text-anchor="middle" fill="#52605b" font-size="11">PCA 碎片</text>
+              <text x="683" y="157" text-anchor="middle" fill="#52605b" font-size="11">dense probe 弱</text>
+
+              <text x="38" y="242" fill="#24624e" font-size="13" font-weight="700" letter-spacing="1.5">论文用两个检查把这个假设钉住</text>
+              <rect x="34" y="263" width="324" height="88" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="54" y="293" fill="#17201d" font-size="15" font-weight="700">质性：PCA patch map</text>
+              <text x="54" y="320" fill="#52605b" font-size="12">V-JEPA 2 噪声和碎片多；加 Lctx 后同类局部部件颜色一致</text>
+              <rect x="402" y="263" width="324" height="88" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="422" y="293" fill="#17201d" font-size="15" font-weight="700">量化：冻结特征 + 线性读出</text>
+              <text x="422" y="320" fill="#52605b" font-size="12">ADE20K 22.2→33.8；NYUv2 0.682→0.474</text>
+              <text x="380" y="382" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">观察 → 机制假设 → 最小损失改动 → 质性与量化同时变化</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>关键不是“unmasked token 完全没训练”——它们仍通过 masked prediction 接收间接梯度；关键是它们没有逐位置的直接目标。论文的因果判断来自：只增加 context loss，PCA 与两项 dense probe 同时明显改善。</figcaption>
+          </figure>
+
+          <h3>直接监督为什么又会伤害分类</h3>
+          <p>若对 context token 施加过强、统一的自拷贝约束，最简单的解可能是保留当前局部特征，而减少跨 patch 聚合；这对边界和深度有利，却可能削弱动作识别需要的全局组合。固定 λ 从 0.05 增大到 1.0 时，ADE20K 先升后降，SSv2 则持续从 71.0 掉到 51.1，说明监督强度本身是一条局部—全局取舍轴。</p>
+
+          <h3>因此 2.1 的真正问题不是“要不要监督 context”，而是“监督哪些、何时监督、在哪些层监督”</h3>
+          <p>距离 mask 近的 context token 对局部连续性最关键，因此得到更大权重；λ 在训练中逐步 warm up，避免网络一开始就走向拷贝捷径；多个中间层同时受监督，让局部结构能沿深度传播，同时由多层 predictor 恢复语义聚合能力。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">稠密预测只是一半，另一半是把它送到中间层</h2>
+
+          <div class="formula-card" aria-label="V-JEPA 2.1 稠密预测损失说明">
+            <div class="formula-card__label">公式拆解 · 每个可见 token 怎样重新获得局部责任</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L<sub>dense</sub></span> = L<sub>predict</sub> + L<sub>ctx</sub>, &nbsp; L<sub>ctx</sub> = (1/|C|) Σ<sub>i∈C</sub> λ<sub>i</sub> ‖P<sub>φ</sub>(E<sub>θ</sub>(x), Δ<sub>y</sub>)<sub>i</sub> − sg(E<sub>θ̄</sub>(y)<sub>i</sub>)‖<sub>1</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：除了恢复被遮位置，如何要求每个可见位置也对齐完整视图中相同位置的目标表征。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>M / C</dt><dd>M 是 masked token 索引集合，C 是可见 context token 索引集合；两者共同覆盖输入位置。</dd></div>
+              <div class="formula-legend__row"><dt>Lpredict</dt><dd>原 V-JEPA 目标，只在 M 上评分，保留从上下文预测缺失内容的训练压力。</dd></div>
+              <div class="formula-legend__row"><dt>Lctx</dt><dd>新目标，在 C 上逐位置对齐 online predictor 与 EMA target；越小代表本地表征越一致。</dd></div>
+              <div class="formula-legend__row"><dt>λ<sub>i</sub></dt><dd>每个 context patch 的权重，不是所有位置使用同一强度。</dd></div>
+              <div class="formula-legend__row"><dt>stop-gradient</dt><dd>目标分支不接收当前反向梯度，仍用 EMA 避免两支网络一起追逐捷径。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：原目标只问“空白处猜得对不对”；新目标再问“你看到的每块内容，是否仍记得自己是谁、在哪里”。两种损失相加，才同时保留预测性与局部锚定。</div>
+          </div>
+
+          <div class="formula-card" aria-label="V-JEPA 2.1 context 权重说明">
+            <div class="formula-card__label">公式拆解 · 为什么离 mask 越近，context 监督越重</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">λ<sub>i</sub></span> = λ / √d<sub>min</sub>(i, M)
+            </div>
+            <p class="formula-card__caption">这条公式回答：有限的 context 约束应优先放到哪些可见 patch 上。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>dmin(i, M)</dt><dd>context token i 到最近 masked block 的时空距离；距离按 block 数计算。</dd></div>
+              <div class="formula-legend__row"><dt>1/√d</dt><dd>距离越近权重越大，但用平方根让衰减不过分陡峭。</dd></div>
+              <div class="formula-legend__row"><dt>λ</dt><dd>全局强度；论文选择 0.5，并在 epoch 50–100 逐步 warm up。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：mask 边界附近最需要上下文与缺失区域保持连续，远处 token 仍可承担更多全局汇总职责。这个空间权重把“局部准确”和“全局聚合”从二选一改成连续分配。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="v21-pipeline-title v21-pipeline-desc">
+            <svg viewBox="0 0 760 466" role="img" aria-labelledby="v21-pipeline-title v21-pipeline-desc">
+              <title id="v21-pipeline-title">V-JEPA 2.1 从多模态输入到多层损失的训练流程</title>
+              <desc id="v21-pipeline-desc">图像走二维卷积，视频走三维卷积并加入模态嵌入；遮挡后的可见 token 经过 x 编码器取三层中间输出和最终输出，MLP 融合后由多层 predictor 同时预测 mask 与 context；完整输入经过 EMA y 编码器提供四层目标。</desc>
+              <defs>
+                <marker id="v21-pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="466" fill="#fbfaf6"/>
+              <text x="34" y="41" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">INPUT &amp; TOKENIZATION</text>
+              <rect x="32" y="62" width="138" height="72" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="101" y="90" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">image / video</text>
+              <text x="101" y="115" text-anchor="middle" fill="#52605b" font-size="11">2D conv / 3D conv</text>
+              <path d="M180 98H216" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-pipeline-arrow)"/>
+              <rect x="220" y="62" width="148" height="72" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="294" y="90" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">3D RoPE + modality</text>
+              <text x="294" y="115" text-anchor="middle" fill="#52605b" font-size="11">再随机删除 mask</text>
+              <path d="M378 98H414" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-pipeline-arrow)"/>
+              <rect x="418" y="62" width="146" height="72" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="491" y="90" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">x-encoder</text>
+              <text x="491" y="115" text-anchor="middle" fill="#52605b" font-size="11">3 个中间层 + 最终层</text>
+              <path d="M574 98H610" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-pipeline-arrow)"/>
+              <rect x="614" y="62" width="114" height="72" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="671" y="90" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">MLP fuse</text>
+              <text x="671" y="115" text-anchor="middle" fill="#52605b" font-size="11">压缩通道</text>
+
+              <text x="34" y="196" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">PREDICTION &amp; TARGETS</text>
+              <rect x="32" y="218" width="190" height="94" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="127" y="249" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">fused context + mask token</text>
+              <text x="127" y="275" text-anchor="middle" fill="#52605b" font-size="11">predictor 输出 4 个层级</text>
+              <text x="127" y="297" text-anchor="middle" fill="#52605b" font-size="11">每层都有 context + mask</text>
+              <path d="M234 265H274" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-pipeline-arrow)"/>
+              <rect x="278" y="218" width="190" height="94" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="373" y="249" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">EMA y-encoder</text>
+              <text x="373" y="275" text-anchor="middle" fill="#52605b" font-size="11">完整图像 / 视频</text>
+              <text x="373" y="297" text-anchor="middle" fill="#52605b" font-size="11">提供相同 4 层 stop-grad 目标</text>
+              <path d="M480 265H520" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#v21-pipeline-arrow)"/>
+              <rect x="524" y="212" width="204" height="106" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="626" y="243" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">每层同时计算</text>
+              <text x="626" y="270" text-anchor="middle" fill="#52605b" font-size="12">Lpredict on mask</text>
+              <text x="626" y="294" text-anchor="middle" fill="#52605b" font-size="12">+ weighted Lctx on context</text>
+
+              <path d="M127 336V372H626V336" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="160" y="366" width="434" height="68" rx="34" fill="#17201d"/>
+              <text x="377" y="393" fill="#fffef9" text-anchor="middle" font-size="15" font-weight="700">空间责任：context loss · 深度责任：multi-level target</text>
+              <text x="377" y="416" fill="#d8d4ca" text-anchor="middle" font-size="12">二者共同阻止局部结构只存在于早期层或只存在于 mask 边界</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从上半部分看输入怎样进入共享编码器，再从下半部分看监督怎样覆盖空间和深度。论文只在训练时保留多层 predictor；冻结编码器做 dense 评估时只读最终层，说明中间层监督的目的正是把局部信息推到最后。</figcaption>
+          </figure>
+
+          <h3>数据与规模不是附属细节，而是最终模型的重要组成</h3>
+          <p>VisionMix163M 用 LVD-142M 取代 1M ImageNet 图像，并组合约 19M 视频样本；全局 batch 分成 128 个 16 帧视频和 2,304 张图像。主训练 135K iteration，随后 12K cooldown：视频从 16 帧 256² 升到 64 帧 384²，图像从 256² 升到 512²。模型从 ViT-L 300M 扩到 ViT-G 2B，最终再蒸馏出 ViT-L 300M 与 ViT-B 80M。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">先读同规模消融，再读最终 2B 模型</h2>
+
+          <h3>最小因果链：context loss 提升局部，deep supervision 找回全局</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2.1 配方消融表">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>累积改动</th><th>IN1K Acc ↑</th><th>SSv2 Acc ↑</th><th>NYUv2 RMSE ↓</th><th>ADE20K mIoU ↑</th><th>怎样解读</th></tr></thead>
+              <tbody>
+                <tr><td>V-JEPA 2 ViT-L</td><td>82.2</td><td>72.8</td><td>0.682</td><td>22.2</td><td>全局强、dense 弱</td></tr>
+                <tr><td>+ weighted context loss</td><td>72.6</td><td>62.5</td><td>0.474</td><td>33.8</td><td>局部显著改善，但全局崩落</td></tr>
+                <tr><td>+ multi-level predictor</td><td>80.8</td><td>72.1</td><td>0.463</td><td>38.6</td><td>恢复大部分全局能力并继续改善 dense</td></tr>
+                <tr><td>+ VisionMix163M</td><td>81.6</td><td>72.6</td><td>0.418</td><td>40.8</td><td>更广图像和视频分布均有收益</td></tr>
+                <tr><td>+ multi-modal tokenizer</td><td>81.6</td><td>72.6</td><td>0.415</td><td>41.4</td><td>主要改善 dense 与计算语义</td></tr>
+                <tr><td>+ ViT-G 2B</td><td>84.8</td><td>76.1</td><td>0.365</td><td>47.1</td><td>四项都明显受益于模型放大</td></tr>
+                <tr class="evidence-table__emphasis"><td>+ 高分辨率 cooldown</td><td>85.5</td><td>77.7</td><td>0.307</td><td>47.9</td><td>尤其推动深度估计</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>读表警告：</strong>前五行主要建立方法因果，后两行建立可扩展性。不能用最后一行减第一行，就把全部增益叫作 context loss；那会把 142M 图像、2B 参数和高分辨率训练一并算进核心算法。</p>
+
+          <h3>稠密任务：最终模型把局部结构从“难以读出”推进到强线性 probe</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2 与 V-JEPA 2.1 稠密任务对照表">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>冻结编码器</th><th>NYUv2 ↓</th><th>KITTI ↓</th><th>ADE20K ↑</th><th>Cityscapes ↑</th><th>VOC12 ↑</th><th>DAVIS J&amp;F ↑</th><th>YouTube-VOS ↑</th></tr></thead>
+              <tbody>
+                <tr><td>V-JEPA 2 ViT-g 1B</td><td>0.642</td><td>4.650</td><td>24.4</td><td>45.9</td><td>63.9</td><td>52.5</td><td>53.7</td></tr>
+                <tr><td>V-JEPA 2.1 ViT-g 1B</td><td>0.350</td><td>2.601</td><td>47.8</td><td>71.8</td><td>84.7</td><td>68.1</td><td>72.3</td></tr>
+                <tr class="evidence-table__emphasis"><td>V-JEPA 2.1 ViT-G 2B</td><td>0.307</td><td>2.461</td><td>47.9</td><td>73.5</td><td>85.0</td><td>69.0</td><td>72.7</td></tr>
+                <tr><td>DINOv3 7B</td><td>0.309</td><td>2.346</td><td>55.9</td><td>81.1</td><td>86.6</td><td>71.1</td><td>74.1</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>NYUv2 的 0.307 是表中最佳，且来自冻结最终层上的线性 depth projection；这是最干净的 dense 证据。语义分割和 VOS 虽大幅超过 V-JEPA 2，但仍落后 DINOv3 7B；论文把 ADE20K / Cityscapes 的差距部分归因于 VisionMix 中高拥挤场景不足。VOS 用无学习的特征匹配传播 mask，能更直接检验跨帧一致性。</p>
+
+          <h3>预测与全局任务：2.1 保住了大部分强项，但不是每个设置都更好</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2.1 预测与全局任务证据表">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>任务</th><th>V-JEPA 2</th><th>V-JEPA 2.1 ViT-g 1B</th><th>V-JEPA 2.1 ViT-G 2B</th><th>结论边界</th></tr></thead>
+              <tbody>
+                <tr><td>Ego4D STA mAP All</td><td>6.02</td><td>6.75</td><td>7.71</td><td>定位 + 名词 + 动词 + 接触时间共同提高</td></tr>
+                <tr><td>EK100 Action Recall@5</td><td>39.7</td><td>38.4</td><td>40.8</td><td>同规模略降，放大到 2B 后才创新高</td></tr>
+                <tr><td>SSv2 top-1</td><td>77.3</td><td>76.9</td><td>77.7</td><td>全局运动理解基本守住</td></tr>
+                <tr><td>K400 / IN1K top-1</td><td>87.3 / 85.1</td><td>87.0 / 84.8</td><td>87.7 / 85.5</td><td>同样呈现 1B 略降、2B 略升</td></tr>
+                <tr><td>VidQA 平均分（过滤后同数据）</td><td>57.8</td><td>—</td><td>57.9</td><td>平均几乎持平；PT / MVP 提升，TemporalBench / TOMATO 下降</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>规划：dense 改善与更长 horizon 的收益要分开</h3>
+          <div class="table-wrap" tabindex="0" aria-label="V-JEPA 2.1 机器人规划对照表">
+            <table class="evidence-table">
+              <thead><tr><th>编码器 / 规划设置</th><th>CEM samples</th><th>迭代</th><th>Horizon</th><th>每动作时间</th><th>Reach</th><th>Grasp</th><th>Pick &amp; Place</th></tr></thead>
+              <tbody>
+                <tr><td>V-JEPA 2</td><td>800</td><td>10</td><td>1</td><td>3 秒</td><td>100%</td><td>60%</td><td>80%</td></tr>
+                <tr><td>V-JEPA 2.1（同规划设置）</td><td>800</td><td>10</td><td>1</td><td>3 秒</td><td>100%</td><td>70%</td><td>80%</td></tr>
+                <tr class="evidence-table__emphasis"><td>V-JEPA 2.1（较长 rollout）</td><td>300</td><td>15</td><td>8</td><td>14 秒</td><td>100%</td><td>80%</td><td>80%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>同样 horizon 1 的行把抓取从 60% 提到 70%，更接近“替换表征”的控制变量。论文摘要所说的 20% 改善对应 60%→80%，但第三行同时把 horizon 从 1 改成 8、样本从 800 改成 300、迭代从 10 改成 15；因此更稳妥的结论是：2.1 表征不仅改善同设置抓取，还让更长 rollout 在该任务上变得有用，而不是把全部 20 个百分点都归因于单一特征质量。</p>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>论文直接支持</span>
+              <h3>context 直接监督修复局部可读性</h3>
+              <p>同规模损失消融、PCA 和两个线性 dense probe 的方向一致。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件支持</span>
+              <h3>dense 特征帮助真实机器人抓取</h3>
+              <p>同设置提升 10 个百分点，但只有单个 cup 配置、10 次试验，仍有采样噪声。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>稠密世界模型能支撑开放长程任务</h3>
+              <p>论文仍依赖任务后训练、目标图像、CEM 和有限 horizon，没有端到端长程评测。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">这篇论文修复了一个真实缺口，也把新的取舍暴露得更清楚</h2>
+
+          <h3>第一，最终 V-JEPA 2 与 2.1 不是单变量比较</h3>
+          <p>两代最终模型同时改变了损失、数据分布、图像 tokenizer、模型规模和 cooldown 分辨率。论文提供 ViT-L 逐步消融来拆解这些因素，这是优点；但最终 0.307、47.9、7.71 等结果仍属于整套系统配方，不能只挂在 context loss 名下。</p>
+
+          <h3>第二，同为 1B 时，全局和预测任务并非全面提升</h3>
+          <p>1B V-JEPA 2.1 在 SSv2 为 76.9，低于 V-JEPA 2 的 77.3；EK100 action anticipation 是 38.4 对 39.7；K400 / IN1K 也各低 0.3 点。2B 后才超过前作。这可能是局部—全局取舍，也可能是新数据 / 配方差异；现有实验不能唯一归因。</p>
+
+          <h3>第三，dense benchmark 的“冻结骨干”不等于完全相同读出</h3>
+          <p>深度与分割用线性 projection，证据较干净；Ego4D STA 使用四层 attentive probe、时序池化、多尺度重排和 Faster R-CNN 扩展头；机器人与导航又训练新的 world model。它们证明特征可被任务头利用，不证明编码器本身直接输出框、深度或动作。</p>
+
+          <h3>第四，机器人 20% 提升含规划器设置变化</h3>
+          <p>60%→70% 是相同 CEM 设置下的表示替换；70%→80% 则同时改成 horizon 8 与不同采样 / 迭代数。第三行更像“新表征支持更长规划设置”的联合收益。每行只有 10 个任务，单次成功就对应 10 个百分点，不能把差值看成高精度估计。</p>
+
+          <h3>第五，导航是任务后训练，不是拿预训练编码器直接零样本行走</h3>
+          <p>论文在 V-JEPA 2.1 表征上训练 Conditional Diffusion Transformer，并在四个导航数据集做 open-loop 规划评测。10.6 秒对 NWM 的 103.2 秒、平均 ATE 2.990 对 3.032 很有价值，但它证明的是 latent 选择让规划器更快，不是无需导航数据。</p>
+
+          <h3>第六，VideoQA 并没有统一受益于更细的局部信息</h3>
+          <p>用过滤后的同一 PerceptionLM 数据重训时，V-JEPA 2.1 的平均分只从 57.8 到 57.9；PerceptionTest、MVP、MVBench 上升，TemporalBench 与 TOMATO 下降。更长 64 帧输入、18% 数据过滤和新增对齐阶段也让它无法成为纯编码器替换实验。</p>
+
+          <h3>第七，数据分布仍决定哪些局部结构最难</h3>
+          <p>V-JEPA 2.1 在 NYUv2 领先，但在 ADE20K、Cityscapes、VOS 与 KITTI 上仍落后 DINOv3。论文推测 VisionMix 中拥挤、多尺度场景不足；这提醒我们，损失能要求 token 保留局部信息，却不能凭空提供训练分布里很少出现的细粒度组合。</p>
+
+          <h3>第八，蒸馏接近教师但没有免费午餐</h3>
+          <p>蒸馏 ViT-L 300M 在 SSv2 达 76.5、ADE20K 46.7、NYUv2 0.336，明显优于从头训练同规模模型；但教师本身是 2B，训练阶段仍要承担大模型成本。ViT-B 80M 的 ADE20K 为 42.0、NYUv2 0.408，部署更轻但 dense 能力下降。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2603.14482">论文摘要页：arXiv:2603.14482</a> — 标题、作者、版本与公开日期。</li>
+            <li><a href="https://arxiv.org/pdf/2603.14482">论文 PDF</a> — 本页公式、配方消融、dense / prediction / planning / VidQA 表格、蒸馏与附录的主要来源，共 37 页。</li>
+            <li><a href="https://github.com/facebookresearch/vjepa2">官方代码仓库：facebookresearch/vjepa2</a> — 论文首页给出的代码入口；本页没有把未逐文件核验的实现细节当作 repo 事实。</li>
+            <li><a href="../v-jepa-2/">前作解读：V-JEPA 2</a> — 用于理解原始 masked prediction、规模化预训练、V-JEPA 2-AC 与机器人 MPC。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>损失公式、训练配置、逐步消融、benchmark 数值与作者给出的解释是论文事实；“损失允许错误的 token 责任分配”“核心算法先修局部、deep supervision 再找回全局”“最终 SOTA 是算法与规模共同作用”“20% 抓取提升含 planner 设置变化”等是依据表格控制变量和实验边界作出的分析判断。未修改用户提供的 PDF，也未把 PDF 复制进仓库。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

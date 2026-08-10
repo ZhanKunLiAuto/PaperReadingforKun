@@ -14,6 +14,8 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning](papers/v-jepa-2/) | 从无动作视频预训练、动作条件后训练到潜空间模型预测控制，梳理视频理解、未来预测与机器人规划之间的能力链，并核对“零样本规划”的适用边界。 |
+| [V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning](papers/v-jepa-2-1/) | 解释 context token 的监督缺口，以及距离加权 context loss、深层自监督和原生 tokenizer 如何恢复稠密空间特征，同时区分方法、规模与规划器变化带来的收益。 |
 | [WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA](papers/wam-diff2/) | 用块因果离散扩散与三级蒸馏把自回归驾驶 VLA 转成并行解码器，并拆分模型、候选选择与系统优化的收益。 |
 | [Auto-JEPA: A Latent World Model of Continuous Intent for End-to-End Autonomous Driving](papers/auto-jepa/) | 预测未来自车连续意图，再通过固定轨迹记忆、场景评分与可行域门控生成规划结果。 |
 | [Video Generation Models are General-Purpose Vision Learners](papers/genception/) | 解析 GenCeption 如何把视频生成骨干改造成多任务感知模型，并审视“通用视觉学习器”的证据边界。 |
@@ -24,7 +26,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 9 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 11 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
