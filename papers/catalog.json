@@ -1,6 +1,57 @@
 {
-  "updatedAt": "2026-08-10",
+  "updatedAt": "2026-08-13",
   "papers": [
+    {
+      "slug": "next-forcing",
+      "title": "Next Forcing: Causal World Modeling with Multi-Chunk Prediction",
+      "authors": [
+        "Gangwei Xu",
+        "Qihang Zhang",
+        "Jiaming Zhou",
+        "Xing Zhu",
+        "Yujun Shen",
+        "Xin Yang",
+        "Yinghao Xu"
+      ],
+      "publicationDate": "2026-06-09",
+      "readAt": "2026-08-13",
+      "description": "从高帧率视频世界模型的外观复制捷径、多视频块预测目标、因果 MCP 链、训练收敛与推理边界解读 Next Forcing，并拆开 2.3× 训练加速与 2× 推理加速的证据口径。",
+      "tags": [
+        "Next Forcing",
+        "multi-chunk prediction",
+        "causal world model",
+        "world action model",
+        "flow matching",
+        "robot manipulation",
+        "RoboTwin",
+        "PhyWorld"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2606.11187",
+      "href": "papers/next-forcing/"
+    },
+    {
+      "slug": "evolve-the-harness",
+      "title": "Don't Train the Model, Evolve the Harness",
+      "authors": [
+        "Joel Niklaus"
+      ],
+      "publicationDate": "2026-07-01",
+      "readAt": "2026-08-13",
+      "description": "解读 Don't Train the Model, Evolve the Harness：为什么固定模型、自动搜索运行支架，能在 Legal Agent Benchmark 上显著提升成绩；以及这项实验真正证明了什么、尚未证明什么。",
+      "tags": [
+        "agent harness",
+        "Meta-Harness",
+        "Legal Agent Benchmark",
+        "LAB",
+        "DeepSeek-V4-Pro",
+        "scaffold optimization",
+        "agent evaluation",
+        "verifier",
+        "legal AI"
+      ],
+      "sourceUrl": "https://huggingface.co/spaces/joelniklaus/harness-optimization",
+      "href": "papers/evolve-the-harness/"
+    },
     {
       "slug": "v-jepa-2",
       "title": "V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning",

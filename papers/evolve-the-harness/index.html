@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Don't Train the Model, Evolve the Harness">
+    <meta name="citation_author" content="Joel Niklaus">
+    <meta name="citation_publication_date" content="2026-07-01">
+    <meta name="citation_public_url" content="https://huggingface.co/spaces/joelniklaus/harness-optimization">
+    <meta name="description" content="解读 Don't Train the Model, Evolve the Harness：为什么固定模型、自动搜索运行支架，能在 Legal Agent Benchmark 上显著提升成绩；以及这项实验真正证明了什么、尚未证明什么。">
+    <meta name="keywords" content="agent harness, Meta-Harness, Legal Agent Benchmark, LAB, DeepSeek-V4-Pro, scaffold optimization, agent evaluation, verifier, legal AI">
+    <meta name="paper:read_at" content="2026-08-13">
+    <title>别急着训练模型：先让 Harness 进化</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/evolve-the-harness/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">研究文章 · LEGAL AGENT BENCHMARK · 阅读于 2026-08-13</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住真正的主张</a></li>
+          <li><a href="#concepts">三个角色别混在一起</a></li>
+          <li><a href="#problem-chain">为什么零分不等于不会</a></li>
+          <li><a href="#mechanism">进化循环怎样做实验</a></li>
+          <li><a href="#evidence">哪些数字最有说服力</a></li>
+          <li><a href="#limits">从结果不能推出什么</a></li>
+          <li><a href="#sources">回到文章、代码与产物</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">FIXED MODEL · EVOLVED HARNESS · STRICT VERIFIER</p>
+          <h1 id="paper-title" class="paper-title">别急着训练模型<br>先让 Harness 进化</h1>
+          <p class="paper-subtitle">
+            一个在法律代理任务上端到端成功率为零的开放模型，也许不是不会做法律工作，而是被文件路径、工具调用、终止条件和评测接口拖成了零分。这篇文章把这个猜想变成了一次自动化搜索实验。
+          </p>
+          <div class="paper-byline">
+            <span>Joel Niklaus · Hugging Face</span>
+            <span>发布于 2026-07-01</span>
+            <span>研究文章 / 实验报告 · 26 页 PDF</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              检验一个成本更低、也更容易被忽略的能力提升路径：冻结 DeepSeek-V4-Pro 的全部权重，让自动化循环只改写模型外围的运行支架（harness），看它能否把“已经做对但没有正确交付”的潜在能力转化为 Legal Agent Benchmark 可识别的结果，并测量这些改动能否在留出测试集和其他模型上继续成立。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <svg viewBox="0 0 760 446" role="img" aria-labelledby="overview-title overview-desc">
+              <title id="overview-title">论文的完整论证链：从被误判的能力到自动化支架搜索</title>
+              <desc id="overview-desc">同一个固定模型会因为运行支架而产生巨大分差。Meta-Harness 让提议模型一次增加一个机制，再用固定开发集、三次试验和晋升门槛筛选。最大的收益来自确定性代码修复，最终在留出测试集上把 criterion pass rate 从 63.4% 提到 80.1%，但实质性法律推理仍形成天花板。</desc>
+              <defs>
+                <marker id="overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="446" fill="#fbfaf6"/>
+              <text x="38" y="44" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.6">01 / 表面现象</text>
+              <rect x="36" y="66" width="202" height="234" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="58" y="101" fill="#17201d" font-size="17" font-weight="700">模型写出了好内容</text>
+              <text x="58" y="134" fill="#52605b" font-size="13">但文件名不对</text>
+              <text x="58" y="160" fill="#52605b" font-size="13">落在 scratch 目录</text>
+              <text x="58" y="186" fill="#52605b" font-size="13">工具调用被 provider 损坏</text>
+              <text x="58" y="212" fill="#52605b" font-size="13">或在交付前提前结束</text>
+              <line x1="58" y1="234" x2="216" y2="234" stroke="#d8d4ca"/>
+              <text x="58" y="264" fill="#bd4c32" font-size="14" font-weight="700">评测看到：0 分</text>
+              <text x="58" y="284" fill="#52605b" font-size="11">能力失败与执行失败混在一起</text>
+
+              <path d="M250 184H278" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="280" y="44" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.6">02 / 关键动作</text>
+              <rect x="278" y="66" width="204" height="234" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="300" y="101" fill="#17201d" font-size="17" font-weight="700">冻结模型，搜索支架</text>
+              <rect x="300" y="124" width="160" height="35" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="380" y="147" text-anchor="middle" fill="#17201d" font-size="12">提议一个新机制</text>
+              <path d="M380 166V180" stroke="#355e7c" stroke-width="1.5" marker-end="url(#overview-arrow)"/>
+              <rect x="300" y="184" width="160" height="35" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="380" y="207" text-anchor="middle" fill="#17201d" font-size="12">24 任务 × 3 次评测</text>
+              <path d="M380 226V240" stroke="#355e7c" stroke-width="1.5" marker-end="url(#overview-arrow)"/>
+              <rect x="300" y="244" width="160" height="35" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="380" y="267" text-anchor="middle" fill="#17201d" font-size="12">过 1 分门槛才晋升</text>
+
+              <path d="M494 184H522" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#overview-arrow)"/>
+              <text x="524" y="44" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.6">03 / 证据与边界</text>
+              <rect x="522" y="66" width="202" height="234" rx="5" fill="#17201d"/>
+              <text x="544" y="102" fill="#fffef9" font-size="15" font-weight="700">留出测试：+16.7pp</text>
+              <text x="544" y="126" fill="#d8d4ca" font-size="12">criterion：63.4% → 80.1%</text>
+              <text x="544" y="148" fill="#d8d4ca" font-size="12">all-pass：0% → 5.0%</text>
+              <line x1="544" y1="170" x2="702" y2="170" stroke="#52605b"/>
+              <text x="544" y="200" fill="#fffef9" font-size="15" font-weight="700">最强机制：交付与 I/O</text>
+              <text x="544" y="224" fill="#d8d4ca" font-size="12">top 6 中 5 个是确定性代码</text>
+              <line x1="544" y1="246" x2="702" y2="246" stroke="#52605b"/>
+              <text x="544" y="276" fill="#f4ded5" font-size="13" font-weight="700">天花板：实质法律能力</text>
+
+              <path d="M137 320V352H623V320" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="142" y="348" width="476" height="70" rx="35" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="380" y="377" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">核心判断：先消除“系统制造的无能”，再讨论模型能力</text>
+              <text x="380" y="398" text-anchor="middle" fill="#52605b" font-size="12">Harness 能释放被遮蔽的能力，但不能无限替代知识、推理和工具</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>左边不是说模型“其实全都会”，而是说零分里混入了大量可由工程保证的失败。中间的搜索循环负责把这些失败逐个变成机制；右边显示收益很大，但越接近定量深度、引用精度等实质任务，支架越难继续兜底。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，Agent benchmark 测到的是“模型 × Harness × 评测协议”的联合系统，不是裸模型。</strong>在相同模型、相同 100 题留出集和相同 judge 下，不同支架的 pooled criterion pass rate 从 3.5% 到 80.1%，说明外围系统足以改写我们对模型强弱的判断。</p>
+            <p><strong>第二，最大收益来自确定性代码，而不是更花哨的提示词。</strong>把最终文件放到正确目录、使用精确文件名、修复损坏的 tool call、打断重复循环、核对是否写错案件，这些动作不增加模型知识，却能把“完成了但不可见”变成可评分结果。</p>
+            <p><strong>第三，自动化搜索的真正核心是 verifier。</strong>提议模型可以自由提出机制，但固定开发集、三次重复、混合得分和晋升门槛决定什么会被保留。目标函数一旦有偏，循环只会更高效地放大偏差。</p>
+            <p><strong>第四，这不是“以后不用训练模型”。</strong>优化在约 83% 的 dev pooled rate 附近进入平台期；Section 382 税务任务仍稳定缺失定量深度和引用精度。支架能修执行层，不能凭空生成基础模型没有掌握的实体知识与推理能力。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">MODEL, HARNESS, AND META-HARNESS</p>
+          <h2 id="concepts-title">先把三个角色拆开，否则很容易误读实验</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">HARNESS（运行支架 / 执行外壳）</span>
+            <p><strong>英译中：</strong>围绕基础模型的一层运行时系统，负责给模型哪些文档、哪些工具和哪些上下文，执行 tool call，并决定何时结束。</p>
+            <p><strong>怎么理解：</strong>模型像发动机，harness 像变速箱、仪表盘、导航和刹车。发动机不变，车辆仍可能因为传动方式不同而表现悬殊。本文搜索的对象正是这层代码与系统提示。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="roles-title roles-desc">
+            <svg viewBox="0 0 680 398" role="img" aria-labelledby="roles-title roles-desc">
+              <title id="roles-title">实验中的三个模型角色</title>
+              <desc id="roles-desc">Claude Opus 4.8 作为 proposer 阅读历史并改写候选 harness；DeepSeek-V4-Pro 是权重冻结、真正执行法律任务的被优化模型；Claude Sonnet 4.6 按 rubric 逐项评分。外层 Python scaffold 负责运行、汇总和晋升。</desc>
+              <defs>
+                <marker id="roles-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="680" height="398" fill="#fbfaf6"/>
+              <rect x="34" y="72" width="170" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="119" y="102" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">提议者</text>
+              <text x="119" y="128" text-anchor="middle" fill="#355e7c" font-size="13">Claude Opus 4.8</text>
+              <text x="119" y="153" text-anchor="middle" fill="#52605b" font-size="11">读历史 · 提假设 · 写代码</text>
+
+              <path d="M216 128H250" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#roles-arrow)"/>
+              <rect x="254" y="58" width="172" height="140" rx="5" fill="#17201d"/>
+              <text x="340" y="92" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">被优化对象</text>
+              <text x="340" y="120" text-anchor="middle" fill="#fffef9" font-size="13">DeepSeek-V4-Pro</text>
+              <text x="340" y="147" text-anchor="middle" fill="#d8d4ca" font-size="11">模型权重始终冻结</text>
+              <text x="340" y="171" text-anchor="middle" fill="#d8d4ca" font-size="11">候选 harness 围绕它执行</text>
+
+              <path d="M438 128H472" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#roles-arrow)"/>
+              <rect x="476" y="72" width="170" height="112" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="561" y="102" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">裁判</text>
+              <text x="561" y="128" text-anchor="middle" fill="#24624e" font-size="13">Claude Sonnet 4.6</text>
+              <text x="561" y="153" text-anchor="middle" fill="#52605b" font-size="11">按 rubric 逐 criterion 打分</text>
+
+              <path d="M561 196V238H119V196" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="118" y="232" width="444" height="102" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="340" y="264" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">外层 Python Scaffold：实验室</text>
+              <text x="340" y="290" text-anchor="middle" fill="#52605b" font-size="12">运行固定 dev set · 汇总三次 trial · 计算 blended score</text>
+              <text x="340" y="314" text-anchor="middle" fill="#52605b" font-size="12">通过门槛则替换 frontier；否则保留当前最佳</text>
+              <text x="340" y="368" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">不是“模型自我训练”，而是“一个模型改代码，另一个模型做任务，第三个模型评分”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>“零权重更新”只指中间的 DeepSeek-V4-Pro。系统仍使用了一个强模型来提出修改、另一个强模型来评分；因此它证明的是 harness search 的效用，不是无额外智能或无额外成本地白捡能力。</figcaption>
+          </figure>
+
+          <h3>两个指标回答不同问题</h3>
+          <p><strong>Pooled criterion pass rate（汇总标准通过率）</strong>把所有任务的 rubric 条目放在一起，计算通过比例。它稠密、平滑，适合做优化信号；但一个任务只过 90% 标准仍可能无法交付。</p>
+          <p><strong>All-pass rate（整题全通过率）</strong>要求某个任务的每一条 rubric 都通过，才算端到端成功。这是 LAB 的 headline metric，也更接近真实交付，但在 24 题 dev set 上极其稀疏，直接优化很容易追逐偶然性。</p>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">MISMANAGED GENIUSES（被管理失当的天才）</span>
+            <p><strong>英译中：</strong>模型本身拥有一部分完成任务的能力，却被脆弱的外围系统限制，导致评测把“支架失误”错误归因给“模型不会”。</p>
+            <p><strong>避免误解：</strong>这个假说不等于模型已经具备全部专业能力。本文最强证据只说明 vanilla harness 严重低估了可兑现能力；平台期和残余错误同时说明基础模型仍是硬约束。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY ZERO CAN BE MISLEADING</p>
+          <h2 id="problem-title">旧瓶颈：法律推理做对了，交付链仍能把它归零</h2>
+
+          <p>LAB 的任务不是选择题，而是封闭工作区里的真实法律事项：阅读合同、邮件、表格和幻灯片，最后产出尽调备忘录、问题清单、修订稿或合同草案。Judge 只读取 <code>output/</code> 顶层、且文件名匹配要求的交付物。于是“写得好”和“被评分系统看见”是两件事。</p>
+
+          <figure class="svg-figure" aria-labelledby="failure-title failure-desc">
+            <svg viewBox="0 0 760 370" role="img" aria-labelledby="failure-title failure-desc">
+              <title id="failure-title">从模型工作到 benchmark 得分的失败链</title>
+              <desc id="failure-desc">模型读取材料并完成法律分析后，仍要经过工具执行、文件落盘、命名与目录、终止检查和 judge 读取。任何一处执行失败都可能让正确内容变成零分；harness 能确定性地修复其中多处，但无法替代实质法律推理。</desc>
+              <defs>
+                <marker id="failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="370" fill="#fbfaf6"/>
+              <g font-size="12" text-anchor="middle">
+                <rect x="26" y="72" width="128" height="72" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+                <text x="90" y="101" fill="#17201d" font-weight="700">读材料与推理</text>
+                <text x="90" y="124" fill="#52605b">模型主导</text>
+                <path d="M164 108H190" stroke="#355e7c" stroke-width="2" marker-end="url(#failure-arrow)"/>
+                <rect x="194" y="72" width="128" height="72" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+                <text x="258" y="101" fill="#17201d" font-weight="700">执行工具调用</text>
+                <text x="258" y="124" fill="#bd4c32">可能协议损坏</text>
+                <path d="M332 108H358" stroke="#355e7c" stroke-width="2" marker-end="url(#failure-arrow)"/>
+                <rect x="362" y="72" width="128" height="72" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+                <text x="426" y="101" fill="#17201d" font-weight="700">生成交付文件</text>
+                <text x="426" y="124" fill="#bd4c32">可能缺失或分片</text>
+                <path d="M500 108H526" stroke="#355e7c" stroke-width="2" marker-end="url(#failure-arrow)"/>
+                <rect x="530" y="72" width="204" height="72" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+                <text x="632" y="101" fill="#17201d" font-weight="700">output/ 顶层 + 精确文件名</text>
+                <text x="632" y="124" fill="#bd4c32">Judge 的硬读取契约</text>
+              </g>
+
+              <path d="M258 154V198" fill="none" stroke="#bd4c32" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <path d="M426 154V198" fill="none" stroke="#bd4c32" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <path d="M632 154V198" fill="none" stroke="#bd4c32" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="194" y="202" width="128" height="54" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="258" y="225" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">tool-call repair</text>
+              <text x="258" y="243" text-anchor="middle" fill="#52605b" font-size="10">provider failover / retry</text>
+              <rect x="362" y="202" width="128" height="54" rx="4" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="426" y="225" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">finish guard</text>
+              <text x="426" y="243" text-anchor="middle" fill="#52605b" font-size="10">结束前检查交付物</text>
+              <rect x="530" y="202" width="204" height="54" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="632" y="225" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">deliverable landing gate</text>
+              <text x="632" y="243" text-anchor="middle" fill="#52605b" font-size="10">零额外模型 token，确定性落盘</text>
+
+              <rect x="70" y="298" width="620" height="44" rx="22" fill="#17201d"/>
+              <text x="380" y="325" text-anchor="middle" fill="#fffef9" font-size="13" font-weight="700">Harness 能保证“可执行、可交付、可评分”；不能保证“法律分析本身正确”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从左到右每多一层，benchmark 都可能新增一种与核心推理无关的失败。论文最大的提升发生在最右侧：把已经生成的正确文件确定性地放到 grader 能找到的位置。</figcaption>
+          </figure>
+
+          <h3>同一个模型，换一层外壳，分数能差 76.6 个百分点</h3>
+          <p>在相同留出集和相同 judge 下，优化后的 LAB harness 得到 80.1%，stock LAB 为 63.4%，Pi 为 45.4%，Goose 为 23.2%，mini-swe-agent 只有 3.5%。这组对照最直接地说明：Agent 分数不是模型的单变量属性。</p>
+
+          <h3>为什么不用手工一点点修</h3>
+          <p>手工 harness engineering 需要人反复看失败轨迹、提出假设、写补丁、重跑昂贵评测，而且修法往往依赖具体模型。Meta-Harness 把这个循环自动化：让语言模型充当研究员，让普通 Python 程序充当严格实验室。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">COPY, ADAPT, EVALUATE, PROMOTE</p>
+          <h2 id="mechanism-title">进化循环：一次只加一个机制，让胜利可以累积</h2>
+
+          <figure class="svg-figure" aria-labelledby="loop-title loop-desc">
+            <svg viewBox="0 0 760 404" role="img" aria-labelledby="loop-title loop-desc">
+              <title id="loop-title">Meta-Harness 在法律任务上的单次迭代</title>
+              <desc id="loop-desc">当前最佳 harness 被逐字复制，Claude proposer 基于历史提出单一机制并写候选代码，先做自检，再在 24 个开发任务上各运行三次，计算混合得分。超过当前最佳至少一分则晋升并进入下一轮，否则丢弃候选。</desc>
+              <defs>
+                <marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="404" fill="#fbfaf6"/>
+              <g font-size="12">
+                <rect x="32" y="74" width="154" height="72" rx="5" fill="#17201d"/>
+                <text x="109" y="101" text-anchor="middle" fill="#fffef9" font-weight="700">Frontier harness</text>
+                <text x="109" y="125" text-anchor="middle" fill="#d8d4ca">当前最佳，逐字复制</text>
+                <path d="M198 110H224" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+                <rect x="228" y="74" width="138" height="72" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+                <text x="297" y="101" text-anchor="middle" fill="#17201d" font-weight="700">Propose</text>
+                <text x="297" y="125" text-anchor="middle" fill="#52605b">一次一个机制</text>
+                <path d="M378 110H404" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+                <rect x="408" y="74" width="138" height="72" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+                <text x="477" y="101" text-anchor="middle" fill="#17201d" font-weight="700">Write &amp; check</text>
+                <text x="477" y="125" text-anchor="middle" fill="#52605b">候选代码 + 自检</text>
+                <path d="M558 110H584" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+                <rect x="588" y="74" width="140" height="72" rx="5" fill="#dcebe5" stroke="#24624e"/>
+                <text x="658" y="101" text-anchor="middle" fill="#17201d" font-weight="700">Dev evaluation</text>
+                <text x="658" y="125" text-anchor="middle" fill="#52605b">24 tasks × 3 trials</text>
+              </g>
+
+              <path d="M658 158V198H477" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="408" y="190" width="138" height="76" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="477" y="220" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">Blended gate</text>
+              <text x="477" y="244" text-anchor="middle" fill="#52605b" font-size="11">比 incumbent ≥ 1 point</text>
+              <path d="M396 228H350" fill="none" stroke="#24624e" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <rect x="184" y="190" width="154" height="76" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="261" y="220" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">Promote winner</text>
+              <text x="261" y="244" text-anchor="middle" fill="#52605b" font-size="11">成为下一轮 frontier</text>
+
+              <path d="M184 228H109V158" fill="none" stroke="#24624e" stroke-width="2" marker-end="url(#loop-arrow)"/>
+              <path d="M477 278V320H620" fill="none" stroke="#bd4c32" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#loop-arrow)"/>
+              <text x="500" y="303" fill="#bd4c32" font-size="11">未过门槛：拒绝</text>
+              <rect x="494" y="318" width="234" height="48" rx="4" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="611" y="347" text-anchor="middle" fill="#52605b" font-size="11">保留完整历史，供下一次提议参考</text>
+
+              <rect x="32" y="318" width="412" height="48" rx="4" fill="#fffef9" stroke="#aaa69c" stroke-dasharray="5 5"/>
+              <text x="238" y="339" text-anchor="middle" fill="#17201d" font-size="11" font-weight="700">两条护栏：不读取 test split · 不把任务特定提示写进 harness</text>
+              <text x="238" y="356" text-anchor="middle" fill="#52605b" font-size="10">另有 leakage audit、断点续跑、进程清理与 provider failover</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>这不是遗传算法式的大种群，而是一条单 frontier 的爬山路径。优势是每个被接受的机制都会被后续候选继承；风险是早期路径和 proposer 的探索偏好会决定它看见哪一片搜索空间。</figcaption>
+          </figure>
+
+          <h3>为什么坚持“一次只改一个机制”</h3>
+          <p>候选从当前最佳 harness 精确复制，再增加一个改动。这样一旦得分上升，就更容易把变化归因到具体机制；晋升后，后续候选继续继承它。作者把假设、改动、预期修复任务、回归任务和观察证据写入 <code>pending_eval.json</code>，让搜索历史可追溯。</p>
+
+          <div class="formula-card" aria-label="晋升分数公式说明">
+            <div class="formula-card__label">晋升分数拆解</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">S</span> = <span class="formula-symbol">P</span> + 0.5<span class="formula-symbol">A</span> - 0.005<span class="formula-symbol">T</span>
+            </div>
+            <p class="formula-card__caption">这条公式回答：一个候选是否比当前最佳更值得保留？候选还必须满足 S<sub>candidate</sub> − S<sub>incumbent</sub> ≥ 0.01。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>S</dt>
+                <dd>混合晋升分数。越大越好，但它只是搜索目标，不是 LAB 的最终 headline 指标。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>P</dt>
+                <dd>Pooled criterion pass rate。稠密、平滑，是主要优化信号。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>A</dt>
+                <dd>All-pass rate。乘 0.5 作为奖励：端到端完成值得加分，但单次幸运成功不足以独自跨过 1 分门槛。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>T</dt>
+                <dd>每次运行消耗的百万 token 数。系数 0.005 相当于每百万 token 约扣 0.5 个百分点，避免昂贵候选靠很小收益晋升。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition"><strong>直觉读法：</strong>先看它是否让更多评分标准稳定通过，再奖励整题完成，同时对额外 token 收税。真正关键不是公式长什么样，而是 challenger 与 incumbent 必须在同一组权重下重新计算；论文附录展示了使用陈旧 incumbent 分数会错误晋升一个全面更差的 harness。</div>
+          </div>
+
+          <h3>三次试验是在花钱买“可晋升的信号”</h3>
+          <p>单次完整 pass 的 pooled rate 分别为 72.9%、76.2% 和 74.9%，标准差约 1.4 个百分点；除以 √3 后，三次平均的噪声约 0.8 点，略低于 1 点晋升门槛。总体均值看似稳定，但个别任务会因 provider 错误或缺失交付物突然跌到 0%，足以在小 dev set 上翻转决策。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">WHAT THE RESULTS ACTUALLY SUPPORT</p>
+          <h2 id="evidence-title">证据链：成绩确实大涨，但“涨在哪里”比总分更重要</h2>
+
+          <div class="table-wrap" tabindex="0" aria-label="核心结果表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>比较</th>
+                  <th>数据</th>
+                  <th>Pooled criterion</th>
+                  <th>All-pass</th>
+                  <th>能支持的结论</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Vanilla → final frontier</td>
+                  <td>24-task dev，候选各 3 trials</td>
+                  <td>63.1% → 83.3%（+20.2pp）</td>
+                  <td>0% → 4.2%</td>
+                  <td>搜索能在开发分布上持续累积收益</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>Vanilla → final frontier</td>
+                  <td>100-task held-out test</td>
+                  <td>63.4% → 80.1%（+16.7pp）</td>
+                  <td>0% → 5.0%</td>
+                  <td>开发集收益大体迁移到未见任务</td>
+                </tr>
+                <tr>
+                  <td>Deliverable landing gate</td>
+                  <td>24-task dev</td>
+                  <td>72.8% → 79.2%（+6.4pp）</td>
+                  <td>文章未单列该步变化</td>
+                  <td>单个确定性交付修复贡献了最大跳升</td>
+                </tr>
+                <tr>
+                  <td>同模型，不同通用 harness</td>
+                  <td>100-task held-out test</td>
+                  <td>Pi 45.4 / Goose 23.2 / mini-swe 3.5</td>
+                  <td>均为 0%</td>
+                  <td>Harness 选择本身是强混杂变量</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>最强改动不是“让模型更聪明”，而是把已有工作交出去</h3>
+          <p><code>deliverable_landing_gate</code> 在模型结束后检查声明的交付物，把正确文件放到 grader 读取的顶层目录并使用精确名称。它不增加模型 token，却让 dev pooled rate 一步上升 6.4 点。这是全文最干净的因果故事：改动直接命中评分接口的确定性失败。</p>
+
+          <figure class="svg-figure" aria-labelledby="mechanisms-title mechanisms-desc">
+            <svg viewBox="0 0 760 400" role="img" aria-labelledby="mechanisms-title mechanisms-desc">
+              <title id="mechanisms-title">四类候选机制、收益来源与迁移边界</title>
+              <desc id="mechanisms-desc">文件交付、案件一致性和循环鲁棒性主要由确定性代码实现，收益更大或更易跨同类模型迁移；提示词 playbook 早期有用，但后期没有超过代码型 frontier，并且跨模型家族可能反向伤害。</desc>
+              <rect width="760" height="400" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">候选机制谱系</text>
+              <text x="538" y="42" fill="#52605b" font-size="11">确定性越强 → 越容易定位、复用和迁移</text>
+
+              <rect x="36" y="70" width="688" height="62" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="58" y="96" fill="#17201d" font-size="14" font-weight="700">1. Deliverable landing &amp; delivery</text>
+              <text x="58" y="118" fill="#52605b" font-size="11">精确文件名、顶层 output/、结束前检查 · 最大单步收益 · 零额外模型 token</text>
+              <text x="683" y="106" text-anchor="end" fill="#24624e" font-size="12" font-weight="700">代码 / 强证据</text>
+
+              <rect x="36" y="144" width="688" height="62" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="58" y="170" fill="#17201d" font-size="14" font-weight="700">2. Matter fidelity</text>
+              <text x="58" y="192" fill="#52605b" font-size="11">检查是否被长上下文中的干扰案件带偏，必要时重写；小型 best-of-N 投票</text>
+              <text x="683" y="180" text-anchor="end" fill="#355e7c" font-size="12" font-weight="700">代码 / 有额外成本</text>
+
+              <rect x="36" y="218" width="688" height="62" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="58" y="244" fill="#17201d" font-size="14" font-weight="700">3. Loop robustness</text>
+              <text x="58" y="266" fill="#52605b" font-size="11">修 provider 损坏的 JSON tool call、打断重复循环、失败重试</text>
+              <text x="683" y="254" text-anchor="end" fill="#24624e" font-size="12" font-weight="700">代码 / 跨家族更稳</text>
+
+              <rect x="36" y="292" width="688" height="62" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="58" y="318" fill="#17201d" font-size="14" font-weight="700">4. Prompt playbooks</text>
+              <text x="58" y="340" fill="#52605b" font-size="11">分析、起草、修订方法论；早期两次进入 frontier，后期 prompt-only 未超过代码型 frontier</text>
+              <text x="683" y="328" text-anchor="end" fill="#bd4c32" font-size="12" font-weight="700">模型特定 / 可能反噬</text>
+
+              <text x="380" y="383" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">Top 6 harness 中 5 个主要依赖确定性代码，但搜索本身也偏向代码：14 code-only / 4 prompt-only / 1 mixed</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从上到下，机制从“可以由程序保证的契约”走向“依赖模型习惯的方法论”。文章最可信的发现不是“prompt 无效”，而是本次有限搜索里，程序可验证的执行约束更容易形成稳定收益。</figcaption>
+          </figure>
+
+          <h3>跨模型转移：同一家族明显，跨家族几乎抵消</h3>
+          <div class="table-wrap" tabindex="0" aria-label="跨模型迁移结果表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>模型</th>
+                  <th>Vanilla</th>
+                  <th>+ deliverable_landing_gate 谱系</th>
+                  <th>变化</th>
+                  <th>解读</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>DeepSeek V4 Pro</td>
+                  <td>63.4%</td>
+                  <td>76.9%</td>
+                  <td>+13.5pp</td>
+                  <td>被调优模型；这里测试的是中途 harness，不是 final frontier</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>DeepSeek V4 Flash</td>
+                  <td>64.6%</td>
+                  <td>79.0%</td>
+                  <td>+14.4pp</td>
+                  <td>同模型家族几乎完整转移</td>
+                </tr>
+                <tr>
+                  <td>Nemotron-3 Ultra 550B</td>
+                  <td>63.8%</td>
+                  <td>64.2%</td>
+                  <td>+0.4pp</td>
+                  <td>代码修复与 DeepSeek 特定 prompt 的负效应互相抵消</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>关键限定：</strong>跨模型实验运行的是中途谱系 <code>deliverable_landing_gate</code>，不是最终 <code>matter_audit_allwork</code>；只覆盖三个模型，其中两个属于 DeepSeek V4 家族。因此“代码比 prompt 更可迁移”是有根据的方向性判断，还不是广泛模型族上的封闭定论。</p>
+
+          <h3>作者公开了最值得信任的“坏消息”</h3>
+          <p>附录不只给最终分数，还记录了错误晋升、provider 首轮失败、重试缺失、认证失效和孤儿进程等测量事故。尤其是 stale-weight bug：challenger 的新权重分数与 incumbent 的旧权重分数被错误比较，导致全面更差的 harness 晋升。公开这类失败增强了实验可信度，也提醒我们：harness 优化首先是一项测量工程。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">LIMITS, TECHNICAL DEBT, AND PRACTICAL USE</p>
+          <h2 id="limits-title">这篇文章最有价值，但也最容易被口号化的地方</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>Vanilla harness 严重低估了模型</h3>
+              <p>固定模型、judge 和测试集后，优化支架让 pooled rate 提升 16.7 点；最大跳升能对应到清晰的文件交付机制。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件成立</span>
+              <h3>确定性代码比 prompt 更可靠</h3>
+              <p>本次搜索结果支持这个方向，但 proposer 明显更多探索代码候选，不能据此宣布提示词路线已经穷尽。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>尚未证明</span>
+              <h3>训练模型不再重要</h3>
+              <p>搜索在实质性法律推理处进入平台期；跨领域、跨 benchmark、跨广泛模型家族的可迁移性仍待验证。</p>
+            </article>
+          </div>
+
+          <h3>这是一篇研究文章，不是同行评审论文</h3>
+          <p>材料以 Hugging Face Space 研究文章形式发布，并给出自引 BibTeX、代码仓库和运行产物；PDF 没有 arXiv 编号或正式会议版本。应把它视为透明度较高的实验报告，而不是已经经过独立审稿与复现的定论。</p>
+
+          <h3>Held-out 是真的，但不是官方隐藏测试集</h3>
+          <p>Harvey 没有公开官方 train/test split。作者在 1,251 个公开任务上按固定 commit 和 seed 自建 24 题 dev 与 100 题 test，并强制纳入若干最难样例。Test 对搜索循环保持隐藏，也做了 leakage audit；但划分、实现和报告都由同一团队控制，外部复现仍很重要。</p>
+
+          <h3>24 个开发任务决定了搜索能看见哪些失败</h3>
+          <p>Dev set 每个 practice area 仅一题。它便宜到足以迭代，却可能漏掉大量稀有故障。22 次候选评估也会形成多重比较与局部搜索风险；单 frontier 的 copy-and-adapt 容易沿早期成功路径继续爬，而不会主动保留暂时落后、组合后可能更强的机制。</p>
+
+          <h3>LLM judge 是可用 verifier，不是客观真值</h3>
+          <p>Sonnet 4.6 按 rubric 逐项评分，100 题测试约需 6,300 次 judge call。Criterion 级信号足够稠密，能支撑搜索；同时它也可能受措辞、文件组织和 judge 偏好影响。文章证明了“在这套 verifier 下可以爬升”，不能自动等价为真实律师对所有交付物的质量判断。</p>
+
+          <h3>通用 harness 对比说明分差很大，但不完全是公平产品赛</h3>
+          <p>Pi、Goose 和 mini-swe-agent 在同模型、同 judge、同任务下运行，这是有价值的控制；但它们没有包含 Meta-Harness 后来发现的 LAB 专用交付机制，也未必为法律文书工作做了同等程度的适配。更稳妥的结论是“通用支架不能被默认视为中性基线”，而非“这些框架本身普遍很差”。</p>
+
+          <h3>成本没有消失，只是从训练转向搜索与评测</h3>
+          <p>文章报告一次 100 题 test run 约 120–160 美元；24 题 × 3 trials 的 dev evaluation 也在相近范围。模型权重没有训练，但 proposer 会话、长轨迹执行、三次重复和 criterion 级 judge 仍然昂贵。更便宜且校准良好的 verifier，可能比更强 proposer 更能扩展这条路线。</p>
+
+          <h3>对实际 Agent 工程，最值得带走的是一条排障顺序</h3>
+          <ol>
+            <li><strong>先定义可机器检查的交付契约：</strong>文件、路径、命名、格式、必需字段、结束条件。</li>
+            <li><strong>再把执行故障与能力故障分开：</strong>provider 重试、tool-call repair、幂等恢复、循环检测和日志完整性。</li>
+            <li><strong>再做任务一致性检查：</strong>输入是否属于当前事项、输出是否覆盖所有交付物、关键数字是否可核对。</li>
+            <li><strong>最后才调 prompt、换工具或换模型：</strong>只有当前三层都过关后，残余错误才更接近真正的模型能力上限。</li>
+          </ol>
+
+          <p class="evidence-note"><strong>一句话判断：</strong>标题最合理的读法不是“停止训练模型”，而是“在把失败归因给模型之前，先证明你的 harness 没有浪费它已有的能力”。这是一条实验纪律，也是一条很实用的工程优先级。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li>用户提供的 <em>Don't Train the Model, Evolve the Harness</em> PDF — 本页方法、图表数值、实验设置、附录可靠性细节和局限分析的主要来源，共 26 页。</li>
+            <li><a href="https://huggingface.co/spaces/joelniklaus/harness-optimization">Hugging Face 原始研究文章 / Space</a> — 文章的公开发布入口。</li>
+            <li><a href="https://github.com/JoelNiklaus/harness-optimization/tree/main/legal_agent_bench">Legal Agent Benchmark harness 代码</a> — 作者公开的实验实现；仓库说明该清理版本仅做过运行验证，尚未广泛测试。</li>
+            <li><a href="https://huggingface.co/buckets/joelniklaus/LAB-results">LAB-results 实验产物</a> — dev/test 结果、候选谱系与 proposer traces。</li>
+            <li><a href="https://arxiv.org/abs/2603.28052">Meta-Harness: End-to-End Optimization of Model Harnesses</a> — 本文采用的自动化 harness search 框架背景。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>模型、分数、任务数量、候选类型、成本和故障案例来自文章作者报告；“这是研究文章而非同行评审论文”“最强结论是先排除系统制造的无能”“跨模型迁移证据仍偏窄”“通用 harness 对比不是完整产品公平赛”等，是结合材料形式和实验设计作出的分析判断。页面没有把未运行的公开代码当作已独立复现。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
