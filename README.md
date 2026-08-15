@@ -14,6 +14,7 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [GeniWorld: A Generalizable Interactive World Model for Robotic Manipulation via Visual Actions](papers/geniworld/) | 把数值动作经 URDF 与正向运动学渲染成像素对齐的视觉动作，梳理其 OOD 世界建模、策略评估和数据合成证据，并区分视频逼真度与物理可靠性的边界。 |
 | [Next Forcing: Causal World Modeling with Multi-Chunk Prediction](papers/next-forcing/) | 从高帧率视频中的外观复制捷径出发，解释多视频块预测如何迫使世界模型学习更长程的因果变化，并拆开 2.3× 训练加速与 2× 推理加速的证据口径。 |
 | [Don't Train the Model, Evolve the Harness](papers/evolve-the-harness/) | 冻结模型权重，通过自动搜索运行支架修复交付、工具调用和事项一致性问题，并分析 20 点提升背后的 verifier、迁移边界与实质能力天花板。 |
 | [V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning](papers/v-jepa-2/) | 从无动作视频预训练、动作条件后训练到潜空间模型预测控制，梳理视频理解、未来预测与机器人规划之间的能力链，并核对“零样本规划”的适用边界。 |
@@ -28,7 +29,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 13 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 14 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 

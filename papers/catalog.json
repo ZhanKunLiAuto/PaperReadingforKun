@@ -1,6 +1,38 @@
 {
-  "updatedAt": "2026-08-13",
+  "updatedAt": "2026-08-14",
   "papers": [
+    {
+      "slug": "geniworld",
+      "title": "GeniWorld: A Generalizable Interactive World Model for Robotic Manipulation via Visual Actions",
+      "authors": [
+        "Chenghao Gu",
+        "Hanyang Yu",
+        "Jingbo Zhang",
+        "Haitao Lin",
+        "Wenyao Zhang",
+        "Jinghe Wang",
+        "Hanglei Jin",
+        "Shuzhao Xie",
+        "Jingyan Jiang",
+        "Zhi Wang"
+      ],
+      "publicationDate": "2026-08-06",
+      "readAt": "2026-08-14",
+      "description": "从视觉动作、URDF 渲染、空间对齐条件、自回归闭环与数据合成五条线解读 GeniWorld，并审视 OOD 泛化、策略评估和策略增益的证据边界。",
+      "tags": [
+        "GeniWorld",
+        "world model",
+        "robotic manipulation",
+        "visual actions",
+        "URDF",
+        "video generation",
+        "flow matching",
+        "policy evaluation",
+        "data synthesis"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2608.06332",
+      "href": "papers/geniworld/"
+    },
     {
       "slug": "next-forcing",
       "title": "Next Forcing: Causal World Modeling with Multi-Chunk Prediction",
