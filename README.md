@@ -2,6 +2,12 @@
 
 一个面向长期积累的个人论文阅读库。这里不只保存摘要，而是围绕研究目的、关键机制、证据边界、代码线索和个人判断，把每篇论文整理成可继续修订的独立 HTML 阅读档案。
 
+## 在线访问
+
+- [ChatGPT Sites（主站）](https://paper-reading-for-kun.kunzhan.chatgpt.site/)
+- [GitHub Pages（镜像）](https://zhankunliauto.github.io/PaperReadingforKun/)
+- [GitHub 仓库](https://github.com/ZhanKunLiAuto/PaperReadingforKun)
+
 ## 项目特点
 
 - **目的优先**：先回答论文试图解决什么，再进入方法细节。
