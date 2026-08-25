@@ -14,10 +14,10 @@
     <meta name="citation_author" content="Hang Xu">
     <meta name="citation_author" content="Siyu Zhu">
     <meta name="citation_publication_date" content="2026-08-02">
-    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.01035">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.01035v1">
     <meta name="description" content="从块因果离散扩散、三级 AR-to-Diffusion 蒸馏、统一多任务 VLA 与系统级加速四条线解读 WAM-Diff2，并拆分模型收益、候选选择和硬件优化的证据边界。">
     <meta name="keywords" content="WAM-Diff2, vision-language-action, discrete diffusion, block-causal attention, knowledge distillation, autonomous driving, NAVSIM">
-    <meta name="paper:read_at" content="2026-08-08">
+    <meta name="paper:read_at" content="2026-08-25">
     <title>WAM-Diff2：怎样把自回归驾驶 VLA 改造成并行扩散模型</title>
     <link rel="stylesheet" href="../../assets/site.css?v=20260808">
     <script src="../../assets/paper-reading.js" defer></script>
@@ -29,7 +29,7 @@
   >
     <header class="paper-topbar">
       <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
-      <span class="paper-topbar__meta">ARXIV:2608.01035V1 · 2026-08-02 · 阅读于 2026-08-08</span>
+      <span class="paper-topbar__meta">ARXIV:2608.01035V1 · 2026-08-02 · 核对于 2026-08-25</span>
     </header>
 
     <div class="paper-doc">
@@ -483,10 +483,11 @@
           <p class="paper-kicker">SOURCES</p>
           <h2 id="sources-title">材料来源与事实边界</h2>
           <ol class="source-list">
-            <li><a href="https://arxiv.org/abs/2608.01035">论文摘要页：arXiv:2608.01035</a> — 标题、作者、版本与提交信息。</li>
-            <li><a href="https://arxiv.org/pdf/2608.01035">论文 PDF</a> — 本页架构、公式、五类基准、速度分解、附录数据与训练配置的主要来源，共 16 页。</li>
+            <li><a href="https://arxiv.org/abs/2608.01035v1">论文摘要页：arXiv:2608.01035v1</a> — 标题、作者与 2026-08-02 首次提交信息。</li>
+            <li><a href="https://arxiv.org/pdf/2608.01035v1">论文 PDF（v1）</a> — 本页架构、公式、五类基准、速度分解、附录数据与训练配置的主要来源，共 16 页；与用户提供的附件版本一致。</li>
+            <li><a href="https://arxiv.org/abs/2608.01035">arXiv 当前版本与修订历史</a> — 截至 2026-08-25，摘要页已显示 v4；本页没有把后续版本改动混入 v1 解读。</li>
           </ol>
-          <p class="evidence-note"><strong>区分：</strong>block-causal 架构、三级蒸馏、所有表格数值和硬件说明是论文事实；“统一多任务并非逐项无损”“15.1×不是端到端控制时延”“0.2 PDMS 不足以声称稳定超越”“稳健性证据以 open-loop 为主”“低成本是相对从头训练而言”等是依据论文实验边界作出的分析判断。论文 PDF 未给出可核验的官方代码仓库链接，本页没有虚构 repo 事实。</p>
+          <p class="evidence-note"><strong>版本边界：</strong>本页严格核对用户提供的 arXiv v1（2026-08-02，16 页）；arXiv 后续已更新到 v4，但除修订历史外没有混用其新增或改写内容。<strong>事实与判断边界：</strong>block-causal 架构、三级蒸馏、所有表格数值和硬件说明是论文事实；“统一多任务并非逐项无损”“15.1×不是端到端控制时延”“0.2 PDMS 不足以声称稳定超越”“稳健性证据以 open-loop 为主”“低成本是相对从头训练而言”等是依据论文实验边界作出的分析判断。v1 PDF 未给出可核验的官方代码仓库链接，本页没有虚构 repo 事实。</p>
         </section>
       </main>
 
