@@ -8,6 +8,10 @@
 - [GitHub Pages（镜像）](https://zhankunliauto.github.io/PaperReadingforKun/)
 - [GitHub 仓库](https://github.com/ZhanKunLiAuto/PaperReadingforKun)
 
+## 最近更新
+
+- **WAM-Diff2**：基于用户提供的 arXiv v1，重点解释块因果离散扩散与三级 AR-to-Diffusion 蒸馏，并区分 2.8× 算法加速、15.1× 系统级解码加速和端到端驾驶时延。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/wam-diff2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/wam-diff2/)
+
 ## 项目特点
 
 - **目的优先**：先回答论文试图解决什么，再进入方法细节。
@@ -25,7 +29,7 @@
 | [Don't Train the Model, Evolve the Harness](papers/evolve-the-harness/) | 冻结模型权重，通过自动搜索运行支架修复交付、工具调用和事项一致性问题，并分析 20 点提升背后的 verifier、迁移边界与实质能力天花板。 |
 | [V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning](papers/v-jepa-2/) | 从无动作视频预训练、动作条件后训练到潜空间模型预测控制，梳理视频理解、未来预测与机器人规划之间的能力链，并核对“零样本规划”的适用边界。 |
 | [V-JEPA 2.1: Unlocking Dense Features in Video Self-Supervised Learning](papers/v-jepa-2-1/) | 解释 context token 的监督缺口，以及距离加权 context loss、深层自监督和原生 tokenizer 如何恢复稠密空间特征，同时区分方法、规模与规划器变化带来的收益。 |
-| [WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA](papers/wam-diff2/) | 用块因果离散扩散与三级蒸馏把自回归驾驶 VLA 转成并行解码器，并拆分模型、候选选择与系统优化的收益。 |
+| [WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA](papers/wam-diff2/) | 核对 arXiv v1：用块因果离散扩散与三级蒸馏把自回归驾驶 VLA 转成并行解码器，并拆分 2.8× 算法加速、15.1× 系统优化、候选选择与任务性能的证据边界。 |
 | [Auto-JEPA: A Latent World Model of Continuous Intent for End-to-End Autonomous Driving](papers/auto-jepa/) | 预测未来自车连续意图，再通过固定轨迹记忆、场景评分与可行域门控生成规划结果。 |
 | [Video Generation Models are General-Purpose Vision Learners](papers/genception/) | 解析 GenCeption 如何把视频生成骨干改造成多任务感知模型，并审视“通用视觉学习器”的证据边界。 |
 | [PhiZero: A World Model Built Around Physical Language](papers/phizero/) | 用离散“物理语言”压缩状态变化，再以 reason-then-render 生成未来。 |
