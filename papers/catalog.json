@@ -1,6 +1,39 @@
 {
-  "updatedAt": "2026-08-25",
+  "updatedAt": "2026-08-28",
   "papers": [
+    {
+      "slug": "robottt",
+      "title": "RoboTTT: Context Scaling for Robot Policies",
+      "authors": [
+        "Yunfan Jiang",
+        "Yevgen Chebotar",
+        "Ruijie Zheng",
+        "Fengyuan Hu",
+        "Yunhao Ge",
+        "Jimmy Wu",
+        "Tianyuan Dai",
+        "Scott Reed",
+        "Li Fei-Fei",
+        "Yuke Zhu",
+        "Linxi \"Jim\" Fan"
+      ],
+      "publicationDate": "2026-07-16",
+      "readAt": "2026-08-28",
+      "description": "从快权重、sequence action forcing、TBPTT 与上下文损失掩码四条线解读 RoboTTT，并核对 8K context scaling、视频 one-shot、DAgger Distillation、扰动恢复与延迟主张的证据边界。",
+      "tags": [
+        "RoboTTT",
+        "test-time training",
+        "fast weights",
+        "long-context robot policy",
+        "vision-language-action",
+        "sequence action forcing",
+        "TBPTT",
+        "DAgger Distillation",
+        "GR00T N1.7"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2607.15275",
+      "href": "papers/robottt/"
+    },
     {
       "slug": "wam-diff2",
       "title": "WAM-Diff2: Hierarchical AR-to-Diffusion Distillation for Highly Efficient Autonomous Driving VLA",

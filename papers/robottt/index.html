@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="RoboTTT: Context Scaling for Robot Policies">
+    <meta name="citation_author" content="Yunfan Jiang">
+    <meta name="citation_author" content="Yevgen Chebotar">
+    <meta name="citation_author" content="Ruijie Zheng">
+    <meta name="citation_author" content="Fengyuan Hu">
+    <meta name="citation_author" content="Yunhao Ge">
+    <meta name="citation_author" content="Jimmy Wu">
+    <meta name="citation_author" content="Tianyuan Dai">
+    <meta name="citation_author" content="Scott Reed">
+    <meta name="citation_author" content="Li Fei-Fei">
+    <meta name="citation_author" content="Yuke Zhu">
+    <meta name="citation_author" content="Linxi &quot;Jim&quot; Fan">
+    <meta name="citation_publication_date" content="2026-07-16">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.15275">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2607.15275">
+    <meta name="description" content="从快权重、sequence action forcing、TBPTT 与上下文损失掩码四条线解读 RoboTTT，并核对 8K context scaling、视频 one-shot、DAgger Distillation、扰动恢复与延迟主张的证据边界。">
+    <meta name="keywords" content="RoboTTT, test-time training, fast weights, long-context robot policy, vision-language-action, sequence action forcing, TBPTT, DAgger Distillation, GR00T N1.7">
+    <meta name="paper:read_at" content="2026-08-28">
+    <title>RoboTTT：把五分钟机器人经历写进快权重</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/robottt/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2607.15275V1 · 2026-07-16 · 阅读于 2026-08-28</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“参数化记忆”</a></li>
+          <li><a href="#concepts">分清快权重与模型微调</a></li>
+          <li><a href="#problem-chain">为什么“多给一帧”不够</a></li>
+          <li><a href="#mechanism">看懂写入、读取与掩码</a></li>
+          <li><a href="#evidence">拆开完成分、成功率与适应</a></li>
+          <li><a href="#limits">哪些 scaling 结论还不能外推</a></li>
+          <li><a href="#sources">回到论文与项目材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">LONG-CONTEXT CONTROL · TEST-TIME TRAINING · FAST WEIGHTS</p>
+          <h1 id="paper-title" class="paper-title">RoboTTT</h1>
+          <p class="paper-subtitle">
+            它没有让机器人在每一步重新翻阅 8K 个历史时刻，而是把经历压进一个会在推理时持续做梯度更新的小型神经网络：历史不再只是 token 缓存，而变成随 rollout 演化的参数。
+          </p>
+          <div class="paper-byline">
+            <span>Yunfan Jiang、Yevgen Chebotar、Ruijie Zheng 等 11 位作者</span>
+            <span>NVIDIA、Stanford University、The University of Texas at Austin</span>
+            <span>arXiv v1 · 22 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把机器人策略从“只看当前画面或极短历史”推进到 8K 个视觉—动作时刻，同时让单步推理成本不随已走过的上下文继续增长；如果模型能学会把重要经历写入固定大小的状态，它就有机会记住装配进度、遮挡前的信息、刚刚犯过的错误，以及一段人类视频展示的新配置。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="robottt-overview-title robottt-overview-desc">
+            <svg viewBox="0 0 760 476" role="img" aria-labelledby="robottt-overview-title robottt-overview-desc">
+              <title id="robottt-overview-title">RoboTTT 从短历史瓶颈到八千步上下文的总览</title>
+              <desc id="robottt-overview-desc">短历史策略容易混淆阶段、忘记失败并受遮挡影响；RoboTTT 用单步注意力理解当前输入，用可梯度更新的快权重压缩跨时刻历史，再通过 sequence action forcing、TBPTT 和损失掩码扩展训练与上下文学习，最终改善长任务、视频模仿和失败恢复。</desc>
+              <defs>
+                <marker id="robottt-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="476" fill="#fbfaf6"/>
+              <text x="35" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 旧瓶颈</text>
+              <rect x="30" y="64" width="207" height="248" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="98" fill="#17201d" font-size="16" font-weight="700">当前帧看不见过去</text>
+              <text x="50" y="126" fill="#52605b" font-size="13">相似阶段发生 state aliasing</text>
+              <text x="50" y="151" fill="#52605b" font-size="13">遮挡前的物体位置被遗忘</text>
+              <text x="50" y="176" fill="#52605b" font-size="13">失败后仍误以为阶段已完成</text>
+              <line x1="50" y1="198" x2="217" y2="198" stroke="#d3a99d"/>
+              <text x="50" y="228" fill="#17201d" font-size="15" font-weight="700">直接保留全历史？</text>
+              <text x="50" y="255" fill="#52605b" font-size="13">KV 与检索成本持续增长</text>
+              <text x="50" y="281" fill="#86321f" font-size="12" font-weight="700">容量 · 利用 · 延迟三难</text>
+
+              <path d="M249 188H278" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-overview-arrow)"/>
+              <text x="282" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / 关键动作</text>
+              <rect x="278" y="64" width="227" height="72" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="93" fill="#17201d" font-size="15" font-weight="700">Attention：理解当前一步</text>
+              <text x="298" y="118" fill="#52605b" font-size="12">图像 · 语言 · 本体状态 · 动作块</text>
+              <rect x="278" y="151" width="227" height="92" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="298" y="181" fill="#17201d" font-size="15" font-weight="700">TTT：历史写进 MLP 参数</text>
+              <text x="298" y="207" fill="#52605b" font-size="12">自监督梯度更新 Wₜ</text>
+              <text x="298" y="229" fill="#52605b" font-size="12">update → apply → carry</text>
+              <rect x="278" y="258" width="227" height="54" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="290" fill="#17201d" font-size="14" font-weight="700">固定大小状态 · 8K 训练上下文</text>
+
+              <path d="M517 188H546" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-overview-arrow)"/>
+              <text x="550" y="43" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / 证据落点</text>
+              <rect x="546" y="64" width="182" height="248" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="566" y="98" fill="#17201d" font-size="15" font-weight="700">三任务完成分</text>
+              <text x="566" y="122" fill="#52605b" font-size="13">79% vs 42%</text>
+              <line x1="566" y1="143" x2="708" y2="143" stroke="#d8d4ca"/>
+              <text x="566" y="171" fill="#17201d" font-size="15" font-weight="700">8K vs 1K</text>
+              <text x="566" y="195" fill="#52605b" font-size="13">71.5% vs 43.9%</text>
+              <line x1="566" y1="216" x2="708" y2="216" stroke="#d8d4ca"/>
+              <text x="566" y="244" fill="#17201d" font-size="15" font-weight="700">视频 one-shot</text>
+              <text x="566" y="268" fill="#52605b" font-size="13">6/10 vs 0/10</text>
+              <text x="566" y="294" fill="#86321f" font-size="11" font-weight="700">最长任务完整成功 2/10</text>
+
+              <path d="M134 337V374H638V337" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="132" y="367" width="512" height="73" rx="36" fill="#17201d"/>
+              <text x="388" y="396" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">上下文长度只有在“会压缩、会读取”时才成为 scaling axis</text>
+              <text x="388" y="420" text-anchor="middle" fill="#d8d4ca" font-size="12">8K 不是注意力窗口；它是快权重更新动力学见过的训练跨度</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先看左侧为什么长任务不能只凭当前画面，再看中间的职责拆分：attention 只理解当下，TTT 把连续经历写进快权重。右侧分数证明这套机制在三项真实装配任务上有效，但 79% 是阶段完成分；最长 Gear Bot 的完整成功仍只有 2/10。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，RoboTTT 真正改变的是“机器人状态长什么样”。</strong>普通 Transformer 把历史留在 token / KV 空间，普通 RNN 把历史压成向量；RoboTTT 则让一个两层 MLP 的参数充当递归状态，每一步先用自监督损失更新参数，再用当前 query 读取它。</p>
+            <p><strong>第二，8K 的价值来自预训练更新动力学，而不只是部署时多走几步。</strong>同一 RoboTTT 从 1K 预训练上下文的 43.9% 升到 8K 的 71.5%，相对提高 62.9%；下游 post-training 仍只用 1K，说明长跨度主要在预训练中塑造了“怎样持续写入”的规则。</p>
+            <p><strong>第三，视频模仿与在线恢复都依赖“上下文和监督目标分工”。</strong>人类视频、机器人失败动作可以只更新快权重而不进入模仿损失；真正的机器人动作或人类纠正再作为 target。模型学到的不是盲目模仿失败，而是利用失败判断下一步怎样纠正。</p>
+            <p><strong>第四，这还不是通用机器人记忆的最终定论。</strong>证据来自一个双臂平台、三个桌面装配任务和一个 GR00T 骨干，每个条件只有 10–20 次 rollout；论文也没有给绝对延迟、显存或 GPU-hours 对照。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">快权重不是“现场微调整个机器人”，而是模型内部的参数化记忆</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">FAST WEIGHTS（快权重）</span>
+            <p><strong>英译中：</strong>在训练和推理过程中都会快速变化、用来承载当前序列信息的一小组参数。</p>
+            <p><strong>怎么理解：</strong>RoboTTT 每层有一个两层 MLP，参数记作 W。它不是部署后永久改写基础模型，而是在一次 rollout 内从学到的初始值 W₀ 出发，边看边更新，并把 Wₜ 传给下一时刻。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SLOW WEIGHTS（慢权重）</span>
+            <p><strong>英译中：</strong>常规模型参数，包括 VLM、DiT、TTT 投影和门控等。</p>
+            <p><strong>怎么理解：</strong>它们在训练阶段学会“什么值得写、怎样写、怎样查”，但推理时保持冻结。在线更新的是 fast model 的 W，不是拿任务标签或奖励对整个 GR00T 做梯度微调。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">TEST-TIME TRAINING（测试时训练）</span>
+            <p><strong>英译中：</strong>测试时也执行一个内部学习步骤。</p>
+            <p><strong>怎么理解：</strong>这里的“训练”是用当前 token 自己构造 key→value 预测任务，计算均方误差并更新快权重；它不需要真值动作。外层动作损失再反过来元学习这套内部更新规则，使“自监督写入”对控制任务有用。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SEQUENCE ACTION FORCING（序列动作强制）</span>
+            <p><strong>英译中：</strong>让一条训练序列中的每个动作块独立抽取 flow-matching 噪声等级。</p>
+            <p><strong>怎么理解：</strong>它不是传统 teacher forcing 的换名。若整条序列共享一个噪声等级，所有动作块会一起变得过易或过难；独立抽样让不同时间点同时覆盖不同去噪难度，论文消融显示去掉它后训练几乎失效。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">TBPTT（截断式时间反向传播）</span>
+            <p><strong>英译中：</strong>把长序列切成短段，只在段内传播梯度。</p>
+            <p><strong>怎么理解：</strong>段边界处快权重的数值继续向前，记忆没有重置；梯度图却被 detach，显存由段长而非整条 8K 上下文决定。它固定的是激活显存，不是总训练计算量。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="robottt-memory-title robottt-memory-desc">
+            <svg viewBox="0 0 720 372" role="img" aria-labelledby="robottt-memory-title robottt-memory-desc">
+              <title id="robottt-memory-title">全历史注意力、递归向量和快权重三种记忆形态</title>
+              <desc id="robottt-memory-desc">全历史注意力保留所有 token，容量高但状态增长；GDN 把历史压成固定向量并用线性关联更新；RoboTTT 把历史压进固定大小的非线性 MLP 参数，并用自监督梯度更新。</desc>
+              <defs>
+                <marker id="robottt-memory-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="720" height="372" fill="#fbfaf6"/>
+              <text x="32" y="40" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">历史怎样留下来？</text>
+              <rect x="30" y="62" width="205" height="235" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="94" fill="#17201d" font-size="15" font-weight="700">全历史 Transformer</text>
+              <g fill="#fffef9" stroke="#bd4c32">
+                <rect x="50" y="118" width="25" height="25"/><rect x="81" y="118" width="25" height="25"/><rect x="112" y="118" width="25" height="25"/><rect x="143" y="118" width="25" height="25"/><rect x="174" y="118" width="25" height="25"/>
+              </g>
+              <text x="50" y="173" fill="#52605b" font-size="12">保留全部 K/V</text>
+              <text x="50" y="198" fill="#52605b" font-size="12">检索灵活、上下文忠实</text>
+              <text x="50" y="246" fill="#86321f" font-size="12" font-weight="700">状态与每步成本随历史增长</text>
+
+              <rect x="258" y="62" width="205" height="235" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="278" y="94" fill="#17201d" font-size="15" font-weight="700">GDN / 递归向量</text>
+              <circle cx="360" cy="135" r="35" fill="#fffef9" stroke="#355e7c"/>
+              <text x="360" y="140" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">state</text>
+              <text x="278" y="198" fill="#52605b" font-size="12">固定大小状态</text>
+              <text x="278" y="223" fill="#52605b" font-size="12">线性 gated-delta 更新</text>
+              <text x="278" y="246" fill="#355e7c" font-size="12" font-weight="700">快，但压缩器表达力受限</text>
+
+              <rect x="486" y="62" width="205" height="235" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="506" y="94" fill="#17201d" font-size="15" font-weight="700">RoboTTT 快权重</text>
+              <rect x="525" y="116" width="126" height="58" rx="5" fill="#fffef9" stroke="#24624e"/>
+              <text x="588" y="140" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">MLP 参数 Wₜ</text>
+              <text x="588" y="160" text-anchor="middle" fill="#52605b" font-size="11">gradient update</text>
+              <text x="506" y="198" fill="#52605b" font-size="12">固定大小、非线性状态</text>
+              <text x="506" y="223" fill="#52605b" font-size="12">外层任务元学习写入规则</text>
+              <text x="506" y="246" fill="#24624e" font-size="12" font-weight="700">容量更强，但每步要做梯度</text>
+
+              <path d="M132 317V339H589V317" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="360" y="361" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">RoboTTT 的主张：固定状态不必等于简单状态</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>三种方法的关键差别不是“有没有历史”，而是历史以什么形式存在、怎样更新。TTT 试图在全历史注意力的容量与递归模型的常数状态之间找一个新点：状态固定，但状态本身是一组可优化的神经网络参数。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">FAILURE CHAIN</p>
+          <h2 id="problem-title">长任务的难点不是动作更多，而是当前画面不再足以决定下一步</h2>
+
+          <figure class="svg-figure" aria-labelledby="robottt-failure-title robottt-failure-desc">
+            <svg viewBox="0 0 760 410" role="img" aria-labelledby="robottt-failure-title robottt-failure-desc">
+              <title id="robottt-failure-title">短历史机器人策略在长程装配中的失败链</title>
+              <desc id="robottt-failure-desc">多阶段任务中当前画面出现相似状态，加上遮挡和动作执行误差，短历史策略无法判断任务进度与失败结果，进而跳过阶段、重复动作或错过恢复；简单拼接一帧历史还会带来伪相关和时间分布偏移。</desc>
+              <defs>
+                <marker id="robottt-failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="410" fill="#fbfaf6"/>
+              <rect x="28" y="72" width="148" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="102" y="104" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">多阶段装配</text>
+              <text x="102" y="132" text-anchor="middle" fill="#52605b" font-size="12">拧紧 · 翻转 · 插接</text>
+              <text x="102" y="157" text-anchor="middle" fill="#52605b" font-size="12">持续 1–5 分钟</text>
+              <path d="M187 128H220" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#robottt-failure-arrow)"/>
+              <rect x="224" y="72" width="148" height="112" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="104" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">当前观测歧义</text>
+              <text x="298" y="132" text-anchor="middle" fill="#52605b" font-size="12">相似阶段 · 物体遮挡</text>
+              <text x="298" y="157" text-anchor="middle" fill="#52605b" font-size="12">不知道动作是否成功</text>
+              <path d="M383 128H416" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#robottt-failure-arrow)"/>
+              <rect x="420" y="72" width="148" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="494" y="104" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">短历史猜错状态</text>
+              <text x="494" y="132" text-anchor="middle" fill="#52605b" font-size="12">跳过步骤 · 重复步骤</text>
+              <text x="494" y="157" text-anchor="middle" fill="#52605b" font-size="12">失败后继续向前</text>
+              <path d="M579 128H612" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#robottt-failure-arrow)"/>
+              <rect x="616" y="72" width="116" height="112" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="674" y="104" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">任务中断</text>
+              <text x="674" y="132" text-anchor="middle" fill="#52605b" font-size="12">部分完成分高</text>
+              <text x="674" y="157" text-anchor="middle" fill="#86321f" font-size="12">完整成功仍低</text>
+
+              <path d="M494 198V230H207" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#robottt-failure-arrow)"/>
+              <rect x="82" y="235" width="266" height="105" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="102" y="266" fill="#17201d" font-size="15" font-weight="700">朴素补丁：拼接一帧历史</text>
+              <text x="102" y="293" fill="#52605b" font-size="12">Pup Go Car：39.5%，反而低于当前帧 57%</text>
+              <text x="102" y="318" fill="#52605b" font-size="12">历史会带来动作伪相关与部署时间 OOD</text>
+
+              <rect x="395" y="235" width="285" height="105" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="415" y="266" fill="#17201d" font-size="15" font-weight="700">RoboTTT 的回答：学习压缩规则</text>
+              <text x="415" y="293" fill="#52605b" font-size="12">重要阶段写进 W · 重复观测被覆盖</text>
+              <text x="415" y="318" fill="#52605b" font-size="12">当前 query 再按任务需要读出</text>
+              <path d="M348 287H383" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-overview-arrow)"/>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上半部分是长任务的部分可观测性如何演变成阶段错误；下半部分说明“多一帧”与“可学习的长程状态”不是同一件事。论文在 Pup Go Car 上甚至观察到一帧历史基线从 57% 降到 39.5%，因此核心问题不是输入数量，而是模型是否学会使用历史。</figcaption>
+          </figure>
+
+          <h3>长上下文策略同时面对容量、利用和成本三道门</h3>
+          <p><strong>容量：</strong>一个普通 RNN 向量要把数分钟密集视觉流压成有限维状态，容易丢掉关键阶段；RoboTTT 用非线性 MLP 参数提升状态容量。<strong>利用：</strong>保留历史不代表会在正确时刻读出，GDN 在 one-shot 视频中能形成递归状态，却仍会拿错组件或装错顺序。<strong>成本：</strong>全历史 attention 每一步都要保留和检索更多 KV；快权重只携带固定大小 Wₜ。</p>
+
+          <h3>训练上下文也是一种“更新步数分布”</h3>
+          <p>1K timesteps 约半分钟，甚至短于论文最短的一分钟任务。若只在 1K 上训练，部署时 W 会被更新到训练从未见过的位置，位置编码也会进入未见区间。8K 预训练不是简单增加一个输入窗口，而是让元学习到的 W₀、投影和更新动力学在更长的连续优化轨迹上接受外层任务约束。</p>
+
+          <p class="evidence-note"><strong>证据边界：</strong>“非线性梯度更新比线性递归更会压缩”是作者基于 GDN 对照和 TTT-linear 消融提出的解释。它支持 RoboTTT 的具体设计，却还不足以证明测试时梯度下降必然优于所有其他固定状态模型。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">先在内层把当前经历写入 W，再让外层任务教会它怎样写才有用</h2>
+
+          <h3>写入与读取：隐藏状态变成一组可优化参数</h3>
+          <div class="formula-card" aria-label="RoboTTT 快权重更新与读取公式">
+            <div class="formula-card__label">公式拆解 · Eq. 1–2</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">W<sub>t</sub></span> = W<sub>t−1</sub> − η∇<sub>W</sub>L<sub>FW</sub>
+              <br>
+              L<sub>FW</sub>(W<sub>t−1</sub>; K<sub>t</sub>, V<sub>t</sub>)
+              <br>
+              = ‖f<sub>W<sub>t−1</sub></sub>(K<sub>t</sub>) − V<sub>t</sub>‖²
+              <br>
+              <span class="formula-symbol">O<sub>t</sub></span> = f<sub>W<sub>t</sub></sub>(Q<sub>t</sub>)
+            </div>
+            <p class="formula-card__caption">这两式回答：如何把当前 token 的关联写进快权重，以及如何用当前 query 从更新后的参数记忆中读出上下文。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>Wₜ₋₁ → Wₜ</dt><dd>进入当前时刻前后的 fast weights；本文 fast model 是两层 GeLU MLP。</dd></div>
+              <div class="formula-legend__row"><dt>f<sub>W</sub> / L<sub>FW</sub></dt><dd>参数为 W 的 fast model，以及让 f(Kₜ) 逼近 Vₜ 的自监督均方误差。</dd></div>
+              <div class="formula-legend__row"><dt>Kₜ / Vₜ</dt><dd>当前 token 的 key 与 value 投影；内部自监督任务要求 f(Kₜ) 逼近 Vₜ。</dd></div>
+              <div class="formula-legend__row"><dt>η</dt><dd>可学习的内层学习率；附录说明它建立在 0.1 的基础学习率上。</dd></div>
+              <div class="formula-legend__row"><dt>Qₜ</dt><dd>当前查询；更新完成后再交给同一个 fast model 读取。</dd></div>
+              <div class="formula-legend__row"><dt>Oₜ</dt><dd>携带历史信息的输出，随后参与动作生成。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：K/V 像一条“写入指令”，一次梯度下降把它刻进 MLP 参数；Q 是“现在要问的问题”。推理时用的是这条自监督均方误差，不需要真值动作，也没有在线更新整个 GR00T。</div>
+          </div>
+
+          <p>真正让这条内部更新服务于机器人任务的是外层训练：动作 flow-matching loss 的梯度穿过 Eq. 1，学习 Q/K/V 投影、内层更新动力学和初始状态 W₀。W₀ 因此通过 gradients of gradients 被元学习；每条 rollout 从 W₀ 开始，再形成自己的短期经历。</p>
+
+          <h3>门控：先把新记忆分支关到接近零</h3>
+          <div class="formula-card" aria-label="RoboTTT tanh 门控公式">
+            <div class="formula-card__label">公式拆解 · Eq. 3</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">O</span> = tanh(α) ⊙ O<sub>TTT</sub>
+              <br>
+              + O<sub>attn</sub>
+            </div>
+            <p class="formula-card__caption">这条式子回答：怎样在插入 16 个 TTT 层时，不让随机初始化的新分支淹没预训练 GR00T 的能力。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>O<sub>TTT</sub></dt><dd>跨时间快权重分支的输出。</dd></div>
+              <div class="formula-legend__row"><dt>O<sub>attn</sub></dt><dd>原 DiT attention 路径，作为稳定残差主干。</dd></div>
+              <div class="formula-legend__row"><dt>α</dt><dd>逐通道可学习门，初始约为 0.001，tanh 后让 TTT 起始贡献接近零。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">先保住“会做当前动作”的旧模型，再逐维学会什么时候依赖长历史。消融中，单独给 GR00T 添加 register tokens 没有收益，也支持结果并非只来自多了 token。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="robottt-pipeline-title robottt-pipeline-desc">
+            <svg viewBox="0 0 760 478" role="img" aria-labelledby="robottt-pipeline-title robottt-pipeline-desc">
+              <title id="robottt-pipeline-title">RoboTTT 的单步理解、跨步快权重和训练推理流程</title>
+              <desc id="robottt-pipeline-desc">每个时刻的语言、图像、本体状态和带噪动作先由 VLM 与单步注意力处理，十六个 register tokens 携带视觉语言信息；沿时间拼接后进入 TTT 层更新快权重，门控回原注意力路径并输出动作。训练时在长序列上计算外层损失，推理时快权重逐步传播。</desc>
+              <defs>
+                <marker id="robottt-pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="478" fill="#fbfaf6"/>
+              <text x="35" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">每个机器人时刻：理解当下</text>
+              <rect x="31" y="64" width="133" height="78" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="97" y="91" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">图像 + 语言</text>
+              <text x="97" y="115" text-anchor="middle" fill="#52605b" font-size="11">Eagle VLM → Φₜ</text>
+              <rect x="31" y="158" width="133" height="78" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="97" y="185" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">qₜ + Ãₜ + Rₜ</text>
+              <text x="97" y="209" text-anchor="middle" fill="#52605b" font-size="11">状态 · 动作 · 16 registers</text>
+              <path d="M176 150H218" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-pipeline-arrow)"/>
+              <rect x="222" y="94" width="158" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="301" y="126" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Self + Cross Attention</text>
+              <text x="301" y="153" text-anchor="middle" fill="#52605b" font-size="12">只在同一 timestep 内</text>
+              <text x="301" y="180" text-anchor="middle" fill="#52605b" font-size="12">Rₜ 汇聚紧凑 VL 信息</text>
+              <path d="M392 150H434" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-pipeline-arrow)"/>
+              <rect x="438" y="78" width="138" height="144" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="507" y="106" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">每个 DiT 层后</text>
+              <text x="507" y="132" text-anchor="middle" fill="#52605b" font-size="12">插 1 个 TTT Layer</text>
+              <text x="507" y="157" text-anchor="middle" fill="#52605b" font-size="12">沿时间 flatten</text>
+              <text x="507" y="182" text-anchor="middle" fill="#52605b" font-size="12">Wₜ₋₁ → Wₜ</text>
+              <text x="507" y="207" text-anchor="middle" fill="#52605b" font-size="11">全模型共 16 处</text>
+              <path d="M588 150H630" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-pipeline-arrow)"/>
+              <rect x="634" y="94" width="96" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="682" y="124" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">tanh gate</text>
+              <text x="682" y="151" text-anchor="middle" fill="#52605b" font-size="11">+ attention</text>
+              <text x="682" y="179" text-anchor="middle" fill="#52605b" font-size="11">动作去噪</text>
+
+              <text x="35" y="292" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">时间怎样继续？</text>
+              <rect x="31" y="313" width="310" height="98" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="51" y="343" fill="#17201d" font-size="15" font-weight="700">训练：整段外层动作损失</text>
+              <text x="51" y="369" fill="#52605b" font-size="12">sequence action forcing：每块独立噪声</text>
+              <text x="51" y="393" fill="#52605b" font-size="12">TBPTT：carry W，但在段边界 stop gradient</text>
+              <rect x="419" y="313" width="310" height="98" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="439" y="343" fill="#17201d" font-size="15" font-weight="700">推理：每次 rollout 从 W₀ 开始</text>
+              <text x="439" y="369" fill="#52605b" font-size="12">当前观测自监督更新 Wₜ</text>
+              <text x="439" y="393" fill="#52605b" font-size="12">生成动作块，再把 Wₜ 传给下一时刻</text>
+              <path d="M353 362H407" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-pipeline-arrow)"/>
+              <text x="380" y="347" text-anchor="middle" fill="#52605b" font-size="10">same update rule</text>
+              <text x="380" y="450" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">训练学会“怎样记”；推理只执行这条已学会的内层更新</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>横向看模型的空间分工：VLM 与 attention 处理当前时刻，register tokens 压缩视觉—语言信息，TTT 沿时间更新快权重。纵向看训练与推理共用同一条内层更新；区别只在训练还有外层动作监督来塑造更新规则。</figcaption>
+          </figure>
+
+          <h3>Sequence action forcing：让长序列里的去噪难度彼此独立</h3>
+          <div class="formula-card" aria-label="RoboTTT 序列 flow matching 目标">
+            <div class="formula-card__label">公式拆解 · Eq. 5</div>
+            <div class="formula-card__equation">
+              A<sub>t</sub><sup>τₜ</sup> = τ<sub>t</sub>A<sub>t</sub> + (1−τ<sub>t</sub>)ε
+              <br>
+              <span class="formula-symbol">L<sub>fm</sub></span> = (1/T) Σ<sub>t=1</sub><sup>T</sup> E<sub>τₜ, ε</sub> [
+              <br>
+              ‖v<sub>θ</sub>(Φ<sub>t</sub>, A<sub>t</sub><sup>τₜ</sup>, q<sub>t</sub>; W<sub>t−1</sub>)
+              <br>
+              − (A<sub>t</sub>−ε)‖² ]
+            </div>
+            <p class="formula-card__caption">这条公式回答：如何让每个时间点的动作块在共享同一条长上下文时，仍独立覆盖从纯噪声到真实动作的不同去噪难度。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>Aₜ</dt><dd>从当前时刻起的 H-step 动作块。</dd></div>
+              <div class="formula-legend__row"><dt>v<sub>θ</sub></dt><dd>DiT 的 flow / velocity predictor；它接收视觉语言表征 Φₜ、本体状态 qₜ、带噪动作和历史快权重。</dd></div>
+              <div class="formula-legend__row"><dt>τₜ</dt><dd>每个动作块独立采样的 flow timestep；接近 0 时更像噪声，接近 1 时更像真实动作。</dd></div>
+              <div class="formula-legend__row"><dt>ε</dt><dd>高斯噪声；Aₜ−ε 是直线路径上的目标速度。</dd></div>
+              <div class="formula-legend__row"><dt>Wₜ₋₁</dt><dd>进入该时刻前已经吸收历史的快权重，使同一观测可按任务进度生成不同动作。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">整条序列共享一个 τ，会让所有动作块同时过易或过难；独立 τₜ 把难度打散。Fig. 12 中去掉这一设计后，Pup Go Car 几乎无法取得有效进展，是论文最强的训练消融之一。</div>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="robottt-context-title robottt-context-desc">
+            <svg viewBox="0 0 720 414" role="img" aria-labelledby="robottt-context-title robottt-context-desc">
+              <title id="robottt-context-title">人类视频和 DAgger 轨迹如何通过损失掩码进入快权重</title>
+              <desc id="robottt-context-desc">人类视频只更新快权重、不计算动作模仿损失，随后机器人轨迹在更新后的快权重上接受监督；DAgger 中失败动作和人类纠正都更新快权重，但只有人类纠正计算模仿损失，因此失败作为上下文、纠正作为目标。</desc>
+              <defs>
+                <marker id="robottt-context-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="720" height="414" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">A / 一条人类视频指定未见配置</text>
+              <rect x="32" y="64" width="182" height="84" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="123" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">human video</text>
+              <text x="123" y="120" text-anchor="middle" fill="#52605b" font-size="12">更新 W · 动作 loss masked</text>
+              <path d="M226 106H276" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-context-arrow)"/>
+              <rect x="280" y="64" width="154" height="84" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="357" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">保留 W<sub>demo</sub></text>
+              <text x="357" y="120" text-anchor="middle" fill="#52605b" font-size="12">场景 reset，记忆不 reset</text>
+              <path d="M446 106H496" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-context-arrow)"/>
+              <rect x="500" y="64" width="188" height="84" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="594" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">robot rollout</text>
+              <text x="594" y="120" text-anchor="middle" fill="#52605b" font-size="12">按示范配置生成动作</text>
+
+              <text x="34" y="210" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">B / DAgger Distillation</text>
+              <rect x="32" y="232" width="182" height="90" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="123" y="263" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">机器人次优动作</text>
+              <text x="123" y="289" text-anchor="middle" fill="#52605b" font-size="12">更新 W · imitation masked</text>
+              <path d="M226 277H276" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-context-arrow)"/>
+              <rect x="280" y="232" width="154" height="90" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="357" y="263" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">失败写进上下文</text>
+              <text x="357" y="289" text-anchor="middle" fill="#52605b" font-size="12">W 记录“刚才哪里错”</text>
+              <path d="M446 277H496" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#robottt-context-arrow)"/>
+              <rect x="500" y="232" width="188" height="90" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="594" y="263" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">人类纠正动作</text>
+              <text x="594" y="289" text-anchor="middle" fill="#52605b" font-size="12">更新 W + imitation target</text>
+
+              <path d="M123 342V369H594V342" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="358" y="393" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">同一条时间流里，context 与 target 不必来自同一种动作</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上半部分展示视频 one-shot：视频负责告诉快权重“目标配置是什么”，机器人轨迹负责教动作。下半部分展示 DAgger Distillation：失败动作的价值不是被模仿，而是给随后的纠正提供因果上下文。</figcaption>
+          </figure>
+
+          <h3>实现代价：上下文状态固定，但模型和训练并不免费</h3>
+          <p>论文在 GR00T N1.7 的 16 个 DiT 层后各加一个 TTT 层。原 DiT 为 538M 参数，加入后报告约 690M；预训练 30K steps、每次使用 16 张 GB200，只更新新序列层；下游 post-training 20K steps、8 张 GPU、1K context，并微调全部参数。部署在 RTX 5090、30 Hz 的 YAM 双臂系统上。这里的 30 Hz 是控制频率，不等同于已经报告了完整模型的毫秒级推理延迟。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">先把阶段完成分与完整成功分开，再判断 context scaling</h2>
+
+          <h3>主评测：RoboTTT 在三个任务上走得更远，但仍经常没有走完全程</h3>
+          <div class="table-wrap" tabindex="0" aria-label="RoboTTT 三项主任务结果">
+            <table class="evidence-table">
+              <thead><tr><th>方法</th><th>平均阶段完成分</th><th>Pup 完整成功</th><th>Circuit 完整成功</th><th>Gear Bot 完整成功</th><th>怎样读</th></tr></thead>
+              <tbody>
+                <tr class="evidence-table__emphasis"><td>RoboTTT</td><td>79%</td><td>9/20</td><td>13/20</td><td>2/10</td><td>三任务共 24/50 完整成功</td></tr>
+                <tr><td>GR00T N1.7</td><td>42%</td><td>3/20</td><td>3/20</td><td>0/10</td><td>单步上下文基线</td></tr>
+                <tr><td>GR00T N1.7 Hist.</td><td>图 7 约 49%</td><td>0/20</td><td>8/20</td><td>0/10</td><td>只加一帧历史</td></tr>
+                <tr><td>GDN</td><td>56%</td><td>3/20</td><td>8/20</td><td>0/10</td><td>参数量匹配的递归记忆</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>论文的“比单步基线提升 87%”是 <strong>79/42−1 的相对提升</strong>，不是增加 87 个百分点，也不是 79% rollout 全部成功。completion score 按任务 rubric 给部分阶段计分：Gear Bot 每完成一次翻转、齿轮/轮胎安装、头部安装或遥控都可加 0.1，因此长任务中断前仍能积累较高分。</p>
+
+          <h3>Context scaling：8K 明显更强，但“steady”不是每个采样点都单调</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="robottt-scaling-title robottt-scaling-desc">
+            <svg viewBox="0 0 720 340" role="img" aria-labelledby="robottt-scaling-title robottt-scaling-desc">
+              <title id="robottt-scaling-title">RoboTTT 一千步与八千步上下文的闭环完成分对照</title>
+              <desc id="robottt-scaling-desc">同一 RoboTTT 从一千步预训练上下文的百分之四十三点九提升到八千步的百分之七十一点五，最佳短上下文基线为百分之四十五点六；八千步相对一千步提升约百分之六十二点九。</desc>
+              <defs>
+                <marker id="robottt-scaling-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#24624e"/>
+                </marker>
+              </defs>
+              <rect width="720" height="340" fill="#fbfaf6"/>
+              <line x1="92" y1="268" x2="664" y2="268" stroke="#aaa69c"/>
+              <line x1="92" y1="54" x2="92" y2="268" stroke="#aaa69c"/>
+              <text x="72" y="272" text-anchor="end" fill="#52605b" font-size="11">0</text>
+              <text x="72" y="205" text-anchor="end" fill="#52605b" font-size="11">30</text>
+              <text x="72" y="139" text-anchor="end" fill="#52605b" font-size="11">60</text>
+              <text x="72" y="74" text-anchor="end" fill="#52605b" font-size="11">90</text>
+              <line x1="92" y1="167" x2="664" y2="167" stroke="#bd4c32" stroke-width="1.5" stroke-dasharray="6 5"/>
+              <text x="655" y="158" text-anchor="end" fill="#86321f" font-size="11" font-weight="700">短上下文基线 45.6%</text>
+              <circle cx="254" cy="171" r="9" fill="#dfeaf1" stroke="#355e7c" stroke-width="2"/>
+              <text x="254" y="201" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">1K</text>
+              <text x="254" y="224" text-anchor="middle" fill="#52605b" font-size="13">43.9%</text>
+              <path d="M277 164C375 146 458 114 545 98" fill="none" stroke="#24624e" stroke-width="4" marker-end="url(#robottt-scaling-arrow)"/>
+              <circle cx="565" cy="93" r="10" fill="#dcebe5" stroke="#24624e" stroke-width="2"/>
+              <text x="565" y="126" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">8K</text>
+              <text x="565" y="149" text-anchor="middle" fill="#52605b" font-size="13">71.5%</text>
+              <rect x="215" y="286" width="395" height="36" rx="18" fill="#17201d"/>
+              <text x="413" y="309" text-anchor="middle" fill="#fffef9" font-size="13" font-weight="700">相对 +62.9% · 论文摘要四舍五入为 62%，正文为 63%</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>最稳的证据是论文正文明确给出的三个锚点：1K、8K 和最佳短上下文基线。放大原 Fig. 8 可见 128→256 有小幅回落，512 处 RoboTTT 与 GDN 也几乎持平，且曲线没有误差条；所以更准确的表述是“整体随上下文扩大而上升，1K 之后持续改善”，而不是每个点严格单调。</figcaption>
+          </figure>
+
+          <h3>新能力：每一项都成立，但适用范围不同</h3>
+          <div class="table-wrap" tabindex="0" aria-label="RoboTTT 上下文能力证据矩阵">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>问题</th><th>RoboTTT</th><th>关键对照</th><th>论文直接支持</th><th>边界</th></tr></thead>
+              <tbody>
+                <tr><td>一条视频指定未见 Circuit 配置</td><td>65%，6/10</td><td>GDN 33%，0/10</td><td>快权重能读出视频给出的组件与顺序</td><td>是未见配置，不是完全未见任务语义</td></tr>
+                <tr><td>屋顶 / 轮胎被人为移除</td><td>15/20 · 18/20</td><td>GDN 13/20 · 18/20</td><td>长递归状态帮助返回先前阶段</td><td>所有方法都共同训练了 30 分钟扰动数据</td></tr>
+                <tr><td>DAgger Distillation</td><td>相对 +36%</td><td>GDN +29%；标准 DAgger 跨方法平均 +9%</td><td>失败作 context 比把失败当 target 更有价值</td><td>不是无监督自我进化；训练用了人类纠正</td></tr>
+                <tr><td>去掉 sequence action forcing</td><td>几乎无有效进展</td><td>完整模型 65.5%（Pup 图 12）</td><td>独立动作噪声是长序列训练的必要部件</td><td>只在一个下游任务做该消融</td></tr>
+                <tr><td>线性 fast model</td><td>比完整 MLP 低 27%</td><td>仍优于 GR00T</td><td>非线性参数记忆有额外价值</td><td>不能代表所有递归更新规则</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>扰动实验合并后，RoboTTT 为 33/40（82.5%），最佳短上下文 GR00T 为 21/40（52.5%）；但 GDN 已达到 31/40（77.5%），并在轮胎条件与 RoboTTT 同为 18/20。因此这组实验最清楚地支持“长递归记忆优于短上下文”，只在屋顶条件额外支持 TTT 比 GDN 更强。</p>
+
+          <p>DAgger 对照则更干净：标准 DAgger 只学习人类纠正，四种方法平均相对提升 9%；Distillation 在两个序列模型上平均提升 33%。对无序列状态的 GR00T，把机器人错误动作也当模仿 target 后仍与只学纠正同为 57%。这直接说明错误动作的价值在于告诉模型“纠正针对什么失败”，而不是让模型复制错误。</p>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>论文直接支持</span>
+              <h3>更长预训练 context 改善闭环表现</h3>
+              <p>同架构 1K→8K 为 43.9%→71.5%，是全文最接近控制变量的 scaling 证据。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件支持</span>
+              <h3>测试时梯度更新优于递归记忆</h3>
+              <p>RoboTTT 胜过参数匹配 GDN，但任务与更新规则仍有限，扰动轮胎条件两者持平。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>Context 是通用机器人 scaling law</h3>
+              <p>当前只有一个骨干、一个平台、三项任务和 8K 以内的点，没有匹配总训练计算。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">RoboTTT 证明了一个值得追的方向，但“恒定、one-shot、在线提升、scaling law”都要带限定词</h2>
+
+          <h3>第一，恒定的是对历史长度的渐近关系，不是已经证明绝对更快</h3>
+          <p>固定大小 Wₜ 让单步状态不随 rollout 变长，这是明确的架构优势；但论文没有给毫秒延迟、吞吐、推理显存、能耗或与 GR00T / GDN 的对照表。RoboTTT 还增加约 152M DiT 参数，并在每一步执行内层梯度计算。30 Hz 只能说明系统部署频率，不能代替完整延迟基准。</p>
+
+          <h3>第二，context scaling 与额外训练计算没有完全解耦</h3>
+          <p>各上下文长度都预训练 30K steps，但单样本 token 数随 context 增长；4K 及以下全局 batch 为 64，超过 4K 后降为 16。论文承认长 context 增加训练成本，也没有报告 GPU-hours。因此曲线证明“长 context 配方有效”，还不能把全部增益严格归因于 context 长度本身。</p>
+
+          <h3>第三，Fig. 8 是整体上升趋势，不是无噪声的幂律</h3>
+          <p>原图没有置信区间、随机种子方差或显著性检验；早期点存在小幅非单调，8K 只是最后一个仍在上升的测试点。“no sign of saturation”不能外推成继续增到 16K、32K 一定提升，更不能据此确定 scaling exponent。</p>
+
+          <h3>第四，79% 完成分掩盖了长任务仍然很难</h3>
+          <p>主评测中 RoboTTT 完整成功为 Pup 9/20、Circuit 13/20、Gear Bot 2/10；最长五分钟任务仍有 80% rollout 未走完全程。论文没有系统归类最终失败，展示的 Fig. 11 是两次失手后恢复成功的案例，不是失败分布。</p>
+
+          <h3>第五，one-shot 是同任务内的新配置，不是看一段任意视频就会新技能</h3>
+          <p>模型先在 Circuit 训练配置上接受每个配置 5–20 段人类视频与机器人轨迹的配对训练；测试时只给一段未见配置视频，所有配置使用同一句 “assemble circuit”。这很好地验证了视频条件化，却不等于无需这种训练范式的开放词汇模仿。</p>
+
+          <h3>第六，on-the-fly improvement 是离线蒸馏出的恢复策略</h3>
+          <p>推理时确实不再需要人类，但模型此前见过 100 条带人类纠正的 DAgger 轨迹。它学会把失败映射到纠正，不是依靠在线奖励在任意部署经历中持续变强。GDN 同样从 Distillation 获益 29%，也说明这部分贡献属于更一般的 sequence-policy 训练法。</p>
+
+          <h3>第七，8K 是预训练上下文；下游 post-training 仍为 1K</h3>
+          <p>这并非缺点，反而说明长预训练更新动力学能迁移；但页面和二手摘要若把它写成“所有训练阶段都在 8K 上端到端训练”，就会误读方法。TBPTT 又在段边界截断梯度，因此跨段记忆数值连续，长期信用分配并不完整。</p>
+
+          <h3>第八，外部有效性仍集中在一套硬件与一种骨干</h3>
+          <p>所有真实实验都在 YAM 双臂桌面机器人、四路 RGB 和 GR00T N1.7 上完成。参数匹配 GDN 是有价值的受控基线，但“可插拔到广泛 VLA”目前主要是架构兼容性主张，还需要在不同动作头、机器人形态和开放环境中实证。</p>
+
+          <h3>第九，作者自己留下的三项技术债</h3>
+          <p>论文明确承认：长上下文训练成本高；内层仍使用通用 key→value 自监督目标，尚未设计机器人专用 TTT objective；RoboTTT 无法处理所有部署失败，未来可与强化学习结合直接优化任务成功率。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2607.15275">论文摘要页：arXiv:2607.15275</a> — 标题、作者、提交日期与公开版本。</li>
+            <li><a href="https://arxiv.org/pdf/2607.15275">论文 PDF</a> — 本页公式、模型图、三项主评测、context scaling、视频 one-shot、扰动、DAgger、消融和附录配置的主要来源，共 22 页。</li>
+            <li><a href="https://research.nvidia.com/labs/gear/robottt/">NVIDIA GEAR 项目主页</a> — 官方视频、摘要、BibTeX 与项目入口；页面结论仍以论文表格为准。</li>
+            <li><a href="https://arxiv.org/abs/2503.14734">GR00T N1</a> — RoboTTT 所使用的基础 VLA 家族背景。</li>
+            <li><a href="https://proceedings.mlr.press/v15/ross11a.html">DAgger</a> — 论文中 failure-to-correction 数据收集流程的经典来源。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>公式、模型配置、表格数值、样本数和作者用 “we attribute / hypothesize” 表达的解释属于论文事实或作者判断；“参数化记忆”“完成分不等于成功率”“恒定只指 context asymptotics”“context 与训练计算仍混杂”“one-shot 与 on-the-fly 的限定范围”等是基于控制变量和实验边界作出的解读。未修改用户提供的 PDF，也未把附件复制进仓库。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
