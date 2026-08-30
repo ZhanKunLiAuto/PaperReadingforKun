@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Meta Context Engineering via Agentic Skill Evolution">
+    <meta name="citation_author" content="Haoran Ye">
+    <meta name="citation_author" content="Xuning He">
+    <meta name="citation_author" content="Vincent Arak">
+    <meta name="citation_author" content="Haonan Dong">
+    <meta name="citation_author" content="Guojie Song">
+    <meta name="citation_publication_date" content="2026-02-11">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2601.21557v2">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2601.21557v2">
+    <meta name="description" content="解读 Meta Context Engineering：如何用双层优化共同演化 context-engineering skill 与 context artifact，并核对五领域实验、上下文长度、迁移、训练效率与消融的证据边界。">
+    <meta name="keywords" content="Meta Context Engineering, MCE, agentic skill evolution, context engineering, agentic crossover, context artifact, bi-level optimization, agent skills, ACE">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>Meta Context Engineering：当“怎样学习上下文”也成为可演化的 Skill</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/meta-context-engineering/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2601.21557V2 · 2026-02-11 · 阅读于 2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“优化学习方法”</a></li>
+          <li><a href="#concepts">分清 skill、context 与 harness</a></li>
+          <li><a href="#problem-chain">固定工作流为何会偏科</a></li>
+          <li><a href="#mechanism">双层循环怎样共同演化</a></li>
+          <li><a href="#evidence">把分数、长度与成本拆开</a></li>
+          <li><a href="#limits">哪些“自我改进”还不能外推</a></li>
+          <li><a href="#sources">回到 v2、代码与对照材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">BI-LEVEL OPTIMIZATION · AGENTIC SKILL EVOLUTION · CONTEXT ARTIFACTS</p>
+          <h1 id="paper-title" class="paper-title">Meta Context Engineering</h1>
+          <p class="paper-subtitle">
+            以往 Context Engineering 往往先由人规定“反思—整理—追加”流程，再让模型往固定容器里填内容。这篇论文把更上游的问题也交给搜索：什么上下文结构合适、怎样从 rollout 学、何时删减、何时停止，先写成可执行 skill，再让 skill 与最终 context 一起演化。
+          </p>
+          <div class="paper-byline">
+            <span>Haoran Ye、Xuning He、Vincent Arak、Haonan Dong、Guojie Song</span>
+            <span>北京大学 · 通讯作者 Guojie Song</span>
+            <span>稿件日期 2026-01-27 · arXiv v2 · 46 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把 Context Engineering 从“在人工写死的 harness 中优化一份 prompt / memory”提升为双层优化：外层学习一套会指导上下文工程的 skill，内层执行这套 skill，把训练 rollout 转化为文件、知识库、检索器和组合逻辑；目标是摆脱 GEPA 式过度简写与 ACE 式不断追加这两类结构偏置，让不同任务自己长出合适的上下文形态，并在性能、长度、迁移和训练成本上接受验证。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="mce-overview-title mce-overview-desc">
+            <svg viewBox="0 0 760 500" role="img" aria-labelledby="mce-overview-title mce-overview-desc">
+              <title id="mce-overview-title">Meta Context Engineering 从固定工作流到 skill 与 context 双层演化的总览</title>
+              <desc id="mce-overview-desc">固定的改写或追加流程会把上下文压得过短或堆得过长。MCE 的元代理读取任务说明、历史 skill、执行轨迹和验证分数，用 agentic crossover 生成新 skill；基础代理执行 skill，把 rollout 转化为文件和代码；验证集选择更好的 context 并将结果写回历史。五领域实验、可变上下文长度和 FiNER 训练效率支持这套方法，但完整双层消融只覆盖 FiNER。</desc>
+              <defs>
+                <marker id="mce-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="500" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 旧瓶颈</text>
+              <rect x="30" y="64" width="202" height="278" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="98" fill="#17201d" font-size="16" font-weight="700">Harness 先替任务做决定</text>
+              <text x="50" y="130" fill="#52605b" font-size="12">GEPA：整体重写，偏向 1–2K</text>
+              <text x="50" y="156" fill="#52605b" font-size="12">ACE：逐条追加，最高约 80K</text>
+              <line x1="50" y1="181" x2="212" y2="181" stroke="#d3a99d"/>
+              <text x="50" y="213" fill="#17201d" font-size="14" font-weight="700">结构也被预先锁定</text>
+              <text x="50" y="241" fill="#52605b" font-size="12">案例轨迹：细，但难抽象</text>
+              <text x="50" y="265" fill="#52605b" font-size="12">条目清单：易加，但扁平</text>
+              <text x="50" y="289" fill="#52605b" font-size="12">图式记忆：灵活，但检索昂贵</text>
+              <text x="50" y="322" fill="#86321f" font-size="12" font-weight="700">任务只能在人工子空间里选</text>
+
+              <path d="M244 199H273" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-overview-arrow)"/>
+              <text x="277" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / MCE 的关键动作</text>
+              <rect x="274" y="64" width="232" height="126" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="294" y="96" fill="#17201d" font-size="15" font-weight="700">元层：演化“怎样学习”</text>
+              <text x="294" y="123" fill="#52605b" font-size="12">任务 τ + 历史 H → 新 skill sₖ</text>
+              <text x="294" y="149" fill="#52605b" font-size="12">agentic crossover 读成功与失败</text>
+              <text x="294" y="174" fill="#52605b" font-size="12">方法、脚本、模板、验证、检索均可变</text>
+              <path d="M390 197V221" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-overview-arrow)"/>
+              <rect x="274" y="224" width="232" height="118" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="294" y="256" fill="#17201d" font-size="15" font-weight="700">基础层：执行“学到什么”</text>
+              <text x="294" y="283" fill="#52605b" font-size="12">skill + rollout + 旧最佳 context</text>
+              <text x="294" y="309" fill="#52605b" font-size="12">→ 文件 ρ + 动态算子 F + 检索接口</text>
+              <text x="294" y="333" fill="#24624e" font-size="11" font-weight="700">验证集决定保留，不由自评决定</text>
+
+              <path d="M518 199H547" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-overview-arrow)"/>
+              <text x="551" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / 证据落点</text>
+              <rect x="548" y="64" width="182" height="278" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="568" y="98" fill="#17201d" font-size="14" font-weight="700">五领域离线均为最佳</text>
+              <text x="568" y="122" fill="#52605b" font-size="12">对基座平均相对增益</text>
+              <text x="568" y="144" fill="#24624e" font-size="16" font-weight="700">89.1% vs 70.7%</text>
+              <line x1="568" y1="164" x2="710" y2="164" stroke="#d8d4ca"/>
+              <text x="568" y="194" fill="#17201d" font-size="14" font-weight="700">上下文按任务伸缩</text>
+              <text x="568" y="219" fill="#52605b" font-size="12">1.5K → 86K tokens</text>
+              <line x1="568" y1="239" x2="710" y2="239" stroke="#d8d4ca"/>
+              <text x="568" y="269" fill="#17201d" font-size="14" font-weight="700">FiNER 训练效率</text>
+              <text x="568" y="294" fill="#52605b" font-size="12">1.9h vs 25.8h</text>
+              <text x="568" y="318" fill="#86321f" font-size="11" font-weight="700">但只在一个任务测得</text>
+
+              <path d="M130 368V402H637V368" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="127" y="395" width="518" height="72" rx="36" fill="#17201d"/>
+              <text x="386" y="424" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">真正被搜索的，不只是 context，而是产生 context 的学习程序</text>
+              <text x="386" y="448" text-anchor="middle" fill="#d8d4ca" font-size="12">skill 决定“怎么学” · artifact 承载“学到了什么” · validation 决定是否保留</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先看左侧：既有方法不是没有优化，而是优化被人工 harness 的表示和更新规则框住。中间把它拆成两层，元代理演化 skill，基础代理执行 skill 生成 context function。右侧数字说明这套自由度确实带来收益；但 89.1% 是相对基座的跨任务平均增益，不是平均准确率，也不是比 ACE 高 89.1%。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，MCE 的创新对象是 Context Engineering 的“学习算法”。</strong>上下文不再等同于一段 prompt；它被写成 context function，由静态文件与动态检索、过滤、组合算子共同构成。skill 则是生成和更新这个函数的可执行规范。</p>
+            <p><strong>第二，最有说服力的结果不是“越长越好”，而是“长度与结构应随任务变化”。</strong>FiNER 的两个强 context 只有 1.5K 与 20K tokens，LawBench 与 USPTO50k 却长到 44K 与 86K；症状诊断长出 1,440 行路由器，法律任务反而把 context 从 88KB 收缩到约 30KB。</p>
+            <p><strong>第三，完全 agentic 的基础层已经贡献了大部分收益，skill evolution 提供的是进一步校准。</strong>FiNER 离线消融中，无 skill 的基础代理为 73%，完整演化为 75%，ACE 为 71%；这支持双层设计，但也说明“演化 skill”相对强基础层的直接增量目前只有 2 个百分点，且只在一个任务做了完整消融。</p>
+            <p><strong>第四，这是一套受验证集约束的有限搜索，不是开放世界里的无限自我进化。</strong>实验只运行五个 epoch，以单个 offspring 的 (1+1)-ES 选择 best-so-far；在线设置无法迭代演化 skill，长轨迹信用分配、推理密集任务、安全执行任意代码等问题仍未被解决。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">不要把 skill、context artifact、context function 和 agent harness 混成一件事</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONTEXT ENGINEERING（上下文工程）</span>
+            <p><strong>英译中：</strong>系统地选择、组织和调用推理时输入，使冻结的模型在下游任务上取得更高效用。</p>
+            <p><strong>怎么理解：</strong>它优化的是推理时模型“能看到什么、按什么顺序看到、由哪些程序动态生成”，不是更新 LLM 权重。论文强调可解释、部署快、模块化以及不发生参数层灾难性遗忘，但这些是方法特征，不等于 context 天然可靠。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONTEXT FUNCTION（上下文函数）</span>
+            <p><strong>英译中：</strong>从当前 query 映射到实际送入模型的 context 的函数。</p>
+            <p><strong>怎么理解：</strong>它由静态组件 ρ 与动态算子 F 组成。Markdown 规则、知识库、案例文件属于 ρ；检索、过滤、格式化和组合代码属于 F。于是“context”既可以是一段常量文本，也可以是按问题运行的程序结果。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CE SKILL（上下文工程技能）</span>
+            <p><strong>英译中：</strong>告诉基础代理“如何表示、学习、验证和更新 context”的可执行规范。</p>
+            <p><strong>怎么理解：</strong>它可以是一个含 SKILL.md、脚本、模板、校验协议与检索逻辑的目录。skill 是学习过程，不是最后塞给 generator 的领域知识；同一任务的 skill 会随验证反馈继续变化。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">CONTEXT ARTIFACT（上下文产物）</span>
+            <p><strong>英译中：</strong>基础代理执行 skill 后真正产出的文件与代码。</p>
+            <p><strong>怎么理解：</strong>例如 reasoning-chains.md、tag-reference.md、症状路由器或 retrieve_context.py。artifact 承载“学到了什么”；skill 规定“怎样从 rollout 学到它”。论文的 co-evolution 指二者在迭代中相互影响，而不是两者使用同一个优化变量。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">AGENTIC CROSSOVER（代理式交叉）</span>
+            <p><strong>英译中：</strong>由元代理阅读任务、历代 skill、执行产物和分数后，选择性重组成功部件并修复失败模式。</p>
+            <p><strong>怎么理解：</strong>它没有固定的“取两个父代各一半”规则。代理可以检查整个历史目录，判断过拟合、欠拟合、冗余或遗漏，再写出一个新 skill；因此它更像有记忆的设计评审，而不是字符串拼接。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="mce-levels-title mce-levels-desc">
+            <svg viewBox="0 0 720 392" role="img" aria-labelledby="mce-levels-title mce-levels-desc">
+              <title id="mce-levels-title">固定 harness、CE skill 与 context artifact 的层级关系</title>
+              <desc id="mce-levels-desc">传统方法把上下文结构和更新流程写在固定 harness 中，只优化内容。MCE 将学习流程提取为可演化 skill，skill 再驱动基础代理生成静态文件与动态算子组成的 context function，最后由冻结 generator 使用。</desc>
+              <defs>
+                <marker id="mce-levels-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="720" height="392" fill="#fbfaf6"/>
+              <text x="32" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.4">传统 CE：HOW 被锁死</text>
+              <rect x="30" y="64" width="285" height="235" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <rect x="52" y="90" width="241" height="57" rx="4" fill="#fffef9" stroke="#bd4c32"/>
+              <text x="172" y="115" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">固定 harness</text>
+              <text x="172" y="136" text-anchor="middle" fill="#52605b" font-size="11">rewrite / reflect / curate / append</text>
+              <path d="M172 156V180" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-levels-arrow)"/>
+              <rect x="52" y="184" width="241" height="88" rx="4" fill="#fffef9" stroke="#aaa69c"/>
+              <text x="172" y="212" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">被优化的内容</text>
+              <text x="172" y="237" text-anchor="middle" fill="#52605b" font-size="11">schema 与更新规则不可变</text>
+              <text x="172" y="258" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">WHAT 可变 · HOW 固定</text>
+
+              <text x="367" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.4">MCE：HOW 与 WHAT 分层</text>
+              <rect x="365" y="64" width="325" height="235" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <rect x="387" y="86" width="281" height="60" rx="4" fill="#fffef9" stroke="#355e7c"/>
+              <text x="527" y="112" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">CE skill s：HOW</text>
+              <text x="527" y="134" text-anchor="middle" fill="#52605b" font-size="11">方法 + 脚本 + 模板 + 校验 + 动态算子</text>
+              <path d="M527 154V174" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-levels-arrow)"/>
+              <rect x="387" y="178" width="281" height="96" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="527" y="205" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">context function c：WHAT</text>
+              <text x="527" y="230" text-anchor="middle" fill="#52605b" font-size="11">静态组件 ρ + 动态算子 F</text>
+              <text x="527" y="254" text-anchor="middle" fill="#24624e" font-size="11" font-weight="700">最终经 query → context 接口服务 generator</text>
+
+              <path d="M172 320V347H527V320" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="350" y="373" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">MCE 不是“更长的 prompt optimizer”，而是对 optimizer 本身做元层搜索</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>左侧把方法论埋在固定 harness 里，因此只能优化内容；右侧把 HOW 提取成 skill，把 WHAT 表示为 context function。冻结的是 generator 权重，不是生成 context 的文件与程序。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">FAILURE CHAIN</p>
+          <h2 id="problem-title">同一套“反思—整理”流程换到不同任务，偏置会从捷径变成瓶颈</h2>
+
+          <figure class="svg-figure" aria-labelledby="mce-bias-title mce-bias-desc">
+            <svg viewBox="0 0 760 454" role="img" aria-labelledby="mce-bias-title mce-bias-desc">
+              <title id="mce-bias-title">固定上下文表示和固定优化流程造成的两条失败链</title>
+              <desc id="mce-bias-desc">表示层的案例、清单和图结构分别面临泛化、表达力和延迟问题；优化层的整体改写倾向简短，逐条追加倾向冗长。任务特性不同会让这些偏置反转，例如症状诊断适合相似样例，法律分类需要精简结构化流程，金融与化学需要细密规则。</desc>
+              <defs>
+                <marker id="mce-bias-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="454" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">A / 表示偏置：context 被装进什么容器</text>
+              <rect x="30" y="64" width="205" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="50" y="94" fill="#17201d" font-size="14" font-weight="700">案例 / trajectory</text>
+              <text x="50" y="120" fill="#52605b" font-size="12">保留细节与情境</text>
+              <text x="50" y="149" fill="#86321f" font-size="12" font-weight="700">难抽象、难覆盖新分布</text>
+              <rect x="278" y="64" width="205" height="112" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="94" fill="#17201d" font-size="14" font-weight="700">条目 / playbook</text>
+              <text x="298" y="120" fill="#52605b" font-size="12">局部增量更新简单</text>
+              <text x="298" y="149" fill="#86321f" font-size="12" font-weight="700">扁平、重复、缺少全局重组</text>
+              <rect x="526" y="64" width="204" height="112" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="546" y="94" fill="#17201d" font-size="14" font-weight="700">图 / hierarchy</text>
+              <text x="546" y="120" fill="#52605b" font-size="12">组织关系更灵活</text>
+              <text x="546" y="149" fill="#86321f" font-size="12" font-weight="700">延迟与复杂度未稳定换来收益</text>
+
+              <text x="34" y="228" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">B / 更新偏置：context 怎样变化</text>
+              <rect x="30" y="250" width="280" height="118" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="282" fill="#17201d" font-size="15" font-weight="700">整体改写（GEPA）</text>
+              <text x="50" y="310" fill="#52605b" font-size="12">从若干反思压成高层规则</text>
+              <text x="50" y="338" fill="#86321f" font-size="12" font-weight="700">brevity bias：细节与长尾知识消失</text>
+              <rect x="450" y="250" width="280" height="118" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="470" y="282" fill="#17201d" font-size="15" font-weight="700">生成—反思—追加（ACE）</text>
+              <text x="470" y="310" fill="#52605b" font-size="12">逐实例形成局部 insight 再累加</text>
+              <text x="470" y="338" fill="#86321f" font-size="12" font-weight="700">verbosity bias：噪声、重复与 context bloat</text>
+              <path d="M322 309H438" fill="none" stroke="#aaa69c" stroke-width="2" marker-start="url(#mce-bias-arrow)" marker-end="url(#mce-bias-arrow)"/>
+              <text x="380" y="298" text-anchor="middle" fill="#52605b" font-size="11">并非二选一</text>
+              <rect x="116" y="393" width="528" height="42" rx="21" fill="#17201d"/>
+              <text x="380" y="419" text-anchor="middle" fill="#fffef9" font-size="13" font-weight="700">任务最优点可能是短规则、长知识库、路由程序，也可能是“停止继续学习”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上半部分是“装在哪里”的偏置，下半部分是“怎样更新”的偏置。MCE 的假设不是某个新容器永远最好，而是让 skill 根据任务与验证反馈选择容器、粒度和更新节奏；论文附录的五个 case study 正是在展示这些最优形态并不相同。</figcaption>
+          </figure>
+
+          <h3>偏置会随任务反转，所以“一个 SOTA harness”不等于通用解</h3>
+          <p>FiNER 需要密集 XBRL 长尾规则和精细消歧，ACE 的反复反思有优势，GEPA 压得太短；Symptom2Disease 的 train/test 语义相近，多样例 ICL 反而很强，过度抽象会抹掉症状差别；LawBench 的长案件事实又会被庞大 playbook 干扰，此时 GEPA 的简洁反而成为优点。论文由此提出：不应先选定一种 harness 再跨任务复用，而应把 harness 的领域部分封装为可学习 skill。</p>
+
+          <h3>“给代理更多自由”本身不是方法，验证反馈才把自由变成搜索</h3>
+          <p>如果基础代理可以随意写文件和代码，却没有训练 / 验证分离与 best-so-far 选择，它可能只是在训练样本上造出更复杂的记忆。MCE 的元代理显式检查 train–validation gap：FiNER 的 skill 从具体 pattern 转向错误驱动的语义原则；症状任务在验证率已到 88% 且 gap 仅 1% 时学会设置停止条件；LawBench 则把 88KB context 收缩到约 30KB。</p>
+
+          <p class="evidence-note"><strong>证据边界：</strong>“没有一个固定 harness 普遍最优”得到五个任务上基线排名反转和附录 case study 的支持；但 MCE 尚未覆盖开放式推理、长程工具代理或真实生产流量，因此不能据此断言每个 Context Engineering 问题都需要双层演化。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">外层挑“怎样学”，内层学“给当前 query 看什么”</h2>
+
+          <h3>第一层对象不是字符串，而是由静态组件和动态算子组成的函数</h3>
+          <div class="formula-card" aria-label="MCE context function 公式">
+            <div class="formula-card__label">公式拆解 · Eq. 1–2</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">c(x)</span> = (F<sub>k</sub> ∘ ··· ∘ F<sub>1</sub>)(x; ρ)
+              <br>
+              <span class="formula-symbol">c*</span> = arg max<sub>c∈C</sub> J(c)
+            </div>
+            <p class="formula-card__caption">这两式回答：一次推理真正使用的 context 怎样由 query 生成，以及普通 Context Engineering 在优化什么。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>x</dt><dd>当前 query；不同 query 可以触发不同检索与组合路径。</dd></div>
+              <div class="formula-legend__row"><dt>ρ</dt><dd>静态组件集合，如 system prompt、知识库、规则、示例和代码资源。</dd></div>
+              <div class="formula-legend__row"><dt>F₁…Fₖ</dt><dd>动态算子，如检索、筛选、排序、格式化和组合；按顺序构成 context pipeline。</dd></div>
+              <div class="formula-legend__row"><dt>c(x)</dt><dd>最终提供给冻结 generator 的推理时 context，而不是模型参数。</dd></div>
+              <div class="formula-legend__row"><dt>J(c)</dt><dd>任务目标；监督任务可由损失定义，RL 设置可由期望 reward 定义。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：常量 prompt 只是 c(x)=ρ₀ 的最简单特例；RAG 是一个检索算子；MCE 允许基础代理把文件和代码组合成更一般的 c。论文实验为了与基线公平，最终仍把 generator 接口限制为一次 query→context 检索。</div>
+          </div>
+
+          <h3>双层目标把“学习程序”与“学习结果”分开</h3>
+          <div class="formula-card" aria-label="MCE 双层优化公式">
+            <div class="formula-card__label">公式拆解 · Eq. 3</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">s*</span> = arg max<sub>s∈S</sub> J<sub>val</sub>(c<sub>s</sub>*)
+              <br>
+              s.t. &nbsp; <span class="formula-symbol">c<sub>s</sub>*</span> = arg max<sub>c<sub>s</sub></sub> J<sub>train</sub>(c<sub>s</sub>; s)
+            </div>
+            <p class="formula-card__caption">这条式子回答：怎样选出一套能让基础代理学出高验证表现 context 的 skill，而不是只挑训练集上最好看的 context。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>s / S</dt><dd>一个 CE skill 以及可搜索的 skill 空间；它定义表示、学习、脚本和校验过程。</dd></div>
+              <div class="formula-legend__row"><dt>c<sub>s</sub>*</dt><dd>基础代理在 skill s 指导下、利用训练 rollout 得到的最佳 context function。</dd></div>
+              <div class="formula-legend__row"><dt>J<sub>train</sub></dt><dd>内层训练目标，推动 context 修复当前 rollout 中的错误。</dd></div>
+              <div class="formula-legend__row"><dt>J<sub>val</sub></dt><dd>外层验证目标，决定该 skill 产生的 context 是否值得保留。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">类比机器学习：c 像学到的参数，s 像架构加训练算法；区别是底层 LLM 已冻结，外层搜索的对象是自然语言指令、目录、脚本和 context 操作程序。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="mce-loop-title mce-loop-desc">
+            <svg viewBox="0 0 760 554" role="img" aria-labelledby="mce-loop-title mce-loop-desc">
+              <title id="mce-loop-title">MCE 每次迭代的 skill evolution、context optimization 与 best-so-far 选择</title>
+              <desc id="mce-loop-desc">元代理读取任务规范和完整 skill database，经 agentic crossover 生成一个新 skill。基础代理从上一最佳 context、训练 rollout 和新 skill 出发，生成新的 context 文件与检索程序。训练集和验证集分别评估，所有结果写入历史，只在验证分更高时替换 best-so-far，形成简单的历史感知一加一演化策略。</desc>
+              <defs>
+                <marker id="mce-loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="554" fill="#fbfaf6"/>
+              <text x="32" y="40" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">ITERATION k</text>
+
+              <rect x="31" y="64" width="194" height="116" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="51" y="94" fill="#17201d" font-size="14" font-weight="700">输入：历史与任务</text>
+              <text x="51" y="121" fill="#52605b" font-size="12">任务规范 τ</text>
+              <text x="51" y="144" fill="#52605b" font-size="12">Hₖ₋₁：历代 skill / context</text>
+              <text x="51" y="165" fill="#52605b" font-size="12">train / val 指标与执行轨迹</text>
+              <path d="M237 122H274" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+
+              <rect x="278" y="64" width="204" height="116" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="298" y="94" fill="#17201d" font-size="14" font-weight="700">元代理：CROSSOVER</text>
+              <text x="298" y="121" fill="#52605b" font-size="12">比较成功与失败模式</text>
+              <text x="298" y="144" fill="#52605b" font-size="12">检查过拟合 / 欠拟合 / 冗余</text>
+              <text x="298" y="165" fill="#355e7c" font-size="12" font-weight="700">输出新 skill sₖ</text>
+              <path d="M494 122H531" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+
+              <rect x="535" y="64" width="194" height="116" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="555" y="94" fill="#17201d" font-size="14" font-weight="700">skill 可改变的内容</text>
+              <text x="555" y="121" fill="#52605b" font-size="12">学习方法 · 脚本 · 模板</text>
+              <text x="555" y="144" fill="#52605b" font-size="12">验证协议 · 检索与组合逻辑</text>
+              <text x="555" y="165" fill="#52605b" font-size="12">自主程度 · 粒度 · 停止条件</text>
+
+              <path d="M380 192V224" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+              <rect x="155" y="228" width="450" height="126" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="175" y="258" fill="#17201d" font-size="15" font-weight="700">基础代理：ENGINEER(τ, sₖ; c*ₖ₋₁, Rₖ)</text>
+              <text x="175" y="286" fill="#52605b" font-size="12">① 用上一最佳 context 在训练集 rollout，得到错误、正确输出与评估反馈</text>
+              <text x="175" y="311" fill="#52605b" font-size="12">② 执行新 skill，读取 / 编辑 / 编写文件与代码，更新而非必然重建</text>
+              <text x="175" y="336" fill="#24624e" font-size="12" font-weight="700">③ 产出 cₖ = {context 文件 ρ, retrieve_context.py 等动态算子 F}</text>
+
+              <path d="M380 366V395" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+              <rect x="31" y="399" width="213" height="96" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="51" y="429" fill="#17201d" font-size="14" font-weight="700">双份评估</text>
+              <text x="51" y="455" fill="#52605b" font-size="12">J<sub>train</sub>(cₖ) 看是否学会</text>
+              <text x="51" y="478" fill="#52605b" font-size="12">J<sub>val</sub>(cₖ) 看是否泛化</text>
+              <path d="M256 447H293" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+              <rect x="297" y="399" width="194" height="96" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="317" y="429" fill="#17201d" font-size="14" font-weight="700">best-so-far 选择</text>
+              <text x="317" y="455" fill="#52605b" font-size="12">c*ₖ = 验证分更高者</text>
+              <text x="317" y="478" fill="#86321f" font-size="12" font-weight="700">每轮只保留一个 winner</text>
+              <path d="M503 447H540" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#mce-loop-arrow)"/>
+              <rect x="544" y="399" width="185" height="96" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="564" y="429" fill="#17201d" font-size="14" font-weight="700">历史继续积累</text>
+              <text x="564" y="455" fill="#52605b" font-size="12">Hₖ ← Hₖ₋₁ ∪ 新记录</text>
+              <text x="564" y="478" fill="#52605b" font-size="12">下一轮可读全部祖先</text>
+              <path d="M637 388C716 329 731 198 686 191" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#mce-loop-arrow)"/>
+              <text x="380" y="533" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">一个 offspring + 一个 incumbent + 全历史可读：history-informed (1 + 1)-ES</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>顺时针看一轮。元层不是直接写最终知识，而是写 skill；基础层才把 rollout 转成 context。新产物同时在训练集和验证集上评估，只按验证表现与旧 best 比较。历史不删除，使下一代 skill 可以跨多轮“交叉”，但每轮搜索宽度仍只有一个 offspring。</figcaption>
+          </figure>
+
+          <h3>技能演化的实质，是让工程粒度、自治程度和停止条件跟任务一起变化</h3>
+          <p>论文总结了三个反复出现的变化：其一，skill 会在严格流程与高度自治之间切换；其二，会根据任务复杂度和 generator 容量选择简短规则或详细知识；其三，会利用 train / validation 信号识别过拟合。FiNER 的最佳 skill 采用八阶段错误驱动泛化，并组织 reasoning chains、semantic principles 与 tag reference；症状任务则把“不要再加规则”本身写成方法条件。</p>
+
+          <h3>实现上有两个代理，但 generator 仍保持冻结且接口刻意受限</h3>
+          <p>论文用 Claude Agent SDK 实例化元代理和基础代理，默认 agentic model 为 MiniMax M2.1；generator 与 reflector 主要是 DeepSeek V3.1，AEGIS2 因安全 guardrail 场景改用 Qwen3-8B。基础代理可以调用 DeepSeek、访问受角色权限约束的工作目录，并最终实现一个 query→context 的 callable interface。这个限制使 MCE 能与现有 CE 基线公平比较，也意味着实验还没有检验一个会持续浏览文件、调用多轮工具的 generator。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">五领域分数支持“可适配”，FiNER 进一步支持“更省 context 与 rollout”</h2>
+
+          <h3>先看原始任务分数：离线 MCE 五项都赢，在线 fixed-skill 版本也胜过外部基线</h3>
+          <div class="table-wrap" tabindex="0" aria-label="MCE 五个 benchmark 的离线与在线结果">
+            <table class="evidence-table evidence-table--compact">
+              <thead>
+                <tr><th>任务 / 指标</th><th>基座</th><th>离线最佳外部基线</th><th>MCE 离线</th><th>在线最佳外部基线</th><th>MCE 在线</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>FiNER / Acc.%</td><td>58.0</td><td>ACE 71.0</td><td><strong>75.0</strong></td><td>ACE 64.0</td><td><strong>68.0</strong></td></tr>
+                <tr><td>USPTO-50k / Acc.%</td><td>6.0</td><td>ACE 18.0</td><td><strong>20.0</strong></td><td>DC 14.0</td><td><strong>20.0</strong></td></tr>
+                <tr><td>Symptom2Disease / Acc.%</td><td>63.7</td><td>ICL 84.4</td><td><strong>89.2</strong></td><td>DC 73.1</td><td><strong>76.4</strong></td></tr>
+                <tr><td>LawBench / Micro-F1</td><td>0.36</td><td>GEPA 0.69</td><td><strong>0.70</strong></td><td>ACE 0.63</td><td><strong>0.66</strong></td></tr>
+                <tr><td>AEGIS2 / F1</td><td>0.54</td><td>GEPA 0.76</td><td><strong>0.80</strong></td><td>ACE 0.57</td><td><strong>0.63</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>表中的“最佳外部基线”按每个任务单独选择，因此比只和 ACE 比更严格。论文 Table 1 另给出 <em>Avg. Rel. Gain</em>：它先在每个任务上计算相对基座增益，再取平均；MCE 离线为 89.1%、ACE 为 70.7%，在线 MCE 为 74.1%、ACE 为 41.1%。五个指标量纲不同，不能把 75、20、89.2、0.70、0.80 直接平均成一个“总分”。</p>
+
+          <h3>同一个 MCE 并没有产出同一种记忆：任务画像决定 artifact 形态</h3>
+          <figure class="svg-figure" aria-labelledby="mce-artifacts-title mce-artifacts-desc">
+            <svg viewBox="0 0 760 516" role="img" aria-labelledby="mce-artifacts-title mce-artifacts-desc">
+              <title id="mce-artifacts-title">五个任务各自演化出的 skill 与 context artifact</title>
+              <desc id="mce-artifacts-desc">FiNER 采用错误驱动泛化和完整检索；USPTO 采用工作流、验证检查点与成功失败模式；症状诊断采用保守停止和一千四百四十行优先路由；LawBench 采用结构化案件分解与一百七十七行触发检索；AEGIS2 采用精度优先与九百九十五行早期安全返回。</desc>
+              <defs>
+                <marker id="mce-artifacts-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="516" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">TASK-SPECIFIC EVOLUTION</text>
+              <rect x="30" y="66" width="216" height="174" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="50" y="96" fill="#17201d" font-size="15" font-weight="700">FiNER · 金融标签</text>
+              <text x="50" y="124" fill="#52605b" font-size="12">错误 → 语义原则 → reasoning chain</text>
+              <text x="50" y="149" fill="#52605b" font-size="12">显式 anti-pattern，抑制表面匹配</text>
+              <text x="50" y="174" fill="#52605b" font-size="12">3 个专门 context 文件</text>
+              <text x="50" y="202" fill="#355e7c" font-size="12" font-weight="700">默认 full retrieval</text>
+
+              <rect x="272" y="66" width="216" height="174" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="292" y="96" fill="#17201d" font-size="15" font-weight="700">USPTO · 逆合成</text>
+              <text x="292" y="124" fill="#52605b" font-size="12">成功模式 + 失败模式双向挖掘</text>
+              <text x="292" y="149" fill="#52605b" font-size="12">workflow-first + inline verification</text>
+              <text x="292" y="174" fill="#52605b" font-size="12">按反应类型拆文件</text>
+              <text x="292" y="202" fill="#9c7b1f" font-size="12" font-weight="700">默认 full retrieval</text>
+
+              <rect x="514" y="66" width="216" height="174" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="534" y="96" fill="#17201d" font-size="15" font-weight="700">Symptom · 症状分类</text>
+              <text x="534" y="124" fill="#52605b" font-size="12">验证已高时保守更新</text>
+              <text x="534" y="149" fill="#52605b" font-size="12">5 道门槛 + 明确停止条件</text>
+              <text x="534" y="174" fill="#52605b" font-size="12">30+ 优先规则</text>
+              <text x="534" y="202" fill="#24624e" font-size="12" font-weight="700">1,440 行路由器</text>
+
+              <rect x="151" y="274" width="216" height="174" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="171" y="304" fill="#17201d" font-size="15" font-weight="700">LawBench · 罪名预测</text>
+              <text x="171" y="332" fill="#52605b" font-size="12">从 charge pattern 转向案件结构</text>
+              <text x="171" y="357" fill="#52605b" font-size="12">READ → DECOMPOSE → MATCH</text>
+              <text x="171" y="382" fill="#52605b" font-size="12">context：88KB → 约 30KB</text>
+              <text x="171" y="410" fill="#86321f" font-size="12" font-weight="700">177 行 trigger augmentation</text>
+
+              <rect x="393" y="274" width="216" height="174" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="413" y="304" fill="#17201d" font-size="15" font-weight="700">AEGIS2 · 安全分类</text>
+              <text x="413" y="332" fill="#52605b" font-size="12">小模型先控 false positive</text>
+              <text x="413" y="357" fill="#52605b" font-size="12">安全排除 + 类别规则分文件</text>
+              <text x="413" y="382" fill="#52605b" font-size="12">benign pattern 提前返回</text>
+              <text x="413" y="410" fill="#52605b" font-size="12" font-weight="700">995 行 precision-first cascade</text>
+
+              <path d="M259 461V484H501V461" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="380" y="505" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">可适配 ≠ 一律复杂：完整检索、路由、压缩与停止都可能是最优动作</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>横向比较五个任务，不要只看文件大小。FiNER 与 USPTO 选择把完整知识都返回；症状与 AEGIS2 需要精细路由以避免无关规则；LawBench 则把过大的 pattern 库压回结构化流程。真正共同的不是产物形式，而是由验证反馈决定形式。</figcaption>
+          </figure>
+
+          <h3>Context efficiency 与 training efficiency 的强证据都来自 FiNER</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="mce-efficiency-title mce-efficiency-desc">
+            <svg viewBox="0 0 720 420" role="img" aria-labelledby="mce-efficiency-title mce-efficiency-desc">
+              <title id="mce-efficiency-title">MCE 在 FiNER 上的 context、训练时间和 rollout 效率</title>
+              <desc id="mce-efficiency-desc">上下文效率方面，一点五千 token 的 MCE 达到百分之七十三，ACE 同长度为百分之六十五；二万 token 的 MCE 达到百分之七十五，ACE 七万九千 token 为百分之七十。训练效率方面，MCE 用一点九小时、四百五十 rollouts 达到百分之九十五训练准确率，ACE 用二十五点八小时、两千一百六十九 rollouts 最好为百分之九十四。</desc>
+              <defs>
+                <marker id="mce-efficiency-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#24624e"/>
+                </marker>
+              </defs>
+              <rect width="720" height="420" fill="#fbfaf6"/>
+              <text x="32" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">A / ACCURACY PER CONTEXT TOKEN</text>
+              <line x1="86" y1="230" x2="662" y2="230" stroke="#aaa69c"/>
+              <line x1="86" y1="66" x2="86" y2="230" stroke="#aaa69c"/>
+              <text x="72" y="211" text-anchor="end" fill="#52605b" font-size="11">65</text>
+              <text x="72" y="151" text-anchor="end" fill="#52605b" font-size="11">70</text>
+              <text x="72" y="91" text-anchor="end" fill="#52605b" font-size="11">75</text>
+              <circle cx="120" cy="204" r="8" fill="#f4ded5" stroke="#bd4c32" stroke-width="2"/>
+              <text x="120" y="258" text-anchor="middle" fill="#52605b" font-size="11">ACE 1.5K</text>
+              <text x="120" y="190" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">65%</text>
+              <circle cx="130" cy="116" r="9" fill="#dcebe5" stroke="#24624e" stroke-width="2"/>
+              <text x="205" y="113" fill="#24624e" font-size="12" font-weight="700">MCE-S · 1.5K · 73%</text>
+              <circle cx="246" cy="92" r="10" fill="#dcebe5" stroke="#24624e" stroke-width="2"/>
+              <text x="246" y="258" text-anchor="middle" fill="#52605b" font-size="11">MCE-L 20K</text>
+              <text x="264" y="79" fill="#24624e" font-size="12" font-weight="700">75%</text>
+              <circle cx="612" cy="151" r="9" fill="#f4ded5" stroke="#bd4c32" stroke-width="2"/>
+              <text x="612" y="258" text-anchor="middle" fill="#52605b" font-size="11">ACE 79K</text>
+              <text x="612" y="138" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">70%</text>
+              <path d="M142 113C182 102 208 96 232 93" fill="none" stroke="#24624e" stroke-width="2" marker-end="url(#mce-efficiency-arrow)"/>
+
+              <text x="32" y="300" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">B / TRAINING ON FiNER</text>
+              <rect x="32" y="322" width="308" height="68" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="52" y="349" fill="#17201d" font-size="14" font-weight="700">MCE · 1.9h · 450 rollouts</text>
+              <text x="52" y="374" fill="#52605b" font-size="12">达到 95% training accuracy</text>
+              <rect x="380" y="322" width="308" height="68" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="400" y="349" fill="#17201d" font-size="14" font-weight="700">ACE · 25.8h · 2,169 rollouts</text>
+              <text x="400" y="374" fill="#52605b" font-size="12">峰值 94% training accuracy</text>
+              <text x="360" y="411" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">论文报告 13.6× wall-clock 加速与 4.8× 更少 rollouts；不是五任务平均</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上半部分说明 MCE 不是靠无上限堆 token 赢：同为约 1.5K 时高 8 个点，20K 也胜过 ACE 的 79K。下半部分来自同一 FiNER 实验，MCE 的 rollout 计数还包含训练与验证推理；但 wall-clock 受批处理、并行度和系统实现影响，论文没有给跨任务 GPU / API 成本表。</figcaption>
+          </figure>
+
+          <h3>迁移证据：MCE context 转给较弱模型时，平均相对跌幅少 4–7 个百分点</h3>
+          <div class="table-wrap" tabindex="0" aria-label="MCE strong-to-weak context transfer 结果">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>目标 generator</th><th>ACE 平均相对跌幅</th><th>MCE 平均相对跌幅</th><th>MCE 少跌</th><th>覆盖范围</th></tr></thead>
+              <tbody>
+                <tr><td>Llama3.3-70B</td><td>28.1%</td><td><strong>23.6%</strong></td><td>4.5pp</td><td>FiNER / Symptom / Law</td></tr>
+                <tr><td>Qwen3-8B</td><td>23.6%</td><td><strong>17.1%</strong></td><td>6.5pp</td><td>FiNER / Symptom / Law</td></tr>
+                <tr><td>Gemma3-4B</td><td>48.3%</td><td><strong>43.4%</strong></td><td>4.9pp</td><td>FiNER / Symptom / Law</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这组实验把 DeepSeek-V3.1 学到的 context 原样交给更弱 generator。USPTO 被排除，因为 ACE 与 MCE context 都超出小模型有效窗口且小模型难以给出有效化学答案；AEGIS2 被排除，因为它原本就使用 Qwen3-8B。Gemma 的“平均相对增益 172.6%”还受 LawBench 基座 F1 仅 0.01 的小分母影响，因此迁移结论应看原始分和相对跌幅，而不是只看这个醒目比例。</p>
+
+          <h3>双层设计消融：完整演化最好，但新增证据目前只有 FiNER</h3>
+          <div class="table-wrap" tabindex="0" aria-label="MCE 双层设计在 FiNER 上的消融">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>方法</th><th>FiNER 离线 Acc.%</th><th>FiNER 在线 Acc.%</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td>Base model</td><td>58.0</td><td>58.0</td><td>zero-shot</td></tr>
+                <tr><td>ACE</td><td>71.0</td><td>64.0</td><td>固定生成—反思—整理 harness</td></tr>
+                <tr><td>MCE 无 skill</td><td>73.0</td><td>67.0</td><td>只有完全 agentic 基础层</td></tr>
+                <tr><td>MCE 固定 skill</td><td>71.0</td><td><strong>68.0</strong></td><td>只按任务说明生成一次 skill</td></tr>
+                <tr class="evidence-table__emphasis"><td>MCE 完整演化</td><td><strong>75.0</strong></td><td>不适用</td><td>在线单遍无法迭代 skill evolution</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>论文直接支持</span>
+              <h3>MCE 能跨五个知识 / 分类任务找到更合适的 context</h3>
+              <p>离线五项原始分数均为第一；在线 fixed-skill 版本也逐项胜过 DC 与 ACE。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件支持</span>
+              <h3>演化 skill 比只给基础代理自治更好</h3>
+              <p>FiNER 为 75% vs 73%，方向一致但增量小，且没有五任务逐项消融或误差条。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>MCE 是通用的 agent self-improvement 层</h3>
+              <p>当前 generator 是 one-shot context consumer；推理密集、长轨迹、在线开放环境尚未实验。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">“Meta”“Evolution”“Self-Improvement”都成立，但每个词都有明确边界</h2>
+
+          <h3>第一，89.1% 与 74.1% 是相对基座增益的平均，不是平均正确率</h3>
+          <p>五个任务混用了 accuracy、Micro-F1 与 F1，且基座差异很大：USPTO 从 6% 到 20% 会产生很大的相对比例。论文的摘要还报告相对 SOTA agentic CE 方法提升 5.6–53.8%、平均 16.9%；判断实际任务价值时，应优先看 Table 1 的原始分数与对应基线。</p>
+
+          <h3>第二，完整双层设计只在 FiNER 做了拆解，且 skill evolution 的净增量为 2pp</h3>
+          <p>完全 agentic 的基础代理在没有 skill 时已经达到 73%，超过 ACE 的 71%；完整 MCE 为 75%。这证明元层不是零贡献，却还不能说明五个领域的大部分增益都来自 agentic crossover。固定 skill 离线甚至只有 71%，说明“有一份 skill”本身不保证更好，关键仍是验证驱动的演化。</p>
+
+          <h3>第三，在线 MCE 没有在线演化 skill</h3>
+          <p>在线评测是单遍处理，完整迭代式 skill evolution 不适用；论文使用按任务说明预先生成的 fixed skill，基础代理持续积累已处理实例。更微妙的是，skill-less 变体在 Symptom、Law 与 AEGIS2 的原始分上高于 fixed-skill MCE，尽管 fixed-skill MCE 的跨任务平均相对增益更高。</p>
+
+          <h3>第四，数据规模是受预算约束的子集，表格没有多随机种子与置信区间</h3>
+          <p>FiNER 为 200/100/100，USPTO 为 50/30/100，Symptom 为 200/50/212，LawBench 为 200/50/100，AEGIS2 为 400/128/140。单个样本就可能改变 1 个百分点左右的 accuracy；论文没有给 context evolution 的随机种子方差或显著性检验。</p>
+
+          <h3>第五，13.6× 与 4.8× 是 FiNER 的系统级观测，不是算法复杂度定理</h3>
+          <p>MCE 通过批量分析、脚本和并行 LLM 调用避免 ACE 的逐实例反思，因而 1.9 小时完成五 epoch；但 wall-clock 会受 API 延迟、最大并发、缓存与实现影响。论文没有报告五任务总 token、美元成本、agent step 数或能耗，无法据此断言所有任务都能同倍率加速。</p>
+
+          <h3>第六，公平对照控制了数据与 rollout budget，却没有完全控制 harness 自由度</h3>
+          <p>基线获得不低于 MCE 的训练预算，并使用相同初始 context；但 MCE 可以写程序、批量处理和构造任意文件结构，而 GEPA、DC、ACE 按原始 harness 运行。这恰好是论文要比较的系统能力，却意味着结果不能归因于某一个 crossover 算子。用 MiniMax M2.1 替换 ACE reflector / curator 后分数从 70% 降至 67%，排除了“只是换了更强模型”的简单解释，但没有消除全部架构与计算差异。</p>
+
+          <h3>第七，文件与代码自由带来安全面，论文只给权限边界，没有安全评测</h3>
+          <p>基础代理能够写 Python、调用其他模型、编辑检索程序；元代理也能读取迭代历史并生成可执行 skill。论文说明读写权限按角色和迭代严格限定，但没有测试恶意训练样本、prompt injection、依赖供应链、越权读取或生成代码的沙箱逃逸。生产部署时，skill 评价必须同时包含安全与资源约束，而不能只看任务分。</p>
+
+          <h3>第八，作者明确承认它更适合知识获取与模式匹配，不一定胜过推理型 harness</h3>
+          <p>五个 benchmark 的核心是领域知识、分类与格式化；对需要多轮试错、错误修正和系统反思的推理任务，人工设计的 harness 已经很契合。复杂长轨迹还需要细粒度 credit assignment，而批量式 CE 可能看不清哪一步导致成败。这与“通用 CE 框架”并不矛盾，但限制了当前证据的外推范围。</p>
+
+          <h3>第九，这轮“演化”是五 epoch、单 offspring、固定 evaluator 下的 best-so-far 搜索</h3>
+          <p>历史可被完整读取，skill 也确实跨轮变化，因此 evolution 不是修辞；但没有群体多样性、长期开放式积累、跨任务 skill 迁移或 evaluator 自身演化。验证集一旦偏置，元代理会更有效地优化这个偏置。未来工作提出同时演化 context utilization skills、利用 progressive disclosure 组合跨域 skill，这些仍是路线图。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源、版本日期与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2601.21557v2">论文摘要页：arXiv:2601.21557v2</a> — 标题、五位作者与公开版本入口。</li>
+            <li><a href="https://arxiv.org/pdf/2601.21557v2">论文 PDF v2</a> — 本页方法公式、Algorithm 1、五领域主表、迁移表、FiNER 效率、消融、数据规模与附录 case study 的主要来源，共 46 页。</li>
+            <li><a href="https://github.com/metaevo-ai/meta-context-engineering">MetaEvo 官方代码仓库</a> — 论文封面列出的代码与完整 learned-skill assets 入口；本页不把未运行的仓库代码当成实验复现。</li>
+            <li><a href="https://github.com/ace-agent/ace">ACE 官方仓库</a> — 论文使用的主要 agentic CE 对照与 FiNER 数据来源。</li>
+            <li><a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">Agent Skills 背景材料</a> — 论文借用“由指令、脚本和资源组成的可发现目录”作为 skill 抽象的来源。</li>
+          </ol>
+          <p class="evidence-note"><strong>版本日期：</strong>附件封面正文写稿件日期 2026-01-27，页边 arXiv 标记为 v2、2026-02-11；文件 XMP 的 metadata date 为 2026-02-12，表示 PDF 元数据更新时间。本页的 <code>citation_publication_date</code> 与顶栏采用可见的 arXiv v2 日期 2026-02-11，并保留稿件日期，避免把两者混写。<strong>事实与判断边界：</strong>公式、算法、模型角色、数据规模、原始分数、context 长度、代码行数、训练时长和作者陈述的限制来自 v2；“89.1% 不是平均准确率”“基础层贡献大于元层已证增量”“在线没有 skill evolution”“wall-clock 不是复杂度结论”“代码自由引入安全面”等是基于实验设计作出的分析。未修改用户提供的 PDF，也未执行 PDF 中出现的任何命令式示例。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

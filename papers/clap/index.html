@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="CLAP: Cross-Embodiment Video World Models are Zero-Shot Physical Simulators">
+    <meta name="citation_author" content="Kechen Liu">
+    <meta name="citation_author" content="Ola Shorinwa">
+    <meta name="citation_publication_date" content="2026-08-27">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.27406v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2608.27406v1">
+    <meta name="description" content="从末端位姿、语言动作、潜动作与 latent-to-EE curriculum 四条线解读 CLAP，并核对 DROID/Bridge 视频指标、跨策略规划、双臂压力测试、少样本适配及“零样本物理模拟器”的证据边界。">
+    <meta name="keywords" content="CLAP, cross-embodiment learning, video world model, latent action, end-effector action, action-conditioned video generation, DROID, Bridge, robot planning">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>CLAP：先统一“动作说法”，再让视频世界模型跨机器人迁移</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/clap/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2608.27406V1 · 2026-08-27 · 阅读于 2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“跨实体共享物理”</a></li>
+          <li><a href="#concepts">分清三种动作语言与 zero-shot</a></li>
+          <li><a href="#problem-chain">为什么异构视频不能直接混训</a></li>
+          <li><a href="#mechanism">看 latent-to-EE 课程怎样接力</a></li>
+          <li><a href="#evidence">拆开视频指标、规划与适配</a></li>
+          <li><a href="#limits">物理模拟、实时性与少样本边界</a></li>
+          <li><a href="#sources">回到论文、代码与数据集</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">CROSS-EMBODIMENT · VIDEO WORLD MODEL · ACTION HARMONIZATION</p>
+          <h1 id="paper-title" class="paper-title">CLAP</h1>
+          <p class="paper-subtitle">
+            瓶子被推倒、毛巾被折叠、抽屉被拉开，物理规律不会因为执行者从人手换成 Franka、WidowX 或双臂机器人而改变；真正难的是，不同实体用完全不同的动作坐标，很多人类视频甚至没有动作标签。
+          </p>
+          <div class="paper-byline">
+            <span>Kechen Liu、Ola Shorinwa · equal contribution</span>
+            <span>Princeton University</span>
+            <span>arXiv v1 · 30 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把单一机器人、单一动作空间的 action-conditioned video model 推向跨机器人与人类视频混合训练：先找一种能在异构实体之间传递动作信息的共同接口，再把无标注视频中学到的动态先验落回真实机器人可执行的几何动作，使同一视频世界模型既能零样本参与真实机器人规划，也能作为少样本适配新实体的初始化。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="clap-overview-title clap-overview-desc">
+            <svg viewBox="0 0 760 500" role="img" aria-labelledby="clap-overview-title clap-overview-desc">
+              <title id="clap-overview-title">CLAP 从异构视频与动作空间到跨实体视频世界模型的总览</title>
+              <desc id="clap-overview-desc">机器人视频有精确但异构的动作标签，人类视频规模大却常无动作标签。CLAP 提供末端位姿、语言和潜动作三种统一表示，并以潜动作预训练再切换到末端位姿的课程训练，得到能做未来视频预测、跨策略规划和目标实体适配的世界模型。</desc>
+              <defs>
+                <marker id="clap-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker>
+              </defs>
+              <rect width="760" height="500" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">01 / 可用数据彼此不兼容</text>
+              <rect x="28" y="64" width="210" height="250" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="48" y="98" fill="#17201d" font-size="15" font-weight="700">机器人视频</text>
+              <text x="48" y="124" fill="#52605b" font-size="12">有动作 · 但 DoF / 坐标不同</text>
+              <g fill="#fffef9" stroke="#bd4c32">
+                <circle cx="69" cy="164" r="18"/><rect x="101" y="146" width="36" height="36"/><path d="M166 181L184 146L202 181Z"/>
+              </g>
+              <text x="48" y="215" fill="#17201d" font-size="15" font-weight="700">人类视频</text>
+              <text x="48" y="241" fill="#52605b" font-size="12">形态丰富 · 通常没有动作标签</text>
+              <text x="48" y="284" fill="#86321f" font-size="12" font-weight="700">直接混训：条件接口对不上</text>
+
+              <path d="M249 190H278" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-overview-arrow)"/>
+              <text x="282" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">02 / 统一动作接口</text>
+              <rect x="278" y="64" width="228" height="250" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <rect x="298" y="86" width="188" height="52" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="392" y="108" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">EE · 7D 末端位姿</text>
+              <text x="392" y="127" text-anchor="middle" fill="#52605b" font-size="10">精确、可部署，但需要动作标签</text>
+              <rect x="298" y="151" width="188" height="52" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="392" y="173" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">LANG · 模板化坐标文本</text>
+              <text x="392" y="192" text-anchor="middle" fill="#52605b" font-size="10">接口通用，但数值 token 精度有限</text>
+              <rect x="298" y="216" width="188" height="52" rx="4" fill="#f0eee7" stroke="#6f6c64"/>
+              <text x="392" y="238" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">LAM · 32D 潜动作</text>
+              <text x="392" y="257" text-anchor="middle" fill="#52605b" font-size="10">无标签可学，但真实执行需对齐</text>
+              <text x="392" y="294" text-anchor="middle" fill="#355e7c" font-size="12" font-weight="700">CURR：LAM 预训练 → EE 落地</text>
+
+              <path d="M518 190H547" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-overview-arrow)"/>
+              <text x="550" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">03 / 能力与证据</text>
+              <rect x="548" y="64" width="184" height="250" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="568" y="99" fill="#17201d" font-size="14" font-weight="700">DROID 视频预测</text>
+              <text x="568" y="123" fill="#52605b" font-size="11">CURR LPIPS 0.204</text>
+              <text x="568" y="143" fill="#52605b" font-size="11">Ctrl-World 0.205</text>
+              <line x1="568" y1="161" x2="712" y2="161" stroke="#d8d4ca"/>
+              <text x="568" y="189" fill="#17201d" font-size="14" font-weight="700">跨策略真实规划</text>
+              <text x="568" y="213" fill="#52605b" font-size="11">5 任务平均 90%</text>
+              <text x="568" y="233" fill="#52605b" font-size="11">单策略平均 69% / 76%</text>
+              <line x1="568" y1="251" x2="712" y2="251" stroke="#d8d4ca"/>
+              <text x="568" y="279" fill="#17201d" font-size="14" font-weight="700">新实体适配</text>
+              <text x="568" y="301" fill="#52605b" font-size="11">14D YAM · 26D G1</text>
+
+              <path d="M132 341V380H640V341" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="102" y="374" width="568" height="86" rx="43" fill="#17201d"/>
+              <text x="386" y="406" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">“共享物理”要成立，先得把不同实体的动作翻译到共同语法</text>
+              <text x="386" y="433" text-anchor="middle" fill="#d8d4ca" font-size="12">CLAP 的主要贡献是训练配方与接口，不是新视频骨干或新数据集</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>左侧是数据扩展被卡住的原因；中间三种表示各解决一类缺口，也各带来一类新缺口。CLAP-CURR 用课程顺序接力：先借潜动作吃无标签视频，再用末端位姿把模型落回真实可执行坐标。右侧证据跨视频指标、真实规划与新实体适配三层，不能互相替代。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，CLAP 解决的是 action-conditioned video model 的“共同动作语法”。</strong>末端位姿把不同关节结构映成 7D 几何接口；语言动作把坐标写成文本；潜动作从帧间变化中自监督抽取 32D 代理动作。三者不是同一精度的等价编码，而是精度、标签需求与部署对齐之间的不同折中。</p>
+            <p><strong>第二，最强配方 CLAP-CURR 不是把三种条件同时塞进模型。</strong>它先以潜动作从无标注视频学习时空先验，再替换成 7D end-effector action head，在有动作标签的视频上联合微调新 head 与视频骨干；部署时不再需要 latent-to-robot adapter。</p>
+            <p><strong>第三，“接近或超过单实体 SOTA”在 DROID 成立得最强，在 Bridge 不成立。</strong>DROID 上 CLAP-CURR 的 PSNR、SSIM、LPIPS 略优于 Ctrl-World，但 FVD、FID 略差；Bridge-Base 则在五项指标上全部优于零样本 CLAP。论文自己的表格支持“有竞争力”，不支持普遍支配。</p>
+            <p><strong>第四，标题中的 zero-shot physical simulator 要读成“零样本部署的视频预测器”。</strong>作者附录明确承认 CLAP 不能替代调好的物理仿真器、会幻觉且低于 10 Hz；真实规划还依赖 π0.5 / MolmoAct-2 生成候选、GPT-5 mini 评分，以及 end-effector→latent adapter。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">“动作”在 CLAP 里有三种语言，zero-shot 也有三层含义</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION-CONDITIONED VIDEO WORLD MODEL（动作条件视频世界模型）</span>
+            <p><strong>英译中：</strong>给定过去观测、任务语言与未来动作序列，生成这些动作可能导致的未来视频。</p>
+            <p><strong>怎么理解：</strong>它不是直接输出机器人动作，而是充当“如果这么做，画面会怎样”的可学习预测器。CLAP 用它比较候选策略、给 RL 提供想象环境，或作为某个机器人专属视频模型的初始化。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">END-EFFECTOR ACTION（末端执行器动作）</span>
+            <p><strong>英译中：</strong>把关节位置通过 forward kinematics 转成末端的 x/y/z、roll/pitch/yaw 与连续夹爪状态，共 7 维。</p>
+            <p><strong>怎么理解：</strong>它抹掉不同机器人关节数，但没有抹掉工作空间尺度。CLAP-EE 为每个平台使用独立归一化因子，把绝对动作压到 [−1,1]；因此所谓“统一”仍需要知道实体身份与运动学元数据。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">LANGUAGE ACTION（语言动作）</span>
+            <p><strong>英译中：</strong>把每帧末端坐标写成短模板，例如 x=、y=、z=、roll=、pitch=、yaw=、gripper。</p>
+            <p><strong>怎么理解：</strong>文本接口容易接进预训练模型，但 CLIP tokenizer 不擅长保留高精度数字，长字符串还会截断。CLAP-LANG 因此采用相对动作、归一化和低精度模板，代价是空间分辨率低于连续 EE 条件。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">LATENT ACTION（潜动作）</span>
+            <p><strong>英译中：</strong>由相邻视频帧之间的变化自监督编码出的低维连续向量。</p>
+            <p><strong>怎么理解：</strong>CLAP 的 LAM 读取 (fₜ,fₜ₊Δt)，输出 32D 向量，并尝试用 fₜ 与该向量重建未来帧。它让无动作标签的人类视频可用，却不等于真实机器人命令；真实规划中的 CLAP-LAM 仍需训练一个 EE→latent adapter。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ZERO-SHOT（零样本）</span>
+            <p><strong>英译中：</strong>部署到目标真实任务时，不再用该任务数据微调视频世界模型。</p>
+            <p><strong>怎么理解：</strong>这不是整个系统没有训练数据：世界模型已在 OXE / EgoDex 上训练，候选动作来自已训练的 π0.5 与 MolmoAct-2，VLM 负责奖励打分，CLAP-LAM 路径还使用动作对齐 adapter。论文另有 few-shot adaptation，属于超越 zero-shot 的另一设置。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">PHYSICAL SIMULATOR（物理模拟器）</span>
+            <p><strong>英译中：</strong>根据状态和动作预测未来演化的环境模型。</p>
+            <p><strong>怎么理解：</strong>CLAP 输出像素视频，不显式计算接触、力、质量或约束。它可以作为政策筛选器和想象环境，但作者在附录 Q8 明确说目前还不能替代 well-tuned physics-based simulator。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="clap-tradeoff-title clap-tradeoff-desc">
+            <svg viewBox="0 0 720 420" role="img" aria-labelledby="clap-tradeoff-title clap-tradeoff-desc">
+              <title id="clap-tradeoff-title">CLAP 三种动作表示的精度、数据覆盖与部署对齐取舍</title>
+              <desc id="clap-tradeoff-desc">末端位姿精度和真实部署对齐高但需要标注，语言动作接口通用但数字精度有限，潜动作可以使用无标签视频但与机器人几何动作存在部署域差。课程训练先用潜动作扩展数据，再用末端位姿对齐部署。</desc>
+              <rect width="720" height="420" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">没有一种表示同时占满三个角</text>
+              <polygon points="360,76 116,337 604,337" fill="#f0eee7" stroke="#aaa69c" stroke-width="2"/>
+              <text x="360" y="62" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">连续控制精度</text>
+              <text x="81" y="360" fill="#17201d" font-size="14" font-weight="700">无标签数据覆盖</text>
+              <text x="548" y="360" fill="#17201d" font-size="14" font-weight="700">真实部署对齐</text>
+              <circle cx="460" cy="180" r="44" fill="#dcebe5" stroke="#24624e"/>
+              <text x="460" y="176" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">EE</text>
+              <text x="460" y="198" text-anchor="middle" fill="#52605b" font-size="10">精确 · 需标签</text>
+              <circle cx="360" cy="246" r="44" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="360" y="242" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">LANG</text>
+              <text x="360" y="264" text-anchor="middle" fill="#52605b" font-size="10">通用 · 数字粗</text>
+              <circle cx="250" cy="252" r="44" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="250" y="248" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">LAM</text>
+              <text x="250" y="270" text-anchor="middle" fill="#52605b" font-size="10">无标签 · 需对齐</text>
+              <path d="M267 296C296 329 409 329 449 224" fill="none" stroke="#bd4c32" stroke-width="3" stroke-dasharray="6 5"/>
+              <rect x="207" y="380" width="306" height="27" rx="13" fill="#17201d"/>
+              <text x="360" y="399" text-anchor="middle" fill="#fffef9" font-size="12" font-weight="700">CLAP-CURR：先站 LAM 角，再向 EE 角落地</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>EE、LANG、LAM 不是谁“绝对最好”的排行榜。它们分别靠近不同目标；课程训练的逻辑，是先用 LAM 获得数据覆盖，再保留骨干、替换 action head，用 EE 恢复精确而可执行的控制接口。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">FAILURE CHAIN</p>
+          <h2 id="problem-title">跨实体扩展不是简单把视频拼在一起：观察、动作与标签同时异构</h2>
+
+          <figure class="svg-figure" aria-labelledby="clap-failure-title clap-failure-desc">
+            <svg viewBox="0 0 760 430" role="img" aria-labelledby="clap-failure-title clap-failure-desc">
+              <title id="clap-failure-title">跨实体视频世界模型的三重不兼容失败链</title>
+              <desc id="clap-failure-desc">机器人实体在自由度、运动学和相机布局上不同，人类视频又缺少动作标签。关节动作无法共享，绝对末端动作工作空间差异大，语言动作数字精度低，潜动作不能直接执行，因此单一表示无法同时满足数据规模和部署控制。</desc>
+              <defs><marker id="clap-failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#86321f"/></marker></defs>
+              <rect width="760" height="430" fill="#fbfaf6"/>
+              <rect x="30" y="60" width="190" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="125" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">实体异构</text>
+              <text x="125" y="119" text-anchor="middle" fill="#52605b" font-size="12">6 / 7 / 14 / 26 DoF</text>
+              <text x="125" y="145" text-anchor="middle" fill="#52605b" font-size="12">工作空间与相机布局不同</text>
+              <path d="M231 116H275" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#clap-failure-arrow)"/>
+              <rect x="280" y="60" width="200" height="112" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">动作条件不兼容</text>
+              <text x="380" y="119" text-anchor="middle" fill="#52605b" font-size="12">固定维度模型无法直接混关节动作</text>
+              <text x="380" y="145" text-anchor="middle" fill="#52605b" font-size="12">同一数值在不同机器人含义不同</text>
+              <path d="M491 116H535" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#clap-failure-arrow)"/>
+              <rect x="540" y="60" width="190" height="112" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="635" y="91" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">数据扩展被截断</text>
+              <text x="635" y="119" text-anchor="middle" fill="#52605b" font-size="12">单实体模型只吃本平台视频</text>
+              <text x="635" y="145" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">人类无标签视频进不来</text>
+
+              <path d="M635 189V219H194" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="38" y="226" width="210" height="124" rx="5" fill="#fffef9" stroke="#355e7c"/>
+              <text x="58" y="256" fill="#17201d" font-size="14" font-weight="700">只用 EE？</text>
+              <text x="58" y="281" fill="#52605b" font-size="11">绝对坐标精确，但跨工作空间难</text>
+              <text x="58" y="304" fill="#52605b" font-size="11">相对坐标会累积误差</text>
+              <text x="58" y="328" fill="#86321f" font-size="11" font-weight="700">仍然要求动作标签</text>
+              <rect x="275" y="226" width="210" height="124" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="295" y="256" fill="#17201d" font-size="14" font-weight="700">只用语言？</text>
+              <text x="295" y="281" fill="#52605b" font-size="11">接口通用、与预训练文本对齐</text>
+              <text x="295" y="304" fill="#52605b" font-size="11">数字 token 重合、上下文会截断</text>
+              <text x="295" y="328" fill="#86321f" font-size="11" font-weight="700">精细控制分辨率下降</text>
+              <rect x="512" y="226" width="210" height="124" rx="5" fill="#fffef9" stroke="#24624e"/>
+              <text x="532" y="256" fill="#17201d" font-size="14" font-weight="700">只用 LAM？</text>
+              <text x="532" y="281" fill="#52605b" font-size="11">能从任意视频自监督学动作</text>
+              <text x="532" y="304" fill="#52605b" font-size="11">latent token 没有几何执行语义</text>
+              <text x="532" y="328" fill="#86321f" font-size="11" font-weight="700">部署时 adapter 会损失保真度</text>
+              <path d="M143 369V397H617V369" fill="none" stroke="#355e7c" stroke-width="2"/>
+              <text x="380" y="421" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">所以 CLAP 的关键问题不是选唯一表示，而是安排表示切换的顺序</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上半部分是从实体差异到数据瓶颈的因果链；下半部分说明三种常见“统一动作”各自只解决了一半。CLAP-CURR 的出发点，就是允许训练阶段与部署阶段使用不同表示，而把共享知识留在视频骨干里。</figcaption>
+          </figure>
+
+          <h3>“物理规律共享”是建模假设，不是从数据中直接验出的定律</h3>
+          <p>瓶子、毛巾、抽屉的动力学确实不依赖操作者名字，但视频模型看到的是像素相关性：相机、背景、机械臂外观与任务分布都可能成为捷径。CLAP 的跨实体优势、held-out LAM 重建与 few-shot 迁移说明可迁移信息存在；它们没有分离出质量、摩擦、接触等显式物理量。因此“学到 generalizable physical priors”是有实验支持的解释，不等于模型识别了通用物理参数。</p>
+
+          <h3>人类视频不是机器人视频的替代品</h3>
+          <p>DreamDojo-Human 用仅在人类视频上训练的 IDM 抽潜动作；在 DROID 上 LPIPS 为 0.681，而 CLAP 各模型为 0.260 到 0.204，至少改善约 61%。论文据此认为人类视频可提供基础动态先验，但机器人视频对把先验迁到机器人形态至关重要。实际视频模型采样也高度偏向 DROID（附录 Table 3 报 75%），所以结果不是“只看互联网人类视频就会模拟机器人”。</p>
+
+          <h3>绝对动作与相对动作没有跨表示的一致优胜者</h3>
+          <p>EE 条件下，DROID 的绝对动作在 PSNR / SSIM / LPIPS / FVD 四项都更好，支持避免累积误差；语言条件下，相对动作把数值压进更紧范围，四项都优于绝对语言动作。但 Bridge 的 EE-relative SSIM 0.841 高于 absolute 0.822，OXE-Mix 的 EE-relative FVD 25.707 也略优于 absolute 26.199。论文“absolute across all metrics and environments”的文字比附录表更强，宜改读为“多数关键指标、尤其 DROID 上更稳”。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM</p>
+          <h2 id="mechanism-title">核心不是一套新生成器，而是一条“潜动作扩展 → 几何动作落地”的训练链</h2>
+
+          <h3>世界模型回答的条件概率：给历史、任务和未来动作，生成未来观测</h3>
+          <div class="formula-card" aria-label="CLAP 视频世界模型条件分布">
+            <div class="formula-card__label">公式拆解 · Appendix Eq. 3</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">{o<sub>τ</sub>}<sup>t+P</sup><sub>τ=t+1</sub></span>
+              ∼ V<sub>θ</sub>( · | l,
+              {o<sub>τ</sub>}<sup>t</sup><sub>τ=t−H</sub>,
+              {a<sub>τ</sub>}<sup>t+P</sup><sub>τ=t</sub> )
+            </div>
+            <p class="formula-card__caption">这条公式回答：动作条件视频世界模型的输入与输出边界是什么。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>l</dt><dd>任务层语言指令，例如“把鱼放进容器”。</dd></div>
+              <div class="formula-legend__row"><dt>H</dt><dd>历史 horizon；实现中使用 6 帧历史，以提供速度等时间线索。</dd></div>
+              <div class="formula-legend__row"><dt>P</dt><dd>未来预测 horizon；实现中生成 5 帧未来，窗口共 11 帧。</dd></div>
+              <div class="formula-legend__row"><dt>aτ</dt><dd>每一未来帧自己的动作 token，可来自 7D EE、模板语言或 32D latent action。</dd></div>
+              <div class="formula-legend__row"><dt>oτ</dt><dd>多视角 RGB 观测；CLAP 把各视角在 latent space 里垂直拼接。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">模型不是从当前帧自由生成未来，而是比较“若执行候选动作 A / B，未来画面分别怎样”。历史解决速度歧义，逐帧动作条件提供可控性，多视角拼接提供几何约束。</div>
+          </div>
+
+          <h3>潜动作模型：让视频自己给帧间变化命名</h3>
+          <div class="formula-card" aria-label="CLAP 潜动作模型 beta VAE 目标">
+            <div class="formula-card__label">公式拆解 · Appendix Eq. 4</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L<sub>LAM</sub></span> = ‖x<sub>t+1</sub>−x̂<sub>t+1</sub>‖²<sub>2</sub>
+              + β·D<sub>KL</sub>(N(μ<sub>t</sub>,σ²<sub>t</sub>) ‖ N(0,I)),
+              &nbsp; β=10<sup>−6</sup>
+            </div>
+            <p class="formula-card__caption">这条公式回答：没有动作标签时，怎样迫使一个 32D latent token 携带从当前帧到下一帧的变化。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>xₜ₊₁</dt><dd>真实未来帧；训练时输入帧对为 240×320 RGB。</dd></div>
+              <div class="formula-legend__row"><dt>x̂ₜ₊₁</dt><dd>解码器根据当前帧与潜动作重建的未来帧。</dd></div>
+              <div class="formula-legend__row"><dt>μₜ, σ²ₜ</dt><dd>潜动作后验的均值与方差。</dd></div>
+              <div class="formula-legend__row"><dt>β</dt><dd>很小的 KL 权重，明显偏向重建保真，同时让 latent 近似单位高斯。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">若 latent 不包含帧间因果变化，解码器难以重建未来；但这个目标也可能编码相机运动、背景或非动作变化，所以“latent action”是代理表示，不是经验证的真实控制变量。</div>
+          </div>
+          <p>正文 Eq. 1 把同一目标写成 reconstruction log-likelihood 减 KL 的 ELBO 形式，适合最大化；附录 Eq. 4 写成 MSE 加 KL 的损失，适合最小化。两式方向不同但意图一致，页面采用更清晰的附录最小化形式。</p>
+
+          <h3>CLAP-CURR：共享的是视频骨干，不是 action head</h3>
+          <figure class="svg-figure" aria-labelledby="clap-curr-title clap-curr-desc">
+            <svg viewBox="0 0 760 456" role="img" aria-labelledby="clap-curr-title clap-curr-desc">
+              <title id="clap-curr-title">CLAP curriculum 从潜动作预训练切换到末端位姿条件</title>
+              <desc id="clap-curr-desc">第一阶段使用 LAM 从无标签人类和机器人视频抽取 32 维潜动作，训练 SVD 视频骨干。第二阶段丢弃潜动作 head，换成 7 维末端位姿 head，并在有标签机器人视频上联合微调 head 与视频骨干，最终直接接受真实机器人几何动作。</desc>
+              <defs><marker id="clap-curr-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+              <rect width="760" height="456" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">STAGE A · 用无标签视频扩展动态先验</text>
+              <rect x="32" y="64" width="176" height="90" rx="5" fill="#f0eee7" stroke="#6f6c64"/>
+              <text x="120" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">视频帧对</text>
+              <text x="120" y="119" text-anchor="middle" fill="#52605b" font-size="11">human + multi-robot</text>
+              <text x="120" y="139" text-anchor="middle" fill="#52605b" font-size="11">不要求动作标签</text>
+              <path d="M220 109H263" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-curr-arrow)"/>
+              <rect x="268" y="64" width="174" height="90" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="355" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">LAM action head</text>
+              <text x="355" y="119" text-anchor="middle" fill="#52605b" font-size="11">帧间变化 → 32D latent</text>
+              <text x="355" y="139" text-anchor="middle" fill="#52605b" font-size="11">Δt 动态变化作数据增强</text>
+              <path d="M454 109H497" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-curr-arrow)"/>
+              <rect x="502" y="64" width="226" height="90" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="615" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">SVD spatiotemporal U-Net</text>
+              <text x="615" y="119" text-anchor="middle" fill="#52605b" font-size="11">历史 + 每帧 latent action → 未来视频</text>
+              <text x="615" y="139" text-anchor="middle" fill="#52605b" font-size="11">学习跨实体视觉动态先验</text>
+
+              <path d="M615 170V205H355" fill="none" stroke="#bd4c32" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#clap-curr-arrow)"/>
+              <text x="486" y="193" text-anchor="middle" fill="#86321f" font-size="11" font-weight="700">丢弃 latent head · 保留 backbone</text>
+              <text x="34" y="238" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.5">STAGE B · 用有标签机器人视频落回几何动作</text>
+              <rect x="32" y="260" width="176" height="90" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="120" y="290" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">机器人视频 + FK</text>
+              <text x="120" y="315" text-anchor="middle" fill="#52605b" font-size="11">joint → 7D absolute EE</text>
+              <text x="120" y="335" text-anchor="middle" fill="#52605b" font-size="11">每实体归一化到 [−1,1]</text>
+              <path d="M220 305H263" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-curr-arrow)"/>
+              <rect x="268" y="260" width="174" height="90" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="355" y="290" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">新 EE action head</text>
+              <text x="355" y="315" text-anchor="middle" fill="#52605b" font-size="11">7D → 1024D token</text>
+              <text x="355" y="335" text-anchor="middle" fill="#52605b" font-size="11">与 backbone 一起训练</text>
+              <path d="M454 305H497" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-curr-arrow)"/>
+              <rect x="502" y="260" width="226" height="90" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="615" y="290" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">CLAP-CURR</text>
+              <text x="615" y="315" text-anchor="middle" fill="#52605b" font-size="11">保留 latent 阶段的动态先验</text>
+              <text x="615" y="335" text-anchor="middle" fill="#24624e" font-size="11" font-weight="700">部署时直接吃 EE，不需 latent adapter</text>
+              <rect x="131" y="390" width="498" height="38" rx="19" fill="#17201d"/>
+              <text x="380" y="414" text-anchor="middle" fill="#fffef9" font-size="13" font-weight="700">curriculum 的价值：让数据覆盖与部署接口先后优化，而非同时妥协</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Stage A 的 action head 是临时脚手架，作用是把无标签视频变成可控训练信号；Stage B 更换 head 后，真正被迁移的是 U-Net 里的时空先验。CLAP-CURR 因而避免了部署时再过一层 latent alignment。</figcaption>
+          </figure>
+
+          <h3>视频骨干：老 SVD、逐帧动作 token、历史与多视角拼接</h3>
+          <p>CLAP 使用 SVD 的时空 U-Net：冻结 VAE 与 CLIP encoder，只训练 U-Net。每个 11 帧窗口含 6 帧 history 和 5 帧 future；每个生成帧只 cross-attend 自己对应的动作 token，而不是共享一个全局动作。EE / latent 由三层 SiLU MLP 映到 1024 维，语言动作由冻结 CLIP 编码。多视角先各缩放到 192×320，再垂直堆叠为 576×320；action context 以 5% 概率丢弃以支持 classifier-free guidance。</p>
+          <p>跨实体视频模型训练 100K steps，使用 8×H100 或 H200、effective batch 64，每次 run 约 2–3 天。附录默认推理写 50 个 EDM sampling steps；单独 timing benchmark 则用 25 steps、11 frames，二者不是同一配置。</p>
+
+          <h3>真实规划：CLAP 不自产动作，而是在两位“提案者”之间做想象筛选</h3>
+          <figure class="svg-figure concept-visual" aria-labelledby="clap-plan-title clap-plan-desc">
+            <svg viewBox="0 0 720 376" role="img" aria-labelledby="clap-plan-title clap-plan-desc">
+              <title id="clap-plan-title">CLAP inference-time cross-policy planning 流程</title>
+              <desc id="clap-plan-desc">π0.5 和 MolmoAct-2 各采样两组候选动作，经轻量适配器映到潜动作空间。冻结的 CLAP-LAM 为四条候选生成未来视频，GPT-5 mini 根据初始和终止多视角帧评分，机器人执行最高分候选并滚动重规划。</desc>
+              <defs><marker id="clap-plan-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+              <rect width="720" height="376" fill="#fbfaf6"/>
+              <rect x="28" y="65" width="152" height="94" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="104" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">两套基础策略</text>
+              <text x="104" y="120" text-anchor="middle" fill="#52605b" font-size="11">π0.5：k=2</text>
+              <text x="104" y="142" text-anchor="middle" fill="#52605b" font-size="11">MolmoAct-2：k=2</text>
+              <path d="M192 112H228" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-plan-arrow)"/>
+              <rect x="232" y="65" width="152" height="94" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="308" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">EE → latent adapter</text>
+              <text x="308" y="120" text-anchor="middle" fill="#52605b" font-size="11">7D 动作映到 32D</text>
+              <text x="308" y="142" text-anchor="middle" fill="#52605b" font-size="11">world model 保持冻结</text>
+              <path d="M396 112H432" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-plan-arrow)"/>
+              <rect x="436" y="65" width="152" height="94" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="512" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">CLAP-LAM imagination</text>
+              <text x="512" y="120" text-anchor="middle" fill="#52605b" font-size="11">四条动作 → 四段未来视频</text>
+              <text x="512" y="142" text-anchor="middle" fill="#52605b" font-size="11">左视角 + 腕视角</text>
+              <path d="M600 112H636" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-plan-arrow)"/>
+              <rect x="610" y="190" width="82" height="96" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="651" y="219" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">VLM</text>
+              <text x="651" y="242" text-anchor="middle" fill="#52605b" font-size="10">GPT-5 mini</text>
+              <text x="651" y="264" text-anchor="middle" fill="#52605b" font-size="10">首尾帧评分</text>
+              <path d="M512 171V238H598" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-plan-arrow)"/>
+              <rect x="260" y="215" width="224" height="70" rx="5" fill="#17201d"/>
+              <text x="372" y="243" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">执行最高预测奖励的候选</text>
+              <text x="372" y="266" text-anchor="middle" fill="#d8d4ca" font-size="11">然后从新观测 receding-horizon 重规划</text>
+              <path d="M598 269H496" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#clap-plan-arrow)"/>
+              <path d="M372 299V333H104V172" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#clap-plan-arrow)"/>
+              <text x="237" y="353" text-anchor="middle" fill="#52605b" font-size="11">下一轮重新征集动作候选</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>CLAP 是筛选器，不是第三套控制策略。它的收益可能来自跨策略候选多样性、视频预测与 VLM reward 三者共同作用；因此 Table 10 证明的是“这套 planner 优于单独执行某一策略”，不是视频模型单项对策略成功率的纯增益。</figcaption>
+          </figure>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">先看 DROID 的受控像素指标，再看真实规划是否把预测变成行动收益</h2>
+
+          <h3>DROID：CLAP-CURR 在三项逐帧指标领先，分布指标仍略逊 Ctrl-World</h3>
+          <div class="table-wrap" tabindex="0" aria-label="CLAP 在 DROID 的视频预测结果">
+            <table class="evidence-table">
+              <thead><tr><th>方法</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>FVD ↓</th><th>FID ↓</th></tr></thead>
+              <tbody>
+                <tr><td>DreamDojo-Human</td><td>12.450±1.691</td><td>0.384±0.080</td><td>0.681±0.089</td><td>116.009</td><td>241.056</td></tr>
+                <tr><td>CLAP-LANG</td><td>17.200±2.740</td><td>0.692±0.087</td><td>0.260±0.069</td><td>21.517</td><td>39.168</td></tr>
+                <tr><td>CLAP-LAM</td><td>18.859±2.770</td><td>0.729±0.081</td><td>0.222±0.068</td><td>19.059</td><td>36.863</td></tr>
+                <tr><td>CLAP-EE</td><td>18.835±2.837</td><td>0.734±0.080</td><td>0.215±0.069</td><td>16.370</td><td>33.075</td></tr>
+                <tr class="evidence-table__emphasis"><td>CLAP-CURR</td><td>19.138±2.671</td><td>0.744±0.078</td><td>0.204±0.064</td><td>16.139</td><td>32.484</td></tr>
+                <tr><td>Ctrl-World</td><td>18.928±2.760</td><td>0.736±0.081</td><td>0.205±0.067</td><td>15.591</td><td>30.543</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>CLAP-CURR 对 Ctrl-World 的差距很小：PSNR +0.210、SSIM +0.008、LPIPS 低 0.001，但 FVD 高 0.548、FID 高 1.941。最稳的结论是“跨实体模型在困难 DROID 上达到单实体 SOTA 水平”，而不是“所有指标都超越”。评测对每个数据子集约 100 条 trajectory，把多视角堆叠后计算标准感知指标。</p>
+
+          <h3>Bridge 与 OXE-Mix：单域专用模型仍占优，潜动作在混合域更强</h3>
+          <div class="table-wrap" tabindex="0" aria-label="CLAP Bridge 与 OXE Mix 关键结果">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>数据域</th><th>方法</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>FVD ↓</th><th>FID ↓</th></tr></thead>
+              <tbody>
+                <tr><td>Bridge</td><td>CLAP-LAM</td><td>24.179</td><td>0.827</td><td>0.087</td><td>9.207</td><td>20.755</td></tr>
+                <tr><td>Bridge</td><td>CLAP-CURR</td><td>23.692</td><td>0.828</td><td>0.088</td><td>9.614</td><td>19.205</td></tr>
+                <tr class="evidence-table__emphasis"><td>Bridge</td><td>Bridge-Base</td><td>25.660</td><td>0.858</td><td>0.063</td><td>6.402</td><td>13.307</td></tr>
+                <tr><td>OXE-Mix</td><td>CLAP-LAM</td><td>22.605</td><td>0.806</td><td>0.125</td><td>20.030</td><td>43.397</td></tr>
+                <tr><td>OXE-Mix</td><td>CLAP-EE</td><td>21.665</td><td>0.798</td><td>0.129</td><td>26.199</td><td>41.854</td></tr>
+                <tr><td>OXE-Mix</td><td>CLAP-CURR</td><td>21.898</td><td>0.806</td><td>0.125</td><td>23.202</td><td>41.218</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Bridge 是更简单、分布更窄的平台，专用 Bridge-Base 在五项指标全部领先；CLAP 的定性视频差异可能小，但量化上仍有明显距离。OXE-Mix 跨多实体，CLAP-LAM 在 PSNR / FVD 最好，并与 CURR 在 SSIM / LPIPS 持平，支持 latent action 对混合域数据扩展有价值；CURR 的价值更多在无 adapter 的部署接口，而非每项像素指标都最高。</p>
+
+          <h3>动作坐标消融：结论依赖条件模态</h3>
+          <div class="table-wrap" tabindex="0" aria-label="CLAP 在 DROID 的相对与绝对动作消融">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>DROID 条件</th><th>PSNR ↑</th><th>SSIM ↑</th><th>LPIPS ↓</th><th>FVD ↓</th><th>结论</th></tr></thead>
+              <tbody>
+                <tr><td>EE-relative</td><td>16.758</td><td>0.697</td><td>0.257</td><td>22.113</td><td>累积误差明显</td></tr>
+                <tr class="evidence-table__emphasis"><td>EE-absolute</td><td>18.835</td><td>0.734</td><td>0.215</td><td>16.370</td><td>连续几何输入适合绝对动作</td></tr>
+                <tr><td>LANG-absolute</td><td>16.290</td><td>0.691</td><td>0.276</td><td>26.485</td><td>数值范围挤压 tokenizer</td></tr>
+                <tr class="evidence-table__emphasis"><td>LANG-relative</td><td>17.200</td><td>0.692</td><td>0.260</td><td>21.517</td><td>更紧动作范围更适合离散文本</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>真实单臂规划：四候选 + 视频想象 + VLM 评分在五任务平均达到 90%</h3>
+          <div class="table-wrap" tabindex="0" aria-label="CLAP 单臂跨策略规划成功率">
+            <table class="evidence-table">
+              <thead><tr><th>任务</th><th>MolmoAct-2</th><th>π0.5</th><th>CLAP planner</th><th>主要作用</th></tr></thead>
+              <tbody>
+                <tr><td>Measuring Tape</td><td>75%</td><td>40%</td><td>80%</td><td>偏向 MolmoAct-2 候选</td></tr>
+                <tr><td>Fish</td><td>50%</td><td>50%</td><td>75%</td><td>滚动规划改善两者共同弱项</td></tr>
+                <tr><td>Red Lobster</td><td>20%</td><td>90%</td><td>95%</td><td>偏向 π0.5 候选</td></tr>
+                <tr><td>Box</td><td>100%</td><td>100%</td><td>100%</td><td>无提升空间</td></tr>
+                <tr><td>Towel</td><td>100%</td><td>100%</td><td>100%</td><td>无提升空间</td></tr>
+                <tr class="evidence-table__emphasis"><td>五任务平均</td><td>69%</td><td>76%</td><td>90%</td><td>整套跨策略筛选系统</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>每个 policy、每项任务 20 次试验；每轮从两套 policy 各采样 k=2 条动作，共四条候选。结果支持 CLAP 能利用两套策略互补的语义强弱，也说明候选质量是上限：Box / Towel 两者本就 100%，planner 只持平。论文附录也明确回答，视频或奖励幻觉时 CLAP 不保证总能胜过基础策略。</p>
+
+          <h3>双臂压力测试、少样本适配与 video-RL 是三类不同证据</h3>
+          <div class="table-wrap" tabindex="0" aria-label="CLAP 适配和下游结果矩阵">
+            <table class="evidence-table evidence-table--compact">
+              <thead><tr><th>设置</th><th>结果</th><th>直接支持</th><th>不能推出</th></tr></thead>
+              <tbody>
+                <tr><td>7D 单臂 CLAP 规划 14D YAM</td><td>Carrot &amp; Apple 90→95%；Block &amp; Avocado 100→100%</td><td>粗粒度选臂策略在双臂场景仍可筛候选</td><td>细粒度 14D 动力学已零样本学会</td></tr>
+                <tr><td>适配到 DROID</td><td>CLAP-EE PSNR 19.461、LPIPS 0.191；Ctrl 18.928 / 0.205</td><td>跨实体初始化经目标域微调后更强</td><td>zero-shot 指标；这里已用目标域数据</td></tr>
+                <tr><td>适配到 Bridge</td><td>CLAP-EE PSNR 26.044；Bridge-Base 25.660</td><td>多数指标超过专用 baseline</td><td>所有变体、所有指标都领先</td></tr>
+                <tr><td>适配新 14D YAM</td><td>PSNR 24.310、LPIPS 0.152</td><td>跨动作维度迁移可行</td><td>sample-efficient；无数据量和 baseline</td></tr>
+                <tr><td>适配新 26D G1</td><td>PSNR 15.151、LPIPS 0.215</td><td>能生成双臂与手部运动</td><td>优于从头训练；无对照</td></tr>
+                <tr><td>CLAP 内 DSRL</td><td>Carrot 80→88%（25 次）；Towel 100→100%（20 次）</td><td>视频想象可在一项任务改善 diffusion policy</td><td>通用、稳定的 sim-to-real RL</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>双臂零样本压力测试把 14D 动作压回 7D：每步选动作幅值较大的那只手，另一只手不作为完整条件。Table 11 报 95%，但正文又写“每任务 10 次”；二项成功率用 10 次无法得到 95%，可能还合并了两个物体顺序，论文未把分母写清。适配实验也没有披露所谓 few-shot 的 trajectory 数或 finetuning steps，因此“可适配”证据强于“样本高效”证据。</p>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>论文直接支持</span>
+              <h3>跨实体训练可在 DROID 达到单实体 SOTA 水平</h3>
+              <p>CURR 与 Ctrl-World 五项指标互有胜负，差距很小；统一架构和训练超参数减少了比较混杂。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件支持</span>
+              <h3>CLAP 能零样本改善真实机器人策略</h3>
+              <p>整套 planner 在 5 项单臂任务平均 90%，但依赖两套候选 policy、adapter 与 VLM reward。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>CLAP 是可替代物理仿真的通用 simulator</h3>
+              <p>作者明确否认；模型低于 10 Hz、会幻觉，也没有与物理仿真在接触精度和 rollout 校准上比较。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">CLAP 最扎实的是“动作接口 + 训练顺序”，最容易被标题放大的则是 simulator 与 zero-shot</h2>
+
+          <h3>第一，它不是物理引擎替代品</h3>
+          <p>模型输出 RGB 视频，没有显式状态、碰撞约束、接触力、质量或摩擦参数；主要指标是 PSNR、SSIM、LPIPS、FVD、FID。附录 Q8 直接回答“not yet a replacement for well-tuned physics-based simulators”。“physical simulator”在本文中应理解为可供策略筛选的生成式像素预测器。</p>
+
+          <h3>第二，它不是实时世界模型</h3>
+          <p>11 帧、25 denoising steps 的 timing benchmark 为 A100 PCIe 3.24 s、A100 SXM 2.88 s、H200 1.49 s，远低于 10 Hz；冷 cache 的首次调用可约 15 s。模型占约 9.7 GB、低于 12 GB，可放进 RTX 3060 的显存，不等于在消费卡上实时运行。附录默认推理另写 50 steps，时间更不能直接套用。</p>
+
+          <h3>第三，zero-shot 只限定视频模型没有目标任务微调</h3>
+          <p>真实 planner 使用已训练的 π0.5 / MolmoAct-2 各提两条动作，GPT-5 mini 评价初末帧，CLAP-LAM 还需 EE→latent adapter。它证明跨实体 world model 可在不为该任务重训的情况下参与系统，而非“看一张图就独立产生新机器人技能”。</p>
+
+          <h3>第四，实际训练规模远未到 internet scale</h3>
+          <p>论文以“internet-scale capable”描述架构，但实际使用 OXE 与 EgoDex，视频模型 100K steps、8×H100/H200、每 run 2–3 天；附录 Q6 明确说规模远小于 GPT / Claude / Gemini。视频模型采样又以 DROID 75% 为主，因此跨实体收益与数据规模曲线仍未系统展示。</p>
+
+          <h3>第五，最强 DROID 结论不代表跨所有域支配单实体模型</h3>
+          <p>Bridge-Base 在零样本 Bridge 上五项指标全部优于 CLAP；作者附录 Q9 也明确说不会始终胜过单实体模型。DROID 的接近 / 超越很重要，但属于较困难、跨实体先验更可能帮助的目标域。</p>
+
+          <h3>第六，感知指标不能完全验证动作与物理正确性</h3>
+          <p>PSNR / SSIM 偏逐像素相似，LPIPS 偏感知距离，FVD / FID 看分布特征；它们可能奖励背景与外观，却错过夹爪是否抓牢、物体是否穿透、接触时序是否正确。作者担心 IDM / pose tracker 自身幻觉而未采用 object-centric 指标，这个理由合理，但留下了物理可用性评估缺口。</p>
+
+          <h3>第七，CLAP 仍会在训练分布边界幻觉</h3>
+          <p>结论与附录 Q11 都明确承认这一点；真实 planner 的唯一双臂失败是第二个物体掉在碗旁，且基础策略、视频预测与 reward 任一环节都可能出错。没有不确定性估计、拒绝机制或安全回退，尚不适合把生成轨迹当可信 rollout。</p>
+
+          <h3>第八，few-shot / sample-efficient 缺少最关键的横轴</h3>
+          <p>论文给出了微调后指标，却没有报告 DROID、Bridge、YAM、G1 各自用了多少 trajectory、帧、优化 steps，Table 14 新实体适配也没有 from-scratch / SVD baseline。因而可以说 CLAP 是有效初始化、能跨 7D→14D / 26D 适配；不能从现有表格计算样本效率。</p>
+
+          <h3>第九，动作表示比较并非完全数据匹配</h3>
+          <p>CLAP-LAM 可以加入 EgoDex 等无标签视频，而 EE / LANG 受限于有标签数据；作者认为强行 data-match 会违背框架目的。这适合回答“每种接口在最佳可用数据下能做到什么”，却不适合把性能差异全部归因于 action representation 本身。</p>
+
+          <h3>第十，绝对 / 相对动作的文字结论比表格更绝对</h3>
+          <p>DROID 的四项指标清楚支持 EE-absolute；但 Bridge 的 EE-relative SSIM 更高，OXE-Mix 的 EE-relative FVD 略低。更准确的总结是：连续 EE 多数情况下受益于绝对坐标和实体归一化，语言动作则稳定受益于相对坐标；不存在跨数据域、跨指标的严格全序。</p>
+
+          <h3>第十一，双臂零样本仍是粗粒度压力测试</h3>
+          <p>7D 模型每步只条件化动作幅度更大的手，把 14D 双臂问题降成动态选臂；这足以筛粗粒度进展，不代表模型同时精确模拟两臂耦合。95% 与“10 trials per task”的分母也不自洽，需要项目材料或复现实验澄清。</p>
+
+          <h3>第十二，新骨干与更多实体仍是架构主张，不是实证</h3>
+          <p>CLAP 使用 2023 年 SVD，因为每 run 约两天、可在消费级显存推理；附录称配方可无缝迁到 Wan 2.2 等新骨干，但没有实验。训练数据又主要是单臂机器人与人类视频；把双臂、humanoid、移动机器人加入预训练，是否继续带来正迁移仍待验证。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2608.27406v1">论文摘要页：arXiv:2608.27406v1</a> — 标题、作者、版本与公开入口。</li>
+            <li><a href="https://arxiv.org/pdf/2608.27406v1">论文 PDF v1</a> — 本页三类动作表示、curriculum、公式、DROID / Bridge / OXE-Mix 表格、真实规划、适配、video-RL 与 Nuanced Summary 的主要来源，共 30 页。</li>
+            <li><a href="https://omni-clap.github.io/">官方项目页</a> — 论文首页给出的模型、定性视频与项目入口。</li>
+            <li><a href="https://github.com/omni-CLAP/clap">官方代码仓库</a> — 论文声明公开的训练与推理实现入口；本页未把 repo 行为当作论文已经验证的额外结论。</li>
+            <li><a href="https://arxiv.org/abs/2403.12945">DROID</a>、<a href="https://robotics-transformer-x.github.io/">Open X-Embodiment</a>、<a href="https://arxiv.org/abs/2505.11709">EgoDex</a> — 主要机器人与人类视频数据来源。</li>
+            <li><a href="https://arxiv.org/abs/2510.10125">Ctrl-World</a>、<a href="https://arxiv.org/abs/2504.16054">π0.5</a>、<a href="https://arxiv.org/abs/2605.02881">MolmoAct-2</a> — DROID 视频基线与真实规划候选策略。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>公式、模型配置、数据混合、表格数值、trial 数、GPU 时间，以及附录 24 问对“非实时、会幻觉、不能替代物理仿真”的回答属于论文事实或作者判断；“zero-shot 是系统层限定”“DROID 达到 SOTA 但 Bridge 未支配”“few-shot 未披露横轴”“双臂 95% 分母不自洽”“感知指标不足以证明显式物理”等是基于论文内部证据边界作出的解读。未修改或复制用户提供的 PDF。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

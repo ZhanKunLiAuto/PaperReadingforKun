@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Self-Harness: Harnesses That Improve Themselves">
+    <meta name="citation_author" content="Hangfan Zhang">
+    <meta name="citation_author" content="Shao Zhang">
+    <meta name="citation_author" content="Kangcong Li">
+    <meta name="citation_author" content="Chen Zhang">
+    <meta name="citation_author" content="Yang Chen">
+    <meta name="citation_author" content="Yiqun Zhang">
+    <meta name="citation_author" content="Lei Bai">
+    <meta name="citation_author" content="Shuyue Hu">
+    <meta name="citation_publication_date" content="2026-06-08">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2606.09498v3">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2606.09498v3">
+    <meta name="description" content="解读 Self-Harness v3：固定模型如何从自己的失败轨迹中提炼机制、提出有限支架编辑，并用 held-in / held-out 回归门槛晋升；核对三模型 × 三 benchmark 的九组结果及其测试污染、成本与自治边界。">
+    <meta name="keywords" content="Self-Harness, agent harness, self-improving agents, weakness mining, regression testing, Terminal-Bench-2.0, SWE-bench Verified, AppWorld, MiniMax M2.5, Qwen3.5, GLM-5">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>Self-Harness：同一个模型，修自己的支架</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/self-harness/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2606.09498V3 · V3 2026-08-20 · 阅读于 2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“同模型自改”</a></li>
+          <li><a href="#concepts">别和 Meta-Harness 混在一起</a></li>
+          <li><a href="#problem-chain">为什么失败轨迹不能直接拿来改</a></li>
+          <li><a href="#mechanism">看懂证据、提案与晋升门</a></li>
+          <li><a href="#evidence">九组提升分别来自什么</a></li>
+          <li><a href="#limits">held-out、自治与成本边界</a></li>
+          <li><a href="#sources">回到 v3 论文与基准材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">SAME MODEL · FIXED WEIGHTS · EVIDENCE-GROUNDED HARNESS EDITS</p>
+          <h1 id="paper-title" class="paper-title">Self-Harness</h1>
+          <p class="paper-subtitle">
+            它问的不是“更强模型能否替弱模型写一个好 Agent”，而是更难也更具体的问题：让当前这个固定模型在现有支架里跑任务、观察自己反复失败的方式，再由同一个模型提出下一版支架，是否仍能得到可回归验证的稳定提升？
+          </p>
+          <div class="paper-byline">
+            <span>Hangfan Zhang、Shao Zhang、Kangcong Li 等 8 位作者</span>
+            <span>上海人工智能实验室</span>
+            <span>arXiv v3 · 31 页 · v1 提交于 2026-06-08</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              降低为每个新模型手工重写 Agent harness 的工程成本，也摆脱“总要找一个更强外部优化器”的前提：固定模型权重、工具、预算、环境和 evaluator，只允许当前模型根据自己的 held-in 失败证据修改声明过的支架表面；再用 held-in 与未向 proposer 展示轨迹的 held-out 任务做保守回归，检验这种同模型自改能否跨模型家族与任务环境稳定生效。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="self-overview-title self-overview-desc">
+            <svg viewBox="0 0 760 470" role="img" aria-labelledby="self-overview-title self-overview-desc">
+              <title id="self-overview-title">Self-Harness 的完整论证链</title>
+              <desc id="self-overview-desc">同一固定模型先执行任务并产生失败轨迹，评估系统把失败聚类成可行动机制，同一模型再提出最小编辑，候选只有在 held-in 和 held-out 都不退化且至少一侧进步时才晋升；三模型三基准共九组最终支架均提升。</desc>
+              <defs>
+                <marker id="self-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="470" fill="#fbfaf6"/>
+
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 当前支架暴露弱点</text>
+              <rect x="30" y="64" width="207" height="242" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="50" y="98" fill="#17201d" font-size="15" font-weight="700">同一模型执行 held-in</text>
+              <text x="50" y="128" fill="#52605b" font-size="12">遗漏要求的输出文件</text>
+              <text x="50" y="154" fill="#52605b" font-size="12">反复运行同一失败命令</text>
+              <text x="50" y="180" fill="#52605b" font-size="12">只读第一页 / 不跑目标测试</text>
+              <line x1="50" y1="202" x2="217" y2="202" stroke="#d3a99d"/>
+              <text x="50" y="230" fill="#17201d" font-size="14" font-weight="700">Evaluator 做归因与聚类</text>
+              <text x="50" y="256" fill="#52605b" font-size="11">terminal cause · causal status</text>
+              <text x="50" y="278" fill="#52605b" font-size="11">reusable mechanism</text>
+
+              <path d="M248 185H276" stroke="#355e7c" stroke-width="2" marker-end="url(#self-overview-arrow)"/>
+              <text x="282" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / 同模型提出候选</text>
+              <rect x="278" y="64" width="228" height="242" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <rect x="300" y="87" width="184" height="54" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="392" y="109" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">K 个互异、有限、可审计编辑</text>
+              <text x="392" y="129" text-anchor="middle" fill="#52605b" font-size="10">prompt / tools / subagent / runtime rule</text>
+              <path d="M392 147V165" stroke="#355e7c" stroke-width="2" marker-end="url(#self-overview-arrow)"/>
+              <rect x="300" y="171" width="184" height="54" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="392" y="194" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">每个候选独立跑两次</text>
+              <text x="392" y="214" text-anchor="middle" fill="#52605b" font-size="10">held-in + held-out official verifier</text>
+              <path d="M392 231V249" stroke="#355e7c" stroke-width="2" marker-end="url(#self-overview-arrow)"/>
+              <rect x="300" y="255" width="184" height="36" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="392" y="278" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">不退化才合并进 hₜ₊₁</text>
+
+              <path d="M518 185H546" stroke="#355e7c" stroke-width="2" marker-end="url(#self-overview-arrow)"/>
+              <text x="550" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / v3 证据</text>
+              <rect x="546" y="64" width="182" height="242" rx="5" fill="#17201d"/>
+              <text x="566" y="98" fill="#fffef9" font-size="14" font-weight="700">9 / 9 最终支架提升</text>
+              <text x="566" y="123" fill="#d8d4ca" font-size="11">3 模型 × 3 benchmark</text>
+              <line x1="566" y1="145" x2="708" y2="145" stroke="#52605b"/>
+              <text x="566" y="175" fill="#fffef9" font-size="14" font-weight="700">最大相对：+132%</text>
+              <text x="566" y="199" fill="#d8d4ca" font-size="11">Qwen · AppWorld</text>
+              <line x1="566" y1="221" x2="708" y2="221" stroke="#52605b"/>
+              <text x="566" y="251" fill="#fffef9" font-size="14" font-weight="700">最大绝对：+40.6pp</text>
+              <text x="566" y="275" fill="#d8d4ca" font-size="11">GLM-5 · AppWorld</text>
+
+              <path d="M133 332V369H639V332" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="126" y="362" width="528" height="78" rx="39" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="390" y="392" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">“自我改进”来自同模型提案 + 外部可验证门槛</text>
+              <text x="390" y="416" text-anchor="middle" fill="#52605b" font-size="12">不是自由递归，也不是只凭模型自评就改生产系统</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>左侧 failure mining 不是模型独自“反省”，而是评估系统先把 verifier 结果与轨迹变成结构化证据；中间才由同一个固定模型做 proposer。右侧九组提升证明这种闭环可工作，但 held-out 已参与每次晋升，应该称回归集而非完全未触碰的最终测试集。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，论文确实证明“同一个模型可以参与修自己的支架”。</strong>MiniMax M2.5、Qwen3.5-35B-A3B 与 GLM-5 都同时扮演任务执行者和 proposer；权重、工具、预算、环境与 evaluator 固定，只改 DeepAgent harness definition。</p>
+            <p><strong>第二，收益不是来自统一神奇 prompt，而是模型 × 环境的补偿层。</strong>Terminal-Bench 需要早落盘、打断工具循环和持久化环境；SWE-bench 需要 diff / 目标测试 / 依赖恢复；AppWorld 需要分页穷举、时间边界和 action-only completion semantics。</p>
+            <p><strong>第三，最关键的机制不是“会提建议”，而是保守晋升。</strong>候选必须 held-in 不降、held-out 不降，并至少一侧 pass count 上升；否则即使总通过数更高也拒绝。两次重复降低了单次幸运晋升，但仍不是充分的统计检验。</p>
+            <p><strong>第四，这篇 v3 与仓库已有的 <em>Don't Train the Model, Evolve the Harness</em> 不是同一工作。</strong>后者由更强外部 proposer 优化另一个目标模型，并聚焦法律任务；Self-Harness 的贡献正是把 proposer 换成目标模型自身，并扩展到三类 agent benchmark。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">WHO IMPROVES WHOM</p>
+          <h2 id="concepts-title">三个范式只差一个角色，却对应三种完全不同的主张</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">HARNESS（运行支架 / 执行外壳）</span>
+            <p><strong>英译中：</strong>位于固定模型和环境之间的非参数系统层，包括系统提示、工具、memory、verification rule、permission、adapter、runtime control 和 failure recovery。</p>
+            <p><strong>怎么理解：</strong>它不改变模型权重，却决定模型能看见什么、能做什么、错误后怎样恢复、什么时候结束，以及怎样把结果交给 verifier。本文可编辑对象是一个声明清楚的 harness definition file，而不是任意重写 benchmark 或 evaluator。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">SELF-HARNESS（自修支架）</span>
+            <p><strong>英译中：</strong>目标模型在当前支架下观察自己的行为证据，并以 proposer 角色提出下一版支架。</p>
+            <p><strong>避免误解：</strong>“self”只描述 proposer 与 task model 是同一个固定模型。失败归因、official verifier、candidate execution、split gate 和 merge 仍由外部评估框架编排，所以不是一个完全封闭、无外部反馈的自治循环。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">HELD-IN / HELD-OUT（可见证据集 / 隐藏回归集）</span>
+            <p><strong>英译中：</strong>held-in 的失败轨迹会进入 evidence bundle；held-out 的任务轨迹不展示给 proposer，只把 pass count 用作晋升 gate。</p>
+            <p><strong>怎么理解：</strong>held-out 防止候选只修可见案例，但因为每个候选是否晋升都依赖它，它会间接塑造搜索路径。它比 held-in 更干净，却不等于一次性、搜索完成后才打开的 final test。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="self-paradigms-title self-paradigms-desc">
+            <svg viewBox="0 0 760 404" role="img" aria-labelledby="self-paradigms-title self-paradigms-desc">
+              <title id="self-paradigms-title">人工支架、Meta-Harness 与 Self-Harness 的角色差异</title>
+              <desc id="self-paradigms-desc">人工工程由人修改目标模型支架，Meta-Harness 由更强外部模型修改目标模型支架，Self-Harness 由目标模型自身提出修改，但都依赖外部任务与 evaluator 验证。</desc>
+              <defs>
+                <marker id="self-paradigms-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="404" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">真正需要对齐的不是名字，而是 proposer、target 与 verifier</text>
+
+              <rect x="34" y="70" width="214" height="226" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="141" y="102" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Human engineering</text>
+              <circle cx="92" cy="153" r="29" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="92" y="158" text-anchor="middle" fill="#17201d" font-size="12">人类</text>
+              <path d="M126 153H158" stroke="#355e7c" stroke-width="2" marker-end="url(#self-paradigms-arrow)"/>
+              <rect x="166" y="126" width="62" height="54" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="197" y="149" text-anchor="middle" fill="#17201d" font-size="10">目标模型</text>
+              <text x="197" y="166" text-anchor="middle" fill="#52605b" font-size="9">+ harness</text>
+              <text x="54" y="220" fill="#52605b" font-size="11">优势：人能引入领域判断</text>
+              <text x="54" y="245" fill="#52605b" font-size="11">代价：每个模型重新调</text>
+              <text x="54" y="272" fill="#86321f" font-size="10">论文想减少的人工瓶颈</text>
+
+              <rect x="272" y="70" width="214" height="226" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="379" y="102" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Meta-Harness</text>
+              <circle cx="326" cy="153" r="29" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="326" y="148" text-anchor="middle" fill="#17201d" font-size="10">更强外部</text>
+              <text x="326" y="164" text-anchor="middle" fill="#17201d" font-size="10">优化器</text>
+              <path d="M360 153H395" stroke="#355e7c" stroke-width="2" marker-end="url(#self-paradigms-arrow)"/>
+              <rect x="403" y="126" width="62" height="54" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="434" y="149" text-anchor="middle" fill="#17201d" font-size="10">目标模型</text>
+              <text x="434" y="166" text-anchor="middle" fill="#52605b" font-size="9">+ harness</text>
+              <text x="292" y="220" fill="#52605b" font-size="11">优势：搜索能力更强</text>
+              <text x="292" y="245" fill="#52605b" font-size="11">代价：需另一个强模型</text>
+              <text x="292" y="272" fill="#86321f" font-size="10">仓库既有 Evolve 页面属于这类</text>
+
+              <rect x="510" y="70" width="216" height="226" rx="5" fill="#17201d"/>
+              <text x="618" y="102" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">Self-Harness</text>
+              <rect x="546" y="126" width="144" height="54" rx="27" fill="#dcebe5" stroke="#7bb29e"/>
+              <text x="618" y="149" text-anchor="middle" fill="#17201d" font-size="11">同一个固定模型</text>
+              <text x="618" y="166" text-anchor="middle" fill="#52605b" font-size="9">executor ⇄ proposer</text>
+              <path d="M555 191Q618 222 681 191" fill="none" stroke="#f1e8c9" stroke-width="2" marker-end="url(#self-paradigms-arrow)"/>
+              <text x="530" y="245" fill="#d8d4ca" font-size="11">不依赖更强外部 proposer</text>
+              <text x="530" y="270" fill="#f4ded5" font-size="10">仍依赖 evaluator 与 regression gate</text>
+
+              <path d="M141 327V351H618V327" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="380" y="378" text-anchor="middle" fill="#355e7c" font-size="12" font-weight="700">三种范式都没有修改目标模型权重；差别只在谁提出 harness edit</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Self-Harness 并不是 Meta-Harness 的新名字。论文控制的是 proposer 身份：让同一模型承担执行和修改，验证“模型能否诊断并补偿自己”。Evaluator 一直在外层，因此更准确的说法是 evidence-grounded self-proposal，而不是无监督自我进化。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY SELF-REFLECTION IS NOT ENOUGH</p>
+          <h2 id="problem-title">旧瓶颈：一次失败只能讲故事，不能直接说明该改哪层支架</h2>
+
+          <p>一个 verifier 说“缺少文件”，背后可能是三种完全不同的机制：模型从没识别交付物、编辑工具失败后删除了文件，或已经生成却放错路径。如果只按终局标签聚类，proposer 会得到“多提醒保存文件”这种粗糙答案，既可能无效，也可能破坏已能完成的任务。</p>
+          <p>模型特异性进一步放大问题。MiniMax 在 Terminal-Bench 容易长时间探索而不落盘，Qwen 会在编辑失败后重复动作并丢失 artifact，GLM-5 则会让环境安装只在当前 shell 有效。通用 prompt 也许同时提醒三件事，却会变长、互相干扰，而且无法验证真正修复了哪个故障。</p>
+          <p>最后是自我确认偏差。提出 edit 的模型很容易觉得自己的解释合理；若接受标准也是“proposer 认为会更好”，循环只会积累听起来正确的改动。论文因此把模型 rationale 降为 audit record，把 benchmark pass count 设为唯一晋升证据。</p>
+
+          <figure class="svg-figure" aria-labelledby="self-failure-title self-failure-desc">
+            <svg viewBox="0 0 760 412" role="img" aria-labelledby="self-failure-title self-failure-desc">
+              <title id="self-failure-title">从 verifier 失败到可修改机制的归因链</title>
+              <desc id="self-failure-desc">同一个缺失 artifact 的终局原因可能对应未识别需求、工具错误循环或错误完成语义；Self-Harness 用终局原因、因果状态和抽象机制三元签名精确聚类，再映射到有限支架表面。</desc>
+              <defs>
+                <marker id="self-failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="412" fill="#fbfaf6"/>
+              <rect x="34" y="64" width="164" height="250" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="116" y="96" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Verifier 终局</text>
+              <rect x="54" y="121" width="124" height="56" rx="4" fill="#fffef9" stroke="#bd4c32"/>
+              <text x="116" y="145" text-anchor="middle" fill="#17201d" font-size="12">required artifact</text>
+              <text x="116" y="163" text-anchor="middle" fill="#52605b" font-size="10">missing</text>
+              <text x="54" y="215" fill="#52605b" font-size="11">只知道“怎么被拒绝”</text>
+              <text x="54" y="243" fill="#86321f" font-size="11">还不知道“为何会这样”</text>
+              <text x="54" y="276" fill="#52605b" font-size="10">不能直接生成 harness patch</text>
+
+              <path d="M210 188H242" stroke="#355e7c" stroke-width="2" marker-end="url(#self-failure-arrow)"/>
+              <rect x="250" y="64" width="260" height="250" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="380" y="96" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">三元 failure signature φ(r)</text>
+              <rect x="272" y="120" width="216" height="46" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="380" y="147" text-anchor="middle" fill="#17201d" font-size="12">c：verifier-level terminal cause</text>
+              <rect x="272" y="179" width="216" height="46" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="206" text-anchor="middle" fill="#17201d" font-size="12">q：agent behavior 的因果状态</text>
+              <rect x="272" y="238" width="216" height="46" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="380" y="265" text-anchor="middle" fill="#17201d" font-size="12">m：可复用的抽象行为机制</text>
+              <text x="380" y="301" text-anchor="middle" fill="#52605b" font-size="10">三项完全一致才进入同一 cluster</text>
+
+              <path d="M522 188H554" stroke="#355e7c" stroke-width="2" marker-end="url(#self-failure-arrow)"/>
+              <rect x="562" y="64" width="164" height="250" rx="5" fill="#17201d"/>
+              <text x="644" y="96" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">可行动编辑</text>
+              <text x="582" y="132" fill="#d8d4ca" font-size="11">早识别并创建 artifact</text>
+              <text x="582" y="160" fill="#d8d4ca" font-size="11">tool error 后定向恢复</text>
+              <text x="582" y="188" fill="#d8d4ca" font-size="11">打断重复命令循环</text>
+              <text x="582" y="216" fill="#d8d4ca" font-size="11">action-only 正确结束</text>
+              <line x1="582" y1="238" x2="706" y2="238" stroke="#52605b"/>
+              <text x="582" y="267" fill="#f4ded5" font-size="10">若无法映射到可编辑表面</text>
+              <text x="582" y="286" fill="#f4ded5" font-size="10">就不强行提出 patch</text>
+
+              <path d="M116 343H644" stroke="#355e7c" stroke-width="2" marker-end="url(#self-failure-arrow)"/>
+              <text x="380" y="377" text-anchor="middle" fill="#355e7c" font-size="12" font-weight="700">从“同一错误码”收紧到“同一可复用行为机制”，才值得共享一个支架干预</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Weakness Mining 的价值是把症状和机制分开。它使用 exact signature agreement，而不是语义 embedding 聚类；优点是可审计，代价是签名归因本身仍依赖评估系统质量，过粗会混类，过细会失去统计支持。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MINE → PROPOSE → REGRESSION-TEST → MERGE</p>
+          <h2 id="mechanism-title">机制链：模型负责提出假设，pass count 负责决定历史</h2>
+
+          <h3>第一步：把失败记录压成 evidence bundle</h3>
+          <p>在第 t 轮，固定模型 M 在当前支架 h<sub>t</sub> 上运行 held-in 任务。每条记录 r<sub>i</sub> 包含任务 x<sub>i</sub>、执行 trace τ<sub>i</sub>、输出 y<sub>i</sub> 与 evaluator 结果 z<sub>i</sub>。系统只对失败记录做三元归因 φ(r<sub>i</sub>)=(c<sub>i</sub>,q<sub>i</sub>,m<sub>i</sub>)，按完全一致的签名聚类，再按 support 和 actionability 排序，形成 B<sub>t</sub>。</p>
+
+          <h3>第二步：同一模型并行提出 K 个“窄改动”</h3>
+          <p>Proposer 看到可编辑表面、失败模式、需要保留的 passing behavior 和过去尝试摘要，不直接吞整批原始轨迹。每个候选 (Δ<sub>j</sub>,a<sub>j</sub>) 必须指定主要失败机制、改动表面、预期行为与回归风险；各分支在目标或机制上要有实质差异，但单分支只改解决问题所需的最小范围。</p>
+
+          <div class="formula-card" aria-label="Self-Harness 候选晋升规则">
+            <div class="formula-card__label">公式拆解 · Proposal Validation</div>
+            <div class="formula-card__equation">
+              Accept(<span class="formula-symbol">Δ<sub>j</sub></span>) ⇔
+              <span class="formula-symbol">Δ<sub>in</sub><sup>(j)</sup> ≥ 0</span> ∧
+              <span class="formula-symbol">Δ<sub>ho</sub><sup>(j)</sup> ≥ 0</span> ∧
+              max(<span class="formula-symbol">Δ<sub>in</sub><sup>(j)</sup></span>, <span class="formula-symbol">Δ<sub>ho</sub><sup>(j)</sup></span>) &gt; 0
+            </div>
+            <p class="formula-card__caption">这条式子回答：候选 h<sub>t</sub><sup>(j)</sup>=Δ<sub>j</sub>(h<sub>t</sub>) 什么时候有资格进入下一版支架？</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>P<sub>in</sub>(h)</dt>
+                <dd>支架 h 在 held-in 上的通过任务数；它反映候选是否修到生成证据的那批行为。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>P<sub>ho</sub>(h)</dt>
+                <dd>支架 h 在 held-out 回归集上的通过任务数；轨迹不向 proposer 展示，但分数参与晋升。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>Δ<sub>in</sub><sup>(j)</sup></dt>
+                <dd>P<sub>in</sub>(h<sub>t</sub><sup>(j)</sup>)−P<sub>in</sub>(h<sub>t</sub>)。允许为零，不允许为负。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>Δ<sub>ho</sub><sup>(j)</sup></dt>
+                <dd>P<sub>ho</sub>(h<sub>t</sub><sup>(j)</sup>)−P<sub>ho</sub>(h<sub>t</sub>)。同样不允许牺牲回归集换 held-in 提升。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>max &gt; 0</dt>
+                <dd>至少一侧必须真的多通过一个或更多任务；两侧都打平不能靠“看起来合理”晋升。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition"><strong>直觉读法：</strong>这是一个 Pareto 式的保守门：只能向右上走，不能用一边的进步购买另一边的退步。它保护现有能力，却也会拒绝“先小退、组合后大涨”的候选，并反复读取 held-out 信号。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="self-loop-title self-loop-desc">
+            <svg viewBox="0 0 760 432" role="img" aria-labelledby="self-loop-title self-loop-desc">
+              <title id="self-loop-title">Self-Harness 一轮搜索及审计状态</title>
+              <desc id="self-loop-desc">当前支架运行得到记录，评估系统生成证据包，同一模型并行提出候选，每个候选在两种 split 上回归，接受者合并，拒绝者只记录；模型和 evaluator 始终固定。</desc>
+              <defs>
+                <marker id="self-loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="432" fill="#fbfaf6"/>
+              <rect x="34" y="62" width="154" height="74" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="111" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Evaluate hₜ</text>
+              <text x="111" y="115" text-anchor="middle" fill="#52605b" font-size="11">任务 · trace · verifier</text>
+              <path d="M198 99H232" stroke="#355e7c" stroke-width="2" marker-end="url(#self-loop-arrow)"/>
+
+              <rect x="240" y="62" width="154" height="74" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="317" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Build Bₜ</text>
+              <text x="317" y="115" text-anchor="middle" fill="#52605b" font-size="11">归因 · 精确聚类 · 排序</text>
+              <path d="M404 99H438" stroke="#355e7c" stroke-width="2" marker-end="url(#self-loop-arrow)"/>
+
+              <rect x="446" y="62" width="154" height="74" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="523" y="91" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Parallel propose</text>
+              <text x="523" y="115" text-anchor="middle" fill="#52605b" font-size="11">同一 M 给出 K 个 Δ</text>
+
+              <path d="M523 146V174" stroke="#355e7c" stroke-width="2" marker-end="url(#self-loop-arrow)"/>
+              <rect x="196" y="182" width="458" height="86" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="425" y="211" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">每个候选独立 Evaluate(hₜ⁽ʲ⁾, Dᵢₙ, Dₕₒ)</text>
+              <text x="425" y="238" text-anchor="middle" fill="#52605b" font-size="11">默认两次重复 · official verifier · 记录改变表面、结果与 rationale</text>
+              <text x="425" y="257" text-anchor="middle" fill="#52605b" font-size="10">空修改或运行失败也直接拒绝</text>
+
+              <path d="M326 278V307" stroke="#24624e" stroke-width="2" marker-end="url(#self-loop-arrow)"/>
+              <path d="M526 278V307" stroke="#bd4c32" stroke-width="2" marker-end="url(#self-loop-arrow)"/>
+              <rect x="196" y="314" width="250" height="62" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="321" y="340" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Accepted set Aₜ</text>
+              <text x="321" y="361" text-anchor="middle" fill="#52605b" font-size="10">兼容编辑合并为 hₜ₊₁</text>
+              <rect x="470" y="314" width="184" height="62" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="562" y="340" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Rejected</text>
+              <text x="562" y="361" text-anchor="middle" fill="#52605b" font-size="10">保留审计，不改 active harness</text>
+
+              <path d="M196 345H94V147" fill="none" stroke="#355e7c" stroke-width="1.5" stroke-dasharray="5 5" marker-end="url(#self-loop-arrow)"/>
+              <rect x="38" y="396" width="684" height="24" rx="12" fill="#17201d"/>
+              <text x="380" y="413" text-anchor="middle" fill="#fffef9" font-size="11">全程固定：M 的权重 · evaluator · toolset · budget · benchmark environment；只改变 h</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Self-Harness 不是 population search，而是当前支架向下一版的迭代 lineage。候选分支并行提出、分别验证；同轮多个接受项会合并。下一轮会重新评估合并后的支架，但论文没有把候选宽度 K、总轮数 T 和全部搜索成本汇总成统一表。</figcaption>
+          </figure>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">NINE COMBINATIONS, NINE DIFFERENT COMPENSATION LAYERS</p>
+          <h2 id="evidence-title">证据链：所有格子都涨了，但最值得读的是“各自修了什么”</h2>
+
+          <div class="table-wrap" tabindex="0" aria-label="Self-Harness v3 九组完整结果表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>Benchmark / 模型</th>
+                  <th>初始 held-in / held-out / 总体</th>
+                  <th>最终 held-in / held-out / 总体</th>
+                  <th>总体变化</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Terminal · MiniMax M2.5</td>
+                  <td>43.0 / 40.5 / 42.2</td>
+                  <td>50.0 / 61.9 / 53.9</td>
+                  <td>+11.7pp（+28%）</td>
+                </tr>
+                <tr>
+                  <td>Terminal · Qwen3.5-35B-A3B</td>
+                  <td>15.1 / 23.8 / 18.0</td>
+                  <td>36.0 / 38.1 / 36.7</td>
+                  <td>+18.7pp（+104%）</td>
+                </tr>
+                <tr>
+                  <td>Terminal · GLM-5</td>
+                  <td>47.7 / 42.9 / 46.1</td>
+                  <td>57.0 / 57.1 / 57.0</td>
+                  <td>+10.9pp（+24%）</td>
+                </tr>
+                <tr>
+                  <td>SWE-bench · MiniMax M2.5</td>
+                  <td>51.5 / 34.8 / 46.0</td>
+                  <td>58.2 / 40.9 / 52.5</td>
+                  <td>+6.5pp（+14%）</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>SWE-bench · Qwen3.5-35B-A3B</td>
+                  <td>20.1 / 18.2 / 19.5</td>
+                  <td>42.5 / 39.4 / 41.5</td>
+                  <td>+22.0pp（+113%）</td>
+                </tr>
+                <tr>
+                  <td>SWE-bench · GLM-5</td>
+                  <td>53.7 / 48.5 / 52.0</td>
+                  <td>58.2 / 50.0 / 55.5</td>
+                  <td>+3.5pp（+7%）</td>
+                </tr>
+                <tr>
+                  <td>AppWorld · MiniMax M2.5</td>
+                  <td>51.7 / 45.6 / 48.6</td>
+                  <td>62.8 / 55.0 / 58.9</td>
+                  <td>+10.3pp（+21%）</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>AppWorld · Qwen3.5-35B-A3B</td>
+                  <td>25.0 / 20.0 / 22.5</td>
+                  <td>60.0 / 44.4 / 52.2</td>
+                  <td>+29.7pp（+132%）</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>AppWorld · GLM-5</td>
+                  <td>47.8 / 41.1 / 44.4</td>
+                  <td>92.2 / 77.8 / 85.0</td>
+                  <td>+40.6pp（+91%）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>统计口径：</strong>Pass(%) 是官方 verifier 的平均单次尝试通过率；每个 candidate 默认在每任务上重复两次。所有最终支架在 held-in 与 held-out 两侧都提升，符合晋升规则，但表中没有置信区间、显著性检验或独立第三 split。</p>
+
+          <figure class="svg-figure" aria-labelledby="self-edits-title self-edits-desc">
+            <svg viewBox="0 0 760 432" role="img" aria-labelledby="self-edits-title self-edits-desc">
+              <title id="self-edits-title">三类 benchmark 发现的支架机制与模型特异实现</title>
+              <desc id="self-edits-desc">Terminal 围绕 artifact 和 runtime，SWE-bench 围绕 patch verification，AppWorld 围绕全量状态检索；不同模型在每个环境采用不同 prompt、subagent 或 middleware 实现。</desc>
+              <rect width="760" height="432" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">共享失败主题不等于共享同一段 prompt</text>
+
+              <rect x="34" y="70" width="692" height="92" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="56" y="98" fill="#17201d" font-size="14" font-weight="700">Terminal-Bench-2.0 · artifact handling / runtime control</text>
+              <text x="56" y="124" fill="#52605b" font-size="11">MiniMax：早建文件 + tool-message 上限　·　Qwen：依赖预检 + 错误触发 middleware + 禁止盲重试</text>
+              <text x="56" y="147" fill="#52605b" font-size="11">GLM-5：环境修改跨 shell 持久化 + 从探索转向实现与 sanity check</text>
+
+              <rect x="34" y="176" width="692" height="92" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="56" y="204" fill="#17201d" font-size="14" font-weight="700">SWE-bench Verified · executable patch verification</text>
+              <text x="56" y="230" fill="#52605b" font-size="11">MiniMax：diff 检查 subagent 与目标测试 subagent 分工　·　Qwen：patch-verifier + 提交前 diff / tests</text>
+              <text x="56" y="253" fill="#52605b" font-size="11">GLM-5：解析 import failure → 安装依赖 → 重跑精确测试 → 继续调试</text>
+
+              <rect x="34" y="282" width="692" height="92" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="56" y="310" fill="#17201d" font-size="14" font-weight="700">AppWorld · complete state retrieval / completion semantics</text>
+              <text x="56" y="336" fill="#52605b" font-size="11">MiniMax：state-auditor + pagination + 时间边界　·　Qwen：分页穷举 + 最终目标核对</text>
+              <text x="56" y="359" fill="#52605b" font-size="11">GLM-5：先穷举所有页再改状态 + 区分 action-only 与 information request</text>
+
+              <text x="380" y="410" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">结论：benchmark 决定“要补哪类能力”，模型行为决定“用哪种支架机制补”</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>同一环境会把三种模型推向相似主题，却没有收敛成同一实现。尤其在 SWE-bench，三个模型都加强验证，一个选择双 subagent，一个选择 patch-verifier，一个把依赖修复写进验证循环；这正是“model-specific harness”的实证含义。</figcaption>
+          </figure>
+
+          <h3>Trace 级案例让“分数上涨”有了可观察的中间机制</h3>
+          <div class="table-wrap" tabindex="0" aria-label="代表性轨迹案例表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>模型 / 环境</th>
+                  <th>初始支架行为</th>
+                  <th>最终支架行为</th>
+                  <th>可验证结果</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>MiniMax · Terminal</td>
+                  <td>长时间探索 count-dataset-tokens，没留下 answer artifact</td>
+                  <td>先识别 /app/answer.txt，计算后写入并读回</td>
+                  <td>从缺文件转为可验证交付</td>
+                </tr>
+                <tr>
+                  <td>Qwen · Terminal</td>
+                  <td>反复编辑失败，最后删除 /app/extract.js</td>
+                  <td>tool error 后恢复脚本、修解析、验证 JSON</td>
+                  <td>required extractor 留在正确位置</td>
+                </tr>
+                <tr>
+                  <td>Qwen · SWE-bench</td>
+                  <td>未成功运行 Django 相关测试就提交</td>
+                  <td>运行 49-test expressions_window suite</td>
+                  <td>1 FAIL-TO-PASS + 46 PASS-TO-PASS 全过</td>
+                </tr>
+                <tr>
+                  <td>GLM-5 · SWE-bench</td>
+                  <td>只做 syntax check；4 个目标测试和 5 个回归测试失败</td>
+                  <td>修依赖并执行精确测试</td>
+                  <td>4 FAIL-TO-PASS + 68 PASS-TO-PASS 全过</td>
+                </tr>
+                <tr>
+                  <td>GLM-5 · AppWorld</td>
+                  <td>只读 Venmo 第一页并多返回文本</td>
+                  <td>遍历所有页、改 12 条记录、以 null 结束 action-only 任务</td>
+                  <td>状态与 completion contract 同时正确</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>实验覆盖面比标题中的“agents”窄，但比 v1 摘要更完整</h3>
+          <p>Terminal-Bench 2.0 从 89 题中使用固定 64 题，排除不稳定外部网页和最小支架不支持的多模态任务；SWE-bench Verified 使用按 repository 比例采样的 100 题子集（67 held-in / 33 held-out）；AppWorld 使用 180 题（90 / 90）。v3 因而覆盖 terminal、代码修复和多应用 API 工作流，但仍不是所有 agent 类型或完整官方集合。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">LIMITS, TEST CONTAMINATION, AND SAFETY</p>
+          <h2 id="limits-title">边界：它证明“能自提案”，没有证明“能无限自治”</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>同模型支架编辑能稳定增益</h3>
+              <p>九个模型—环境组合的最终支架两侧 split 都提升，且 trace 案例能对应到具体执行机制。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件成立</span>
+              <h3>改动可以泛化到未展示轨迹</h3>
+              <p>held-out 轨迹没有进入 evidence bundle，但分数反复进入晋升 gate，所以支持回归泛化，不是独立终测泛化。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>尚未证明</span>
+              <h3>自我改进能开放式扩展</h3>
+              <p>搜索面、benchmark、verifier 和模型都固定；没有递归改 evaluator、获取新工具、改权重或跨域持续运行。</p>
+            </article>
+          </div>
+
+          <h3>held-out 是回归 gate，不是最后一次才揭晓的测试集</h3>
+          <p>候选虽然看不到 held-out 轨迹，却通过 accept / reject 反复收到 aggregate signal。搜索轮数越多，这个一位反馈越能对 split 形成选择压力。要强证“泛化”，应增加一个从未参与提案、排序、停止与调参的 final test，或在新 benchmark 上一次性迁移最终机制。</p>
+
+          <h3>“没有更强外部 agent”不等于没有外部智能与规则</h3>
+          <p>同一个模型确实负责提出 edit，这是论文最清楚的控制。但 evaluation system 负责 verifier-grounded attribution、signature construction、cluster ranking、candidate execution 和 acceptance；官方 benchmark verifier 还提供最终真值。系统摆脱的是更强 proposer，不是 evaluator、人工设计的可编辑表面或实验 scaffold。</p>
+
+          <h3>最小初始支架让提升空间很大，也限制了对比</h3>
+          <p>Baseline 是短 system prompt、DeepAgent 默认文件 / shell 工具和一组多数为空的声明接口。它适合观察机制从无到有，却不回答最终 Self-Harness 是否优于成熟手工 harness、Meta-Harness 或同预算的人类工程。尤其 AppWorld 的 40.6 点跃升，部分来自补上分页与 completion semantics 这类基础契约。</p>
+
+          <h3>两次重复不足以完全消除 Agent 方差</h3>
+          <p>不退化规则很保守，每个 candidate 又跑两次，比单次评分可靠；但 task 数有限，pass count 是离散变量，论文没有置信区间、配对检验或多重候选校正。候选恰好在两次尝试中不退化仍可能被晋升，微小提升也可能在下一轮消失。</p>
+
+          <h3>单候选安全，不自动推出合并安全</h3>
+          <p>同轮多个兼容候选分别通过后会合并。两个单独无害的 prompt、middleware 或 subagent 可能互相放大预算、冲突或改变终止行为。算法下一轮会重新评估 h<sub>t+1</sub>，但更严谨的实现应在真正激活前对“合并后的整体”再执行同一 gate。</p>
+
+          <h3>搜索成本和停止标准没有形成完整账本</h3>
+          <p>附录给出 MiniMax / OpenRouter 托管服务、Qwen 在 4×H200 本地部署、Terminal 2MB/s 网络上限、SWE 3,600 秒 case timeout / 120 秒 tool timeout、AppWorld 50 turns 等环境信息；但没有把 K、T、候选总数、token、GPU 小时和 API 成本统一报告。与人工或外部优化器比较时，这些成本不可缺。</p>
+
+          <h3>更高风险的支架改动需要比 pass rate 更强的门</h3>
+          <p>实验只允许修改声明过的 harness file，并以 benchmark 成功为目标，风险相对可控。若支架能改变网络权限、秘密管理、删除策略、支付动作或 evaluator，本模型可能提出“更高分但更危险”的机制；此时需要权限不变量、安全测试、人工审批、可回滚发布和独立审计，而不能只靠任务 pass 不退化。</p>
+
+          <h3>与已有 harness 进化工作的准确关系</h3>
+          <p>Self-Harness 没有否定 Meta-Harness，也没有重复“支架会影响模型成绩”这个已知结论。它新增的实验变量是 proposer 身份：在没有更强外部 agent 的前提下，目标模型能否从结构化证据提出对自己有效的 bounded edit。论文尚未直接比较同一任务、同一预算下 self proposer 与 stronger proposer 谁更好。</p>
+
+          <p class="evidence-note"><strong>一句话判断：</strong>Self-Harness 最成熟的读法不是“Agent 已经能自我进化”，而是“把同模型诊断变成假设生成，把独立 verifier 变成保守合并门”。真正可复用的是这套证据纪律，而不是让模型自由修改自己的运行环境。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源、版本说明与事实边界</h2>
+          <ol class="source-list">
+            <li>用户提供的 <em>Self-Harness: Harnesses That Improve Themselves</em> PDF — 本页方法、公式、九组结果、附录案例和限制分析的主要来源，共 31 页；PDF arXiv stamp 为 v3（2026-08-20），附件 XMP 标识为 arXiv:2606.09498v3，MetadataDate 为 2026-08-21。v3 已包含 Terminal-Bench、SWE-bench Verified 与 AppWorld 三类实验。</li>
+            <li><a href="https://arxiv.org/abs/2606.09498v3">arXiv 摘要页（v3）</a> 与 <a href="https://arxiv.org/pdf/2606.09498v3">arXiv PDF（v3）</a> — 公开论文与精确版本入口；论文 v1 首次提交于 2026-06-08。</li>
+            <li><a href="https://github.com/langchain-ai/deepagents">DeepAgents</a> — 论文最小初始 harness 所基于的 SDK。</li>
+            <li><a href="https://arxiv.org/abs/2601.11868">Terminal-Bench 2.0</a>、<a href="https://arxiv.org/abs/2310.06770">SWE-bench</a> 与 <a href="https://aclanthology.org/2024.acl-long.850/">AppWorld</a> — 三项官方任务与 verifier 背景。</li>
+            <li><a href="https://arxiv.org/abs/2603.28052">Meta-Harness: End-to-End Optimization of Model Harnesses</a> — 外部优化器范式背景；与本仓库已有的 <em>Don't Train the Model, Evolve the Harness</em> 页面相关，但不是 Self-Harness 本身。</li>
+          </ol>
+          <p class="evidence-note"><strong>事实与推断区分：</strong>作者、版本、split、模型、benchmark、acceptance rule、所有分数与案例数字均来自 v3 PDF；“held-out 是回归集而非独立终测”“最小 baseline 放大改进空间”“同模型 proposer 仍依赖外部 evaluation intelligence”“合并后应重新 gate”“安全环境需要更强不变量”等，是依据协议作出的分析判断。本页没有把 PDF 内的代码、命令或提示当作执行指令，也没有将本论文与仓库既有 harness 解读混同。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>当前没有已写回评论。评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

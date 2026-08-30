@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Riemann-1.0: An Embodied World Action Model for Physical AI">
+    <meta name="citation_author" content="Haofeng Sun">
+    <meta name="citation_author" content="Jiangbo Pei">
+    <meta name="citation_author" content="Fei Kang">
+    <meta name="citation_author" content="Zexiang Liu">
+    <meta name="citation_author" content="Yaokun Li">
+    <meta name="citation_author" content="Boyi Jiang">
+    <meta name="citation_author" content="Hua Xue">
+    <meta name="citation_author" content="Cindy Zhou">
+    <meta name="citation_author" content="Wei Li">
+    <meta name="citation_author" content="Yichen Wei">
+    <meta name="citation_author" content="Mengyin An">
+    <meta name="citation_author" content="Fanliang Zhao">
+    <meta name="citation_author" content="Biao Jiang">
+    <meta name="citation_author" content="Zile Wang">
+    <meta name="citation_author" content="Yang Liu">
+    <meta name="citation_author" content="Yangguang Li">
+    <meta name="citation_publication_date" content="2026-08-27">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.27033v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2608.27033v1">
+    <meta name="description" content="从全因果 action→video 因子分解、三阶段具身预训练、多本体接口与策略/模拟器双重角色解读 Riemann-1.0，并核对 230K+ 小时数据、真实机器人与三项仿真结果的证据边界。">
+    <meta name="keywords" content="Riemann-1.0, world action model, physical AI, embodied pretraining, latent action model, flow matching, robot policy, world simulator, RoboCasa365, RoboTwin2.0, LIBERO">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>Riemann-1.0：先行动，再让世界发生</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    class="paper-page"
+    data-page-kind="paper"
+    data-page-path="/papers/riemann-1-0/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2608.27033V1 · 2026-08-27 · 阅读于 2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住“先动作、后画面”</a></li>
+          <li><a href="#concepts">分清 WAM、LAM 与“全因果”</a></li>
+          <li><a href="#problem-chain">三种异构性为何卡住规模化</a></li>
+          <li><a href="#mechanism">看懂统一序列与三段课程</a></li>
+          <li><a href="#evidence">策略成绩与模拟证据分开读</a></li>
+          <li><a href="#limits">哪些 Physical AI 主张还太早</a></li>
+          <li><a href="#sources">回到 v1 论文与项目页</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">ACTION FIRST · CAUSAL WORLD MODELING · PROGRESSIVE EMBODIED PRETRAINING</p>
+          <h1 id="paper-title" class="paper-title">Riemann-1.0</h1>
+          <p class="paper-subtitle">
+            它把机器人交互排成一条严格的时间链：看见历史，先预测或接收当前动作，再预测这个动作造成的下一段视觉后果。同一套模型因而可以在真实环境里只出动作，也可以在没有真实反馈时把动作“演成”未来视频。
+          </p>
+          <div class="paper-byline">
+            <span>Haofeng Sun、Jiangbo Pei、Fei Kang 等 16 位作者</span>
+            <span>Riemann Dynamics</span>
+            <span>arXiv v1 · 27 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把两个长期分开的目标合到一个可规模化系统里：一方面从人类第一视角视频、手持夹爪示范和多种机器人轨迹中吸收海量具身经验；另一方面让同一模型既能输出可执行机器人动作，又能在给定动作后生成视觉后果。理想收益是减少对单一本体高质量遥操作数据的依赖，同时保住在线闭环控制与动作条件世界模拟两种接口。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="riemann-overview-title riemann-overview-desc">
+            <svg viewBox="0 0 760 468" role="img" aria-labelledby="riemann-overview-title riemann-overview-desc">
+              <title id="riemann-overview-title">Riemann-1.0 的数据、因果动作与证据总览</title>
+              <desc id="riemann-overview-desc">异构具身数据经三阶段课程从潜在动作过渡到真实机器人动作；模型按历史、动作、视觉后果的顺序自回归；策略结果有多个定量基准，模拟器能力目前只有定性视频。</desc>
+              <defs>
+                <marker id="riemann-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="468" fill="#fbfaf6"/>
+
+              <text x="34" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">01 / 经验来源</text>
+              <rect x="30" y="64" width="207" height="236" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="50" y="96" fill="#17201d" font-size="15" font-weight="700">230K+ 小时语料</text>
+              <text x="50" y="126" fill="#52605b" font-size="12">200K+ h 第一视角人类视频</text>
+              <text x="50" y="152" fill="#52605b" font-size="12">12K+ h 手持夹爪 / 穿戴示范</text>
+              <text x="50" y="178" fill="#52605b" font-size="12">20K+ h 多本体机器人轨迹</text>
+              <line x1="50" y1="201" x2="217" y2="201" stroke="#d8d4ca"/>
+              <text x="50" y="229" fill="#17201d" font-size="14" font-weight="700">监督逐级变“可执行”</text>
+              <text x="50" y="254" fill="#52605b" font-size="11">LAM 伪动作 → 3D 手 / UMI / 机器人</text>
+              <text x="50" y="279" fill="#52605b" font-size="11">→ 高质量机器人动作</text>
+
+              <path d="M248 182H276" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-overview-arrow)"/>
+              <text x="282" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">02 / 关键动作</text>
+              <rect x="278" y="64" width="228" height="236" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <rect x="300" y="88" width="184" height="46" rx="4" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="392" y="116" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">历史 z&lt;t · s&lt;t · a&lt;t</text>
+              <path d="M392 140V158" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-overview-arrow)"/>
+              <rect x="300" y="164" width="184" height="46" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="392" y="192" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">先得到当前动作 aₜ</text>
+              <path d="M392 216V234" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-overview-arrow)"/>
+              <rect x="300" y="240" width="184" height="46" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="392" y="268" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">再得到视觉后果 zₜ</text>
+
+              <path d="M518 182H546" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-overview-arrow)"/>
+              <text x="550" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.6">03 / 证据落点</text>
+              <rect x="546" y="64" width="182" height="236" rx="5" fill="#17201d"/>
+              <text x="566" y="98" fill="#fffef9" font-size="14" font-weight="700">真实机器人平均</text>
+              <text x="566" y="122" fill="#d8d4ca" font-size="12">SR 85.0% · PSR 94.43%</text>
+              <line x1="566" y1="143" x2="708" y2="143" stroke="#52605b"/>
+              <text x="566" y="172" fill="#fffef9" font-size="14" font-weight="700">三项仿真成功率</text>
+              <text x="566" y="196" fill="#d8d4ca" font-size="12">62.6 · 94.3 · 99.0%</text>
+              <line x1="566" y1="217" x2="708" y2="217" stroke="#52605b"/>
+              <text x="566" y="246" fill="#f4ded5" font-size="13" font-weight="700">世界模拟：仅定性</text>
+              <text x="566" y="271" fill="#d8d4ca" font-size="11">无 FVD / 物理一致性 / 规划增益</text>
+
+              <path d="M134 326V363H638V326" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="126" y="356" width="528" height="78" rx="39" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="390" y="386" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">论文最强结论是“统一接口能学出强策略”</text>
+              <text x="390" y="410" text-anchor="middle" fill="#52605b" font-size="12">“已经是可信物理模拟器”仍缺定量闭环证据</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>左边解决“数据从哪里来”，中间解决“动作与世界变化如何排序”，右边提醒证据强弱不对称。策略端覆盖真实机器人和三个仿真 benchmark；世界模拟端虽然能生成多本体 rollout，但论文没有报告视频指标、反事实一致性或用模拟结果改善规划的实验。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，Riemann-1.0 真正统一的是条件顺序和训练接口。</strong>动作块既是策略头的输出，也是视觉头的输入；真实部署用环境返回的画面替换预测画面，模拟模式则把预测画面回灌。同一 backbone 因而可以切换“行动”和“想象”。</p>
+            <p><strong>第二，规模化的关键不是粗暴混合 230K+ 小时数据，而是让监督逐级接近机器人动作。</strong>阶段 I 用 32 维 LAM 伪动作读 200K+ 小时人类视频，阶段 II 加入 3D 手、UMI 和多本体轨迹，阶段 III 只保留高质量机器人示范；动作损失权重 λ 依次从 0.1、0.5 提到 0.9。</p>
+            <p><strong>第三，策略结果很强，但不同 benchmark 的“领先含金量”不同。</strong>RoboCasa-365 从 54.2% 提到 62.6%，提升 8.4 个百分点；RoboTwin 2.0 和 LIBERO 已接近饱和，领先最强基线只有 0.2 和 0.1 点。真实机器人四任务平均 SR 为 85.0%，比 G0.5 高 15 点。</p>
+            <p><strong>第四，“fully causal”不等于学会了显式物理定律。</strong>它严格限制训练时能看见哪些历史 token，防止未来信息泄漏，并让动作先于视觉后果；质量、摩擦、接触力和不可见状态仍由数据驱动生成器隐式拟合。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">WHAT IS ACTUALLY UNIFIED</p>
+          <h2 id="concepts-title">先把四个词拆开：WAM、全因果、自回归与潜在动作</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">WORLD ACTION MODEL（世界—动作模型，WAM）</span>
+            <p><strong>英译中：</strong>联合建模机器人动作与动作造成的未来观察，而不只做 observation→action 的行为克隆。</p>
+            <p><strong>怎么理解：</strong>普通策略只回答“下一步做什么”；WAM 还试图回答“这样做之后会看到什么”。Riemann-1.0 让两个答案共享序列和 backbone，但分别由动作头与视觉潜变量头输出。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">FULLY CAUSAL AUTOREGRESSIVE（全因果自回归）</span>
+            <p><strong>英译中：</strong>每一步只使用真实交互中当时已经可得的信息，并把生成结果按时间加入历史。</p>
+            <p><strong>避免误解：</strong>这里的“因果”首先是一种因子分解和 attention mask 约束，不是通过干预实验识别出的结构因果模型。它保证 a<sub>t</sub> 在 z<sub>t</sub> 之前，却不自动保证生成视频遵守动力学守恒。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">LATENT ACTION MODEL（潜在动作模型，LAM）</span>
+            <p><strong>英译中：</strong>从相邻两帧的变化中压出一个低维“像动作一样”的过渡编码。</p>
+            <p><strong>怎么理解：</strong>LAM 编码器看 x<sub>t</sub> 与 x<sub>t+1</sub>，解码器只看 x<sub>t</sub> 和 32 维 latent 去重建下一帧。冻结后取 posterior mean μ 为确定性伪动作。它能描述“画面发生了什么变化”，但本身不是可发送给机器人电机的控制命令。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">EMBODIMENT-SPECIFIC INTERFACE（本体专属接口）</span>
+            <p><strong>英译中：</strong>视觉与时序推理共享，动作/状态的投影、归一化和预测头按机器人类别分开。</p>
+            <p><strong>怎么理解：</strong>论文没有强迫双臂、单臂、灵巧手使用同一个物理动作空间。每个本体先把向量排成自己的 canonical order，再 padding 到共享上限，并由 validity mask 忽略无效通道。这是“共享 backbone、保留控制语义”，不是零适配的统一动作词表。</p>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="riemann-data-title riemann-data-desc">
+            <svg viewBox="0 0 760 400" role="img" aria-labelledby="riemann-data-title riemann-data-desc">
+              <title id="riemann-data-title">三类具身数据与三阶段监督的对应关系</title>
+              <desc id="riemann-data-desc">第一视角视频规模最大但动作最弱，手持夹爪和三维手轨迹提供桥接，机器人轨迹最可执行；训练中的动作损失权重逐级增加。</desc>
+              <defs>
+                <marker id="riemann-data-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="400" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">从广而弱的视觉经验，走向窄而强的可执行监督</text>
+
+              <rect x="34" y="70" width="206" height="206" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="102" fill="#17201d" font-size="15" font-weight="700">Stage I · LAM Bootstrap</text>
+              <text x="54" y="132" fill="#52605b" font-size="12">数据：未标注人类第一视角视频</text>
+              <text x="54" y="158" fill="#52605b" font-size="12">动作：32 维 LAM 伪动作</text>
+              <text x="54" y="184" fill="#52605b" font-size="12">λ = 0.1</text>
+              <line x1="54" y1="204" x2="220" y2="204" stroke="#b7cad6"/>
+              <text x="54" y="231" fill="#355e7c" font-size="12" font-weight="700">先学广泛视觉变化</text>
+              <text x="54" y="255" fill="#52605b" font-size="11">不声称可部署策略</text>
+
+              <path d="M248 173H270" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-data-arrow)"/>
+              <rect x="278" y="70" width="206" height="206" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="298" y="102" fill="#17201d" font-size="15" font-weight="700">Stage II · Alignment</text>
+              <text x="298" y="132" fill="#52605b" font-size="12">数据：3D 手 + UMI + 多机器人</text>
+              <text x="298" y="158" fill="#52605b" font-size="12">动作：末端 / 夹爪 / 关节等</text>
+              <text x="298" y="184" fill="#52605b" font-size="12">λ = 0.5</text>
+              <line x1="298" y1="204" x2="464" y2="204" stroke="#d7c995"/>
+              <text x="298" y="231" fill="#9c7b1f" font-size="12" font-weight="700">把视觉变化落到真实轨迹</text>
+              <text x="298" y="255" fill="#52605b" font-size="11">对齐本体、相机与动作语义</text>
+
+              <path d="M492 173H514" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-data-arrow)"/>
+              <rect x="522" y="70" width="204" height="206" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="542" y="102" fill="#17201d" font-size="15" font-weight="700">Stage III · Policy</text>
+              <text x="542" y="132" fill="#52605b" font-size="12">数据：高质量机器人示范</text>
+              <text x="542" y="158" fill="#52605b" font-size="12">动作：可直接执行的控制</text>
+              <text x="542" y="184" fill="#52605b" font-size="12">λ = 0.9</text>
+              <line x1="542" y1="204" x2="706" y2="204" stroke="#afd0c4"/>
+              <text x="542" y="231" fill="#24624e" font-size="12" font-weight="700">校准闭环策略分布</text>
+              <text x="542" y="255" fill="#52605b" font-size="11">视觉损失仍作为 dynamics 正则</text>
+
+              <path d="M137 306H624" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-data-arrow)"/>
+              <text x="380" y="338" text-anchor="middle" fill="#355e7c" font-size="13" font-weight="700">数据规模下降 · 动作可信度上升 · 优化重心转向控制</text>
+              <text x="380" y="367" text-anchor="middle" fill="#52605b" font-size="11">下游 post-training 再把 λ 提到 0.95；课程不是三次换模型，而是同一 WAM 目标逐步换监督</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>人类视频并没有直接变成机器人动作。它先贡献视觉动力学与交互结构，再通过中间层的 3D 手、手持夹爪和异构机器人轨迹，逐渐把“变化编码”锚定到真实控制。λ 的递增把这个意图写进优化权重。</figcaption>
+          </figure>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY PRIOR WAMS DO NOT SCALE CLEANLY</p>
+          <h2 id="problem-title">旧瓶颈：不是数据不够，而是动作、时间和本体各说各话</h2>
+
+          <p>第一重异构来自<strong>监督质量</strong>。人类第一视角视频最丰富，却没有机器人状态和控制；机器人轨迹最精确，却昂贵、碎片化且被本体绑定。直接混合会让“画面变化”“手的运动”和“可执行动作”在同一个字段里含义漂移。</p>
+          <p>第二重异构来自<strong>时钟</strong>。视频 latent 代表一小段画面，低层动作频率更高；一个视觉转移要配一块动作序列，state 又要包含转移前和转移后的端点。若不显式对齐，模型会把错误时间段的动作归因给当前画面。</p>
+          <p>第三重异构来自<strong>本体</strong>。不同机器人动作维度、坐标系、物理单位和相机视角都不同。一个共享数值头会把同一维度误当成同一物理含义；完全分模型又失去跨本体共享视觉与时序经验的机会。</p>
+
+          <figure class="svg-figure" aria-labelledby="riemann-paradigm-title riemann-paradigm-desc">
+            <svg viewBox="0 0 760 414" role="img" aria-labelledby="riemann-paradigm-title riemann-paradigm-desc">
+              <title id="riemann-paradigm-title">四类世界动作模型的生成顺序对比</title>
+              <desc id="riemann-paradigm-desc">联合生成同时去噪动作和视频，视频优先先生成未来画面再推动作，双模型方法分离两个 DiT，Riemann 先动作后视觉并把结果递归写回历史。</desc>
+              <defs>
+                <marker id="riemann-paradigm-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="414" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">同样预测动作和未来，区别在“谁先生成、谁依赖谁”</text>
+
+              <rect x="34" y="68" width="160" height="230" rx="5" fill="#f0eee7" stroke="#aaa69c"/>
+              <text x="114" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Joint generation</text>
+              <rect x="56" y="124" width="116" height="56" rx="28" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="114" y="147" text-anchor="middle" fill="#17201d" font-size="12">a₁:T + z₁:T</text>
+              <text x="114" y="166" text-anchor="middle" fill="#52605b" font-size="10">一起去噪</text>
+              <text x="54" y="212" fill="#52605b" font-size="11">紧耦合两个分辨率</text>
+              <text x="54" y="235" fill="#52605b" font-size="11">策略与视频共同采样</text>
+              <text x="54" y="267" fill="#86321f" font-size="10">代表：DreamZero</text>
+
+              <rect x="210" y="68" width="160" height="230" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="290" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Video first</text>
+              <rect x="232" y="124" width="116" height="38" rx="4" fill="#dcebe5" stroke="#24624e"/>
+              <text x="290" y="148" text-anchor="middle" fill="#17201d" font-size="12">先 z₁:T</text>
+              <path d="M290 168V187" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-paradigm-arrow)"/>
+              <rect x="232" y="192" width="116" height="38" rx="4" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="290" y="216" text-anchor="middle" fill="#17201d" font-size="12">再 a₁:T</text>
+              <text x="230" y="267" fill="#86321f" font-size="10">额外视频生成延迟</text>
+
+              <rect x="386" y="68" width="160" height="230" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="466" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Separated DiTs</text>
+              <rect x="405" y="125" width="122" height="42" rx="4" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="466" y="151" text-anchor="middle" fill="#17201d" font-size="11">Video DiT</text>
+              <rect x="405" y="190" width="122" height="42" rx="4" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="466" y="216" text-anchor="middle" fill="#17201d" font-size="11">Action DiT</text>
+              <text x="406" y="267" fill="#86321f" font-size="10">模块化，但动作仍读预测视觉</text>
+
+              <rect x="562" y="68" width="164" height="230" rx="5" fill="#17201d"/>
+              <text x="644" y="99" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">Riemann-1.0</text>
+              <rect x="584" y="124" width="120" height="38" rx="4" fill="#f1e8c9" stroke="#d8c271"/>
+              <text x="644" y="148" text-anchor="middle" fill="#17201d" font-size="12">先当前动作 aₜ</text>
+              <path d="M644 168V187" stroke="#fffef9" stroke-width="2" marker-end="url(#riemann-paradigm-arrow)"/>
+              <rect x="584" y="192" width="120" height="38" rx="4" fill="#dcebe5" stroke="#7bb29e"/>
+              <text x="644" y="216" text-anchor="middle" fill="#17201d" font-size="12">再视觉后果 zₜ</text>
+              <text x="582" y="254" fill="#d8d4ca" font-size="10">真实反馈 / 生成反馈二选一</text>
+              <text x="582" y="276" fill="#f4ded5" font-size="10">同一模型兼作 policy 与 simulator</text>
+
+              <path d="M112 334H646" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-paradigm-arrow)"/>
+              <text x="380" y="365" text-anchor="middle" fill="#355e7c" font-size="13" font-weight="700">从“联合预测一整段”转向“复刻一次真实交互的先后顺序”</text>
+              <text x="380" y="390" text-anchor="middle" fill="#52605b" font-size="11">这是建模与部署对齐的主张；是否更懂物理，仍需独立测量</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Riemann 的创新落点不是“也能生成视频”，而是动作与视频在一个因果序列中的位置。真实机器人先执行动作再看后果，所以它把 a<sub>t</sub> 放在 z<sub>t</sub> 前；这样策略模式可以跳过视觉生成，模拟模式又能沿用同一个动作条件。</figcaption>
+          </figure>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">FROM FACTORIZATION TO ONLINE ROLLOUT</p>
+          <h2 id="mechanism-title">机制链：一条公式决定模型怎样行动，也决定它怎样想象</h2>
+
+          <div class="formula-card" aria-label="Riemann-1.0 全因果联合分布公式">
+            <div class="formula-card__label">公式拆解 · Eq. 1</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">p(a<sub>1:T</sub>, z<sub>1:T</sub> | z<sub>0</sub>, s<sub>0</sub>, c)</span>
+              = ∏<sub>t=1</sub><sup>T</sup>
+              <span class="formula-symbol">p(a<sub>t</sub> | z<sub>&lt;t</sub>, s<sub>&lt;t</sub>, a<sub>&lt;t</sub>, c)</span>
+              <span class="formula-symbol">p(z<sub>t</sub> | z<sub>&lt;t</sub>, s<sub>&lt;t</sub>, a<sub>≤t</sub>, c)</span>
+            </div>
+            <p class="formula-card__caption">这条式子回答：在第 t 步，动作和视觉后果各自允许依赖哪些信息？</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>a<sub>t</sub></dt>
+                <dd>当前动作块。策略模式由 action head 生成；模拟模式也可由外部候选计划或记录轨迹提供。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>z<sub>t</sub></dt>
+                <dd>当前动作之后的视觉 latent。它能看到 a<sub>≤t</sub>，因此画面变化被当前动作显式条件化。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>s<sub>t</sub></dt>
+                <dd>机器人 state。模型不生成它；真实部署从环境读取，离线训练或模拟分析时从轨迹回放。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>c</dt>
+                <dd>任务、机器人本体和相机配置的语言条件，由 T5 编码并通过 cross-attention 注入。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>z<sub>0</sub>, s<sub>0</sub></dt>
+                <dd>初始多视角观察与初始机器人状态，是整条 rollout 的起点。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition"><strong>直觉读法：</strong>先问“根据此前发生的一切，现在该做什么”，再问“把这个动作也算进去，下一幅画面会怎样”。动作头与视觉头的依赖差一个 a<sub>t</sub>，正是 policy / simulator 双接口的铰链。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="riemann-rollout-title riemann-rollout-desc">
+            <svg viewBox="0 0 760 420" role="img" aria-labelledby="riemann-rollout-title riemann-rollout-desc">
+              <title id="riemann-rollout-title">Riemann-1.0 训练、真实部署与模拟模式的分流</title>
+              <desc id="riemann-rollout-desc">训练时 clean token 作为历史、noisy token 作为 flow matching 目标；部署时动作执行后读真实观测；模拟时视觉头生成下一观测并回灌。</desc>
+              <defs>
+                <marker id="riemann-rollout-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="420" fill="#fbfaf6"/>
+              <rect x="42" y="58" width="174" height="86" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="129" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Causal history / KV cache</text>
+              <text x="129" y="114" text-anchor="middle" fill="#52605b" font-size="11">多视角 z · state s · 过往 action</text>
+              <text x="129" y="133" text-anchor="middle" fill="#52605b" font-size="10">只含当时可得 clean token</text>
+
+              <path d="M228 101H276" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-rollout-arrow)"/>
+              <rect x="284" y="58" width="192" height="86" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Flow-matching action head</text>
+              <text x="380" y="114" text-anchor="middle" fill="#52605b" font-size="11">Gaussian noise → action chunk aₜ</text>
+              <text x="380" y="133" text-anchor="middle" fill="#52605b" font-size="10">仿真 benchmark：每个 latent 对齐 16 步</text>
+
+              <path d="M488 101H536" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-rollout-arrow)"/>
+              <rect x="544" y="58" width="174" height="86" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="631" y="88" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">动作进入历史</text>
+              <text x="631" y="114" text-anchor="middle" fill="#52605b" font-size="11">它既可执行，也可条件化视觉</text>
+
+              <path d="M631 154V192" stroke="#355e7c" stroke-width="2" marker-end="url(#riemann-rollout-arrow)"/>
+              <path d="M631 174H380V192" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+              <rect x="70" y="204" width="280" height="118" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="210" y="237" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">真实策略模式</text>
+              <text x="92" y="267" fill="#52605b" font-size="12">执行 aₜ → 环境返回真实多视角观察与 sₜ</text>
+              <text x="92" y="293" fill="#52605b" font-size="12">编码真实 zₜ → 写入 cache → 下一动作</text>
+
+              <rect x="410" y="204" width="280" height="118" rx="5" fill="#17201d"/>
+              <text x="550" y="237" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">视觉模拟模式</text>
+              <text x="432" y="267" fill="#d8d4ca" font-size="12">latent head 以 aₜ 为条件生成 zₜ</text>
+              <text x="432" y="293" fill="#d8d4ca" font-size="12">解码 RGB → 生成 zₜ 回灌 → 下一步</text>
+
+              <path d="M210 333V365H550V333" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="380" y="392" text-anchor="middle" fill="#86321f" font-size="12" font-weight="700">固定窗口满后重置 cache，以最近观察重新开局；持续运行的代价是丢弃更早历史</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上下两条路径只在“下一幅画面从哪里来”处分叉。真实部署不需要先生成视频再出动作，因此避开 video-first 的额外延迟；模拟模式则必须承受自回归画面误差。论文没有给出动作采样步数或实际控制频率，不能由结构直接推出实时性。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="Riemann-1.0 视觉与动作损失权重公式">
+            <div class="formula-card__label">公式拆解 · Eq. 2–4</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">L</span> = (1 − <span class="formula-symbol">λ</span>)<span class="formula-symbol">L<sub>z</sub></span> + <span class="formula-symbol">λL<sub>a</sub></span>
+            </div>
+            <p class="formula-card__caption">这条公式回答：同一个 WAM 在每一阶段应更重视视觉动力学，还是更重视动作可执行性？两项损失都用 flow matching 回归从数据到噪声插值路径的速度。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row">
+                <dt>L<sub>z</sub></dt>
+                <dd>视觉 latent 速度损失，学习给定历史和当前动作后画面如何变化；越小越好。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>L<sub>a</sub></dt>
+                <dd>动作速度损失，学习从历史生成连续动作块；只在 validity mask 指定的本体通道和有效时间步上归一化。</dd>
+              </div>
+              <div class="formula-legend__row">
+                <dt>λ</dt>
+                <dd>动作侧权重：Stage I / II / III 为 0.1 / 0.5 / 0.9，下游 post-training 为 0.95。越大，优化越偏向控制。</dd>
+              </div>
+            </dl>
+            <div class="formula-card__intuition"><strong>直觉读法：</strong>先让模型用海量视频学“世界怎样动”，再逐步把预算转给“机器人应该怎样动”。视觉损失没有在后期消失，所以视觉后果仍作为动作学习的 dynamics regularizer。</div>
+          </div>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">WHAT THE NUMBERS DO — AND DO NOT — PROVE</p>
+          <h2 id="evidence-title">证据链：长程策略提升清楚，世界模拟仍停在“看起来会动”</h2>
+
+          <div class="table-wrap" tabindex="0" aria-label="真实机器人四任务结果表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>真实机器人任务</th>
+                  <th>Riemann-1.0 SR / PSR</th>
+                  <th>最强对照</th>
+                  <th>证据怎样读</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>按颜色顺序叠四块</td>
+                  <td>85.0 / 91.6</td>
+                  <td>G0.5：80.0 / 89.5</td>
+                  <td>终局与阶段进度均领先，但幅度有限</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>厨房整理</td>
+                  <td>90.0 / 98.4</td>
+                  <td>最佳 SR 35.0；最佳 PSR 80.2</td>
+                  <td>全文最显著的真实长程优势</td>
+                </tr>
+                <tr>
+                  <td>衣物折叠</td>
+                  <td>85.0 / 92.5</td>
+                  <td>G0.5：85.0 / 90.0</td>
+                  <td>SR 持平，阶段完成度略高</td>
+                </tr>
+                <tr>
+                  <td>桌面整理</td>
+                  <td>80.0 / 95.2</td>
+                  <td>G0.5：80.0 / 93.4</td>
+                  <td>SR 持平，PSR 高 1.8 点</td>
+                </tr>
+                <tr class="evidence-table__emphasis">
+                  <td>四任务平均</td>
+                  <td>85.00 / 94.43</td>
+                  <td>G0.5：70.00 / 80.18</td>
+                  <td>平均 SR +15.0pp；同一通用 post-trained 模型</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>设置限定：</strong>四项任务都在 Tianji Marvin 双臂机器人上，每任务收集 3 小时、15 条遥操作示范，并把四项数据合并后微调一个 generalist。论文没有在正文交代主表每项评估的试验次数或置信区间；因此表中百分比是作者报告的点估计。</p>
+
+          <div class="table-wrap" tabindex="0" aria-label="仿真 benchmark 结果与领先幅度表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>Benchmark</th>
+                  <th>Riemann-1.0</th>
+                  <th>前一最佳</th>
+                  <th>绝对领先</th>
+                  <th>应当得出的结论</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="evidence-table__emphasis">
+                  <td>RoboCasa-365 Target-50</td>
+                  <td>62.6%</td>
+                  <td>ABot-M0.5：54.2%</td>
+                  <td>+8.4pp</td>
+                  <td>对长程组合任务的最强 benchmark 证据</td>
+                </tr>
+                <tr>
+                  <td>RoboTwin 2.0 · 50 双臂任务</td>
+                  <td>94.3%</td>
+                  <td>ABot-M0.5：94.1%</td>
+                  <td>+0.2pp</td>
+                  <td>clean 94.6 / randomized 94.0，强但接近饱和</td>
+                </tr>
+                <tr>
+                  <td>LIBERO · 40 任务</td>
+                  <td>99.0%</td>
+                  <td>Being-H0.5 / G0.5：98.9%</td>
+                  <td>+0.1pp</td>
+                  <td>总体接近上限，难支撑大幅架构优势</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="riemann-evidence-title riemann-evidence-desc">
+            <svg viewBox="0 0 760 404" role="img" aria-labelledby="riemann-evidence-title riemann-evidence-desc">
+              <title id="riemann-evidence-title">Riemann-1.0 不同主张的证据强度阶梯</title>
+              <desc id="riemann-evidence-desc">策略成功率有真实与仿真定量结果，组合与 OOD 有四个各十次的任务，跨本体世界模拟只有定性视频，数据规模和训练贡献缺少系统消融。</desc>
+              <rect width="760" height="404" fill="#fbfaf6"/>
+              <text x="36" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">把论文的四类主张按“证据可复核程度”排列</text>
+
+              <rect x="42" y="72" width="676" height="62" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="64" y="98" fill="#17201d" font-size="14" font-weight="700">强：固定 benchmark 的任务成功率</text>
+              <text x="64" y="120" fill="#52605b" font-size="11">RoboCasa 62.6 · RoboTwin 94.3 · LIBERO 99.0；对照表完整，但大多来自作者统一复现设置</text>
+              <text x="690" y="106" text-anchor="end" fill="#24624e" font-size="12" font-weight="700">定量</text>
+
+              <rect x="84" y="148" width="634" height="62" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="106" y="174" fill="#17201d" font-size="14" font-weight="700">中强：真实后训练任务与 held-out 组合</text>
+              <text x="106" y="196" fill="#52605b" font-size="11">四项 post-training 平均 85.0 SR；四项组合/OOD 各 10 trials，总平均 75.0%</text>
+              <text x="690" y="182" text-anchor="end" fill="#355e7c" font-size="12" font-weight="700">定量 / 小样本</text>
+
+              <rect x="126" y="224" width="592" height="62" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="148" y="250" fill="#17201d" font-size="14" font-weight="700">较弱：230K+ 小时课程的独立贡献</text>
+              <text x="148" y="272" fill="#52605b" font-size="11">没有数据规模曲线、阶段删减或同算力消融，无法分离架构、数据与后训练各自贡献</text>
+              <text x="690" y="258" text-anchor="end" fill="#9c7b1f" font-size="12" font-weight="700">整体结果</text>
+
+              <rect x="168" y="300" width="550" height="62" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="190" y="326" fill="#17201d" font-size="14" font-weight="700">开放：跨本体“视觉世界模拟器”是否可信</text>
+              <text x="190" y="348" fill="#52605b" font-size="11">Figure 10 仅展示定性 rollout；没有视频质量、动作依从、物理一致性或下游规划收益</text>
+              <text x="690" y="334" text-anchor="end" fill="#bd4c32" font-size="12" font-weight="700">定性</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>标题把模型称作 Physical AI 的 World Action Model，但最成熟的证据其实是策略成功率。越接近“海量数据为何有效”与“模拟器是否物理可信”，可隔离变量和可复核指标越少。</figcaption>
+          </figure>
+
+          <h3>真实 held-out 结果说明会组合，不等于跨本体零样本</h3>
+          <div class="table-wrap" tabindex="0" aria-label="真实组合泛化与域外任务结果表，可横向滚动">
+            <table class="evidence-table">
+              <thead>
+                <tr>
+                  <th>未用于 post-training 的任务</th>
+                  <th>Riemann-1.0</th>
+                  <th>π0.5</th>
+                  <th>LingBot-VA</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>方块放入碗 / 盘</td><td>8/10</td><td>6/10</td><td>3/10</td></tr>
+                <tr><td>再加颜色与顺序约束</td><td>5/10</td><td>3/10</td><td>0/10</td></tr>
+                <tr><td>魔方放入收纳盒</td><td>10/10</td><td>5/10</td><td>3/10</td></tr>
+                <tr><td>毛巾放入盆中</td><td>7/10</td><td>5/10</td><td>3/10</td></tr>
+                <tr class="evidence-table__emphasis"><td>四项平均</td><td>75.0%</td><td>47.5%</td><td>22.5%</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这些任务没有额外示范或参数更新，支持同一 Tianji Marvin policy 在新物体、场景和指令组合上迁移。它们仍使用同一机器人平台与动作接口，不能被读成一个 checkpoint 对未见本体的零样本策略迁移。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">LIMITS, MISSING CONTROLS, AND PRACTICAL READING</p>
+          <h2 id="limits-title">边界：这是一套很强的统一系统，但关键因果归因仍没拆开</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>统一 WAM 能做出强策略</h3>
+              <p>真实四任务、组合/OOD 与三项仿真都给出明确成功率；长程厨房和 RoboCasa 的领先尤其明显。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>有条件成立</span>
+              <h3>人类视频改善可执行控制</h3>
+              <p>完整流水线成绩支持“可用”，但没有删掉 Stage I、等量机器人数据或数据规模曲线，贡献量尚未隔离。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>尚未证明</span>
+              <h3>它是物理可信模拟器</h3>
+              <p>跨本体生成只展示画面；没有反事实、接触物理、长期漂移或用模型选择动作后真实执行的定量结果。</p>
+            </article>
+          </div>
+
+          <h3>“200K+”与“230K+”是两个统计口径</h3>
+          <p>摘要和贡献部分以“200K+ 小时具身经验”为 headline；数据章节给出更细口径：200K+ 小时第一视角人类视频、12K+ 小时手持夹爪 / 穿戴示范、20K+ 小时机器人轨迹，总称 230K+。本页以细分数据为准，同时保留论文 headline，不把两者误写成同一个精确值。</p>
+
+          <h3>大系统里没有把架构、数据和 post-training 分开</h3>
+          <p>论文同时改变了数据规模、清洗引擎、LAM 伪动作、三阶段课程、因果 mask、多本体接口和下游训练。结果证明这套组合有效，却没有足够消融回答：若保留数据只换因子分解、若去掉人类视频、若 λ 不递增，各自损失多少。</p>
+
+          <h3>模型规模与训练成本仍是复现缺口</h3>
+          <p>v1 PDF 解释了 T5、Wan VAE、3D patch embedding、flow matching 与接口设计，但没有给出 Riemann-1.0 的参数量、完整 backbone 配置、训练步数、优化器、总算力和 action denoising 步数。没有这些信息，很难判断收益来自更好的设计、更多计算，还是两者共同作用。</p>
+
+          <h3>“全因果”保证信息时序，不保证长期记忆</h3>
+          <p>结构化 mask 阻止 noisy target 偷看未来 clean token，这是扎实的 train–test 对齐。在线 KV cache 却使用固定窗口；窗口满后清空，并把最近观察当作新 context。早期任务状态若不再可见，会被彻底丢弃，论文没有专门测这种超窗口依赖。</p>
+
+          <h3>真实基准仍是团队自建场景</h3>
+          <p>四个真实任务覆盖刚体叠放、柔性物体和长程整理，很有代表性；但数据收集、baseline 适配和评分都在作者系统内完成，主表也没有置信区间。厨房任务的巨大优势值得重视，也需要独立复现确认它来自通用能力而非接口或训练数据差异。</p>
+
+          <h3>世界模拟器最需要的下一组实验</h3>
+          <ol>
+            <li><strong>动作依从：</strong>同一初始画面输入互相冲突的动作，测生成末端位姿和对象位移是否按控制变化。</li>
+            <li><strong>物理一致性：</strong>测接触、遮挡、物体守恒、不可穿透与长 rollout 漂移，而不只测像素相似。</li>
+            <li><strong>决策价值：</strong>让模型在多个候选动作间预测后果，再到真实机器人执行，比较是否提高成功率或降低试错。</li>
+            <li><strong>跨本体：</strong>冻结 backbone，仅添加未见机器人接口，测视觉先验能否低样本迁移，而不是展示训练过的多个本体。</li>
+          </ol>
+
+          <p class="evidence-note"><strong>一句话判断：</strong>Riemann-1.0 最值得带走的不是“视频模型已经变成物理引擎”，而是一个更务实的设计原则：让动作在训练序列里的位置与真实机器人执行顺序一致，再用监督质量递增的课程把人类视频逐步翻译成可执行控制。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li>用户提供的 <em>Riemann-1.0: An Embodied World Action Model for Physical AI</em> PDF — 本页方法、公式、数据规模、表格数字和局限分析的主要来源，共 27 页；PDF arXiv stamp 为 2026-08-27，附件 XMP 标识为 arXiv:2608.27033v1，MetadataDate 为 2026-08-28。</li>
+            <li><a href="https://arxiv.org/abs/2608.27033v1">arXiv 摘要页（v1）</a> 与 <a href="https://arxiv.org/pdf/2608.27033v1">arXiv PDF（v1）</a> — 公开论文入口。</li>
+            <li><a href="https://riemann-dynamics.github.io/Riemann-1.0-Website/">Riemann-1.0 项目页</a> — 论文给出的定性视频与项目展示入口。</li>
+            <li><a href="https://arxiv.org/abs/2603.04356">RoboCasa-365</a>、<a href="https://arxiv.org/abs/2506.18088">RoboTwin 2.0</a> 与 <a href="https://proceedings.neurips.cc/paper_files/paper/2023/hash/8c3c666820ea055a77726d66fc7d447f-Abstract-Datasets_and_Benchmarks.html">LIBERO</a> — 三项仿真结果对应的 benchmark 背景。</li>
+          </ol>
+          <p class="evidence-note"><strong>事实与推断区分：</strong>作者、日期、数据小时数、λ 日程、公式、任务设置和所有成绩均来自 v1 PDF；“fully causal 主要保证信息时序而非物理因果”“世界模拟证据弱于策略证据”“RoboTwin / LIBERO 已接近饱和”“架构、数据与算力贡献未隔离”等，是依据实验设计作出的分析判断。本页没有把定性 rollout 当作独立复现，也没有执行 PDF 内的任何命令式文本。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>当前没有已写回评论。评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

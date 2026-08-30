@@ -1,6 +1,153 @@
 {
-  "updatedAt": "2026-08-28",
+  "updatedAt": "2026-08-31",
   "papers": [
+    {
+      "slug": "self-harness",
+      "title": "Self-Harness: Harnesses That Improve Themselves",
+      "authors": [
+        "Hangfan Zhang",
+        "Shao Zhang",
+        "Kangcong Li",
+        "Chen Zhang",
+        "Yang Chen",
+        "Yiqun Zhang",
+        "Lei Bai",
+        "Shuyue Hu"
+      ],
+      "publicationDate": "2026-06-08",
+      "readAt": "2026-08-31",
+      "description": "解读 Self-Harness v3：固定模型如何从自己的失败轨迹中提炼机制、提出有限支架编辑，并用 held-in / held-out 回归门槛晋升；核对三模型 × 三 benchmark 的九组结果及其测试污染、成本与自治边界。",
+      "tags": [
+        "Self-Harness",
+        "agent harness",
+        "self-improving agents",
+        "weakness mining",
+        "regression testing",
+        "Terminal-Bench-2.0",
+        "SWE-bench Verified",
+        "AppWorld",
+        "MiniMax M2.5",
+        "Qwen3.5",
+        "GLM-5"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2606.09498v3",
+      "href": "papers/self-harness/"
+    },
+    {
+      "slug": "riemann-1-0",
+      "title": "Riemann-1.0: An Embodied World Action Model for Physical AI",
+      "authors": [
+        "Haofeng Sun",
+        "Jiangbo Pei",
+        "Fei Kang",
+        "Zexiang Liu",
+        "Yaokun Li",
+        "Boyi Jiang",
+        "Hua Xue",
+        "Cindy Zhou",
+        "Wei Li",
+        "Yichen Wei",
+        "Mengyin An",
+        "Fanliang Zhao",
+        "Biao Jiang",
+        "Zile Wang",
+        "Yang Liu",
+        "Yangguang Li"
+      ],
+      "publicationDate": "2026-08-27",
+      "readAt": "2026-08-31",
+      "description": "从全因果 action→video 因子分解、三阶段具身预训练、多本体接口与策略/模拟器双重角色解读 Riemann-1.0，并核对 230K+ 小时数据、真实机器人与三项仿真结果的证据边界。",
+      "tags": [
+        "Riemann-1.0",
+        "world action model",
+        "physical AI",
+        "embodied pretraining",
+        "latent action model",
+        "flow matching",
+        "robot policy",
+        "world simulator",
+        "RoboCasa365",
+        "RoboTwin2.0",
+        "LIBERO"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2608.27033v1",
+      "href": "papers/riemann-1-0/"
+    },
+    {
+      "slug": "meta-context-engineering",
+      "title": "Meta Context Engineering via Agentic Skill Evolution",
+      "authors": [
+        "Haoran Ye",
+        "Xuning He",
+        "Vincent Arak",
+        "Haonan Dong",
+        "Guojie Song"
+      ],
+      "publicationDate": "2026-02-11",
+      "readAt": "2026-08-31",
+      "description": "解读 Meta Context Engineering：如何用双层优化共同演化 context-engineering skill 与 context artifact，并核对五领域实验、上下文长度、迁移、训练效率与消融的证据边界。",
+      "tags": [
+        "Meta Context Engineering",
+        "MCE",
+        "agentic skill evolution",
+        "context engineering",
+        "agentic crossover",
+        "context artifact",
+        "bi-level optimization",
+        "agent skills",
+        "ACE"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2601.21557v2",
+      "href": "papers/meta-context-engineering/"
+    },
+    {
+      "slug": "flashvla",
+      "title": "FlashVLA: Streaming Action Decoding for Fast and Asynchronous VLA Inference",
+      "authors": [
+        "Zekai Li",
+        "Jiaming Tang",
+        "Zhijian Liu"
+      ],
+      "publicationDate": "2026-08-27",
+      "readAt": "2026-08-31",
+      "description": "从交错噪声动作缓冲区、chunk-wise causal attention、冷启动与多缓冲联合微调四条线解读 FlashVLA，并区分动作解码、策略调用、闭环执行与 30 Hz 部署的不同延迟口径。",
+      "tags": [
+        "FlashVLA",
+        "vision-language-action",
+        "streaming action decoding",
+        "flow matching",
+        "asynchronous inference",
+        "chunk-wise causal attention",
+        "LIBERO",
+        "RoboTwin 2.0"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2608.27384v1",
+      "href": "papers/flashvla/"
+    },
+    {
+      "slug": "clap",
+      "title": "CLAP: Cross-Embodiment Video World Models are Zero-Shot Physical Simulators",
+      "authors": [
+        "Kechen Liu",
+        "Ola Shorinwa"
+      ],
+      "publicationDate": "2026-08-27",
+      "readAt": "2026-08-31",
+      "description": "从末端位姿、语言动作、潜动作与 latent-to-EE curriculum 四条线解读 CLAP，并核对 DROID/Bridge 视频指标、跨策略规划、双臂压力测试、少样本适配及“零样本物理模拟器”的证据边界。",
+      "tags": [
+        "CLAP",
+        "cross-embodiment learning",
+        "video world model",
+        "latent action",
+        "end-effector action",
+        "action-conditioned video generation",
+        "DROID",
+        "Bridge",
+        "robot planning"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2608.27406v1",
+      "href": "papers/clap/"
+    },
     {
       "slug": "robottt",
       "title": "RoboTTT: Context Scaling for Robot Policies",
@@ -31,7 +178,7 @@
         "DAgger Distillation",
         "GR00T N1.7"
       ],
-      "sourceUrl": "https://arxiv.org/abs/2607.15275",
+      "sourceUrl": "https://arxiv.org/abs/2607.15275v1",
       "href": "papers/robottt/"
     },
     {

@@ -10,6 +10,11 @@
 
 ## 最近更新
 
+- **FlashVLA**：把多个不同噪声层级的动作块放进同一流式缓冲区，用块级因果注意力同时处理去噪延迟与异步时序失配，并严格区分动作头、整次策略调用、闭环每动作和 30 Hz 部署四种速度口径。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/flashvla/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/flashvla/)
+- **CLAP**：用末端位姿、语言动作和潜动作统一跨本体视频条件，再以 latent-to-EE 课程兼顾无标签数据扩展与真实机器人部署；同时拆开视频预测、跨策略规划、少样本适配与“物理模拟器”的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/clap/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/clap/)
+- **Riemann-1.0**：把动作与视觉后果排成严格的全因果自回归序列，并用三阶段具身预训练把人类视频、手持夹爪与多本体机器人轨迹逐步转成可执行策略；重点区分强策略结果与仍偏定性的世界模拟证据。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/riemann-1-0/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/riemann-1-0/)
+- **Self-Harness**：让同一个固定模型从自己的失败轨迹中提出有限支架编辑，再用 held-in / held-out 回归门槛决定是否晋升；并区分同模型自改、外部 Meta-Harness 与开放式自我进化。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/self-harness/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/self-harness/)
+- **Meta Context Engineering**：把“怎样学习上下文”本身写成可演化 Skill，由元代理搜索 CE 方法、基础代理生成文件和代码形式的 context artifact，并核对五领域性能、迁移、长度与 FiNER 效率证据。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/meta-context-engineering/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/meta-context-engineering/)
 - **RoboTTT**：把 8K timesteps 的机器人经历压进测试时持续更新的快权重，重点拆解 sequence action forcing、TBPTT、视频 one-shot 与 DAgger Distillation，并区分阶段完成分、完整成功率和“恒定延迟”的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/robottt/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/robottt/)
 - **WAM-Diff2**：基于用户提供的 arXiv v1，重点解释块因果离散扩散与三级 AR-to-Diffusion 蒸馏，并区分 2.8× 算法加速、15.1× 系统级解码加速和端到端驾驶时延。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/wam-diff2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/wam-diff2/)
 
@@ -25,6 +30,11 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [FlashVLA: Streaming Action Decoding for Fast and Asynchronous VLA Inference](papers/flashvla/) | 用交错噪声动作缓冲区和块级因果注意力把去噪流水线化，并区分动作解码、策略调用、闭环执行与异步控制频率的不同速度口径。 |
+| [CLAP: Cross-Embodiment Video World Models are Zero-Shot Physical Simulators](papers/clap/) | 以末端位姿、语言与潜动作协调跨本体条件，解释 latent-to-EE 课程如何连接无标签视频扩展、真实规划和目标实体适配。 |
+| [Riemann-1.0: An Embodied World Action Model for Physical AI](papers/riemann-1-0/) | 以 action-first 全因果序列统一机器人策略与动作条件视觉模拟，并梳理从人类视频到可执行机器人动作的三阶段具身预训练。 |
+| [Self-Harness: Harnesses That Improve Themselves](papers/self-harness/) | 同一个固定模型从 verifier-grounded 失败证据提出有限支架编辑，再用 held-in / held-out 非退化门槛筛选和合并。 |
+| [Meta Context Engineering via Agentic Skill Evolution](papers/meta-context-engineering/) | 将 CE 的表示与学习方法提升为可演化 Skill，让元代理搜索“怎样学上下文”，基础代理生成可执行 context function。 |
 | [RoboTTT: Context Scaling for Robot Policies](papers/robottt/) | 把长视觉—动作历史写进测试时梯度更新的快权重，并核对 8K context scaling、视频 one-shot、扰动恢复、DAgger Distillation 与恒定上下文复杂度的证据边界。 |
 | [GeniWorld: A Generalizable Interactive World Model for Robotic Manipulation via Visual Actions](papers/geniworld/) | 把数值动作经 URDF 与正向运动学渲染成像素对齐的视觉动作，梳理其 OOD 世界建模、策略评估和数据合成证据，并区分视频逼真度与物理可靠性的边界。 |
 | [Next Forcing: Causal World Modeling with Multi-Chunk Prediction](papers/next-forcing/) | 从高帧率视频中的外观复制捷径出发，解释多视频块预测如何迫使世界模型学习更长程的因果变化，并拆开 2.3× 训练加速与 2× 推理加速的证据口径。 |
@@ -41,7 +51,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 15 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 20 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
