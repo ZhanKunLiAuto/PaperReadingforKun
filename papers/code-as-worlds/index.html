@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Code as Worlds: Agentic Discovery of Executable World Representations for Physical Reasoning">
+    <meta name="citation_author" content="Hanyang Wang">
+    <meta name="citation_author" content="Yimo Cai">
+    <meta name="citation_author" content="Weiliang Chen">
+    <meta name="citation_author" content="Jiawei Chi">
+    <meta name="citation_author" content="Haowen Sun">
+    <meta name="citation_author" content="Qiyu Dai">
+    <meta name="citation_author" content="Yi-Hsin Hung">
+    <meta name="citation_author" content="Xingzhuo Guo">
+    <meta name="citation_author" content="Jinshan Ren">
+    <meta name="citation_author" content="Runmao Yao">
+    <meta name="citation_author" content="Ziwei Liu">
+    <meta name="citation_author" content="Mingsheng Long">
+    <meta name="citation_author" content="Yueqi Duan">
+    <meta name="citation_author" content="Jun Gao">
+    <meta name="citation_author" content="Jiangran Lyu">
+    <meta name="citation_author" content="Fangfu Liu">
+    <meta name="citation_author" content="Jialong Wu">
+    <meta name="citation_publication_date" content="2026-08-27">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.27549v1">
+    <meta name="citation_public_url" content="https://mirros-lab.github.io/code-as-world">
+    <meta name="description" content="从可执行世界表示、溯因式 Agent 发现循环、像素到世界尺度校准与两阶段物理监督解读 Code as Worlds，并区分可观测一致性、真实机制恢复和 QuantiPhy-validation 证据边界。">
+    <meta name="keywords" content="Code as Worlds, Code-as-World, executable world representation, physical reasoning, agentic discovery, simulation, QuantiPhy, vision-language model">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>Code as Worlds：把物理世界写成可执行、可检验的程序</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/code-as-worlds/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">MIRROS TECHNICAL REPORT · ARXIV:2608.27549V1 · 核对日期：2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住表示与监督主线</a></li>
+          <li><a href="#concepts">分清 EWR、溯因与物理等价</a></li>
+          <li><a href="#problem-chain">看像素、3D、语言缺什么</a></li>
+          <li><a href="#mechanism">沿发现循环到 VLM 训练</a></li>
+          <li><a href="#evidence">核对 QuantiPhy 与消融</a></li>
+          <li><a href="#limits">限定机制恢复与通用性</a></li>
+          <li><a href="#sources">回到论文、项目与代码</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">EXECUTABLE WORLD REPRESENTATIONS · ABDUCTIVE DISCOVERY · QUANTITATIVE PHYSICAL REASONING</p>
+          <h1 id="paper-title" class="paper-title">Code as Worlds</h1>
+          <p class="paper-subtitle">
+            它不满足于生成一段“看起来合理”的未来，而是把物体、参数、初始状态、动力学和相机写成能运行的世界程序，再用执行结果反复检验这个假设。
+          </p>
+          <div class="paper-byline">
+            <span>Hanyang Wang、Yimo Cai、Weiliang Chen 等 17 位作者</span>
+            <span>MirroS、清华大学、北京大学、南洋理工大学</span>
+            <span>技术报告 · arXiv v1 · 31 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              找到一种既能保存物理组成与动态机制，又能执行、编辑、回放和用观测证据验证的世界表示；随后用验证过的模拟状态自动产生世界尺度的尺寸、位移、速度和加速度监督，弥补真实单目视频缺少定量物理标签的问题。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="code-overview-title code-overview-desc">
+            <svg viewBox="0 0 760 466" role="img" aria-labelledby="code-overview-title code-overview-desc">
+              <title id="code-overview-title">Code as Worlds 的表示、发现与学习总览</title>
+              <desc id="code-overview-desc">像素、三维与语言各自缺少明确物理机制或可执行性，Code-as-World 用组成、演化和外观三层程序表示世界，经 Agent 提出、执行、渲染、验证和修正，再用验证世界产生物理监督训练 VLM。</desc>
+              <defs>
+                <marker id="code-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="466" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">01 / 旧表示的缺口</text>
+              <rect x="34" y="64" width="202" height="78" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="92" fill="#17201d" font-size="15" font-weight="700">像素：细节丰富</text>
+              <text x="54" y="118" fill="#52605b" font-size="12">却不说明质量、接触与因果</text>
+              <rect x="34" y="157" width="202" height="78" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="185" fill="#17201d" font-size="15" font-weight="700">3D：几何明确</text>
+              <text x="54" y="211" fill="#52605b" font-size="12">却不自动给出动力学演化</text>
+              <rect x="34" y="250" width="202" height="78" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="54" y="278" fill="#17201d" font-size="15" font-weight="700">语言：语义紧凑</text>
+              <text x="54" y="304" fill="#52605b" font-size="12">却难精确表达连续量与轨迹</text>
+
+              <path d="M248 196H278" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#code-overview-arrow)"/>
+              <text x="284" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">02 / 可执行世界假设</text>
+              <rect x="280" y="64" width="228" height="78" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="300" y="92" fill="#17201d" font-size="15" font-weight="700">C · Physical Composition</text>
+              <text x="300" y="118" fill="#52605b" font-size="12">对象、尺寸、质量、摩擦、环境</text>
+              <rect x="280" y="157" width="228" height="78" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="300" y="185" fill="#17201d" font-size="15" font-weight="700">E · Dynamic Evolution</text>
+              <text x="300" y="211" fill="#52605b" font-size="12">初始状态、事件、轨迹与终止</text>
+              <rect x="280" y="250" width="228" height="78" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="300" y="278" fill="#17201d" font-size="15" font-weight="700">A · Visual Appearance</text>
+              <text x="300" y="304" fill="#52605b" font-size="12">相机、材质、灯光与渲染</text>
+
+              <path d="M520 196H550" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#code-overview-arrow)"/>
+              <text x="556" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">03 / 发现与监督</text>
+              <rect x="552" y="64" width="174" height="264" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="572" y="94" fill="#17201d" font-size="14" font-weight="700">Agent 循环</text>
+              <text x="572" y="119" fill="#52605b" font-size="11">提出 → 执行 → 渲染</text>
+              <text x="572" y="139" fill="#52605b" font-size="11">验证 → 诊断 → 修正</text>
+              <line x1="572" y1="158" x2="706" y2="158" stroke="#d8d4ca"/>
+              <text x="572" y="184" fill="#17201d" font-size="14" font-weight="700">VLM 两阶段训练</text>
+              <text x="572" y="209" fill="#52605b" font-size="11">Image-Space SFT</text>
+              <text x="572" y="229" fill="#52605b" font-size="11">World-Space GRPO</text>
+              <line x1="572" y1="248" x2="706" y2="248" stroke="#d8d4ca"/>
+              <text x="572" y="274" fill="#17201d" font-size="14" font-weight="700">QuantiPhy val.</text>
+              <text x="572" y="299" fill="#52605b" font-size="12">50.6 / 55.4 / 58.6</text>
+              <text x="572" y="318" fill="#52605b" font-size="10">4B / 9B / 27B MRA</text>
+
+              <path d="M128 352V390H642V352" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="128" y="382" width="520" height="58" rx="29" fill="#17201d"/>
+              <text x="388" y="407" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">可执行并不等于真实：被有限证据验证，也可能仍非唯一机制</text>
+              <text x="388" y="428" text-anchor="middle" fill="#d8d4ca" font-size="11">当前最稳的定位：模拟器拟合框架 + 结构化物理数据引擎</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文把世界程序放在像素、3D 和语言之间：前三者提供证据，EWR 提供可执行机制；执行结果再回到观测空间接受检验。验证通过意味着“能解释当前证据”，不自动意味着恢复了唯一真实物理世界。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，Code-as-World 是一种世界假设语言，而不是新的视频生成 backbone。</strong>物理组成 C、动态演化 E、视觉外观 A 被分别编码，编译到 MuJoCo 后可执行、局部编辑和反事实重放。</p>
+            <p><strong>第二，Agentic discovery 的价值来自闭环诊断。</strong>同样五次评估预算下，迭代修改在 Visual Alignment、Object IoU、Traj-ADE 与 Accuracy 上优于独立 Best-of-5；但主文 animation-engine 实验的 Velocity-ADE 例外。</p>
+            <p><strong>第三，VLM 学到的是发现结果，不是发现过程。</strong>Code-as-World-VL 用像素测量数据做 SFT，再用 EWR 产生的世界尺度 QA 做 GRPO；测试 27B 时没有 EWR、模拟器状态、轨迹、工具或检索。</p>
+            <p><strong>第四，58.6 是公开 QuantiPhy-validation 上的结果。</strong>该协议只有 159 个 QA，给定参考物理量，3D 题还提供深度上下文；它证明定量尺度校准显著提升，不等于无先验通用物理推理已经解决。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">三个概念：可执行世界、溯因发现与物理等价</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">EXECUTABLE WORLD REPRESENTATION（可执行世界表示，EWR）</span>
+            <p><strong>英译中：</strong>把对象、参数、初始状态、演化规则与相机外观写成满足模拟器接口、能够实际运行的程序。</p>
+            <p><strong>怎么理解：</strong>普通文本说“两个球相撞”，EWR 还要决定球的真实尺寸、质量、摩擦、速度、接触几何、重力、相机和时间轴；运行后必须产生完整状态轨迹。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ABDUCTIVE REASONING（溯因推理）</span>
+            <p><strong>英译中：</strong>从不完整观察出发，提出一个能解释现象的最佳假设，再用新证据反复修正。</p>
+            <p><strong>怎么理解：</strong>文本或单目视频都不足以直接读出质量和摩擦。文本世界主要核对语义关系与物理约束；视频世界还会比较 RGB、深度、mask 与轨迹。误差诊断再告诉 Agent 下一轮该改几何、相机还是动力学。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">PHYSICAL EQUIVALENCE（物理等价）</span>
+            <p><strong>英译中：</strong>目标不是逐像素复制输入，而是恢复足以复现关键对象、事件与运动关系的机制结构。</p>
+            <p><strong>怎么理解：</strong>材质、背景和光照可以变化，只要核心碰撞或轨迹保持；但“看起来与证据一致”仍可能对应多组尺度、质量、摩擦与相机组合，因此物理等价不等于因果唯一。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">REPRESENTATION GAP</p>
+          <h2 id="problem-title">为什么视觉合理、几何完整与语言解释都还不够</h2>
+
+          <figure class="svg-figure" aria-labelledby="code-rep-title code-rep-desc">
+            <svg viewBox="0 0 760 390" role="img" aria-labelledby="code-rep-title code-rep-desc">
+              <title id="code-rep-title">四类物理世界表示的能力对照</title>
+              <desc id="code-rep-desc">像素保留外观但隐藏机制，三维恢复几何但缺少动力学，语言可组合但连续量不精确，可执行代码把组成演化外观显式化并可运行验证，同时受模拟器覆盖限制。</desc>
+              <defs>
+                <marker id="code-rep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="390" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">每种表示保留一类信息，也留下一个推理缺口</text>
+              <rect x="34" y="68" width="160" height="220" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="114" y="101" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">Pixels</text>
+              <text x="54" y="139" fill="#52605b" font-size="12">✓ 纹理与真实外观</text>
+              <text x="54" y="168" fill="#52605b" font-size="12">✓ 连续视觉运动</text>
+              <text x="54" y="210" fill="#86321f" font-size="12">✕ 状态与参数隐含</text>
+              <text x="54" y="239" fill="#86321f" font-size="12">✕ 反事实难控制</text>
+              <text x="54" y="268" fill="#86321f" font-size="11">像不像 ≠ 机制对</text>
+              <rect x="210" y="68" width="160" height="220" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="290" y="101" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">3D</text>
+              <text x="230" y="139" fill="#52605b" font-size="12">✓ 几何与相机</text>
+              <text x="230" y="168" fill="#52605b" font-size="12">✓ 空间可量测</text>
+              <text x="230" y="210" fill="#355e7c" font-size="12">✕ 未给接触规则</text>
+              <text x="230" y="239" fill="#355e7c" font-size="12">✕ 未给时间演化</text>
+              <text x="230" y="268" fill="#355e7c" font-size="11">几何完整 ≠ 动力学完整</text>
+              <rect x="386" y="68" width="160" height="220" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="466" y="101" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">Language</text>
+              <text x="406" y="139" fill="#52605b" font-size="12">✓ 语义与可组合性</text>
+              <text x="406" y="168" fill="#52605b" font-size="12">✓ 高层因果描述</text>
+              <text x="406" y="210" fill="#9c7b1f" font-size="12">✕ 连续量不精确</text>
+              <text x="406" y="239" fill="#9c7b1f" font-size="12">✕ 无法直接执行</text>
+              <text x="406" y="268" fill="#9c7b1f" font-size="11">会解释 ≠ 会模拟</text>
+              <rect x="562" y="68" width="164" height="220" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="644" y="101" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">Code</text>
+              <text x="582" y="139" fill="#52605b" font-size="12">✓ 参数与状态显式</text>
+              <text x="582" y="168" fill="#52605b" font-size="12">✓ 执行、编辑、验证</text>
+              <text x="582" y="210" fill="#24624e" font-size="12">✓ 可产精确监督</text>
+              <text x="582" y="239" fill="#86321f" font-size="12">✕ 受引擎覆盖限制</text>
+              <text x="582" y="268" fill="#86321f" font-size="11">可执行 ≠ 唯一真实</text>
+              <path d="M112 322H644" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-rep-arrow)"/>
+              <text x="378" y="352" text-anchor="middle" fill="#355e7c" font-size="13" font-weight="700">从“记录现象”走向“明确假设并接受执行检验”</text>
+              <text x="378" y="374" text-anchor="middle" fill="#52605b" font-size="11">Code 不是替代前三者；它用前三者作证据，再提供机制层接口</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文的主张不是代码天然优于图像、3D 或语言，而是代码能把它们提供的证据编译成一个可失败的物理假设。它的代价是只能表达模拟器与 schema 已覆盖的现象。</figcaption>
+          </figure>
+
+          <h3>单目逆问题没有唯一答案</h3>
+          <p>观察到同一条二维轨迹，既可能来自不同真实尺度与速度，也可能来自不同相机焦距；碰撞后速度相近，也可能由多组质量、摩擦和恢复系数组合产生。Agent 能找到一个解释，却没有从有限证据证明这就是唯一底层机制。</p>
+
+          <h3>感知误差会被误写成物理参数</h3>
+          <p>视频 adapter 依赖 SAM3 的 mask/track、VGGT-Omega 的深度与相机、SAM3D 的 mesh。任何分割、深度或跟踪偏差都可能进入诊断，最终被 Agent 用错误尺度、位置或动力学补偿。论文没有逐项移除这些证据源的消融。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">DISCOVERY AND LEARNING</p>
+          <h2 id="mechanism-title">EWR 先被执行验证，再变成 VLM 的定量老师</h2>
+
+          <div class="formula-card" aria-label="EWR 公式说明">
+            <div class="formula-card__label">公式拆解 · 一个可执行世界包含什么</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">p</span> = (C, E, A) ∈ P<sub>exec</sub>
+            </div>
+            <p class="formula-card__caption">这条公式回答：什么样的世界描述才不仅能被读懂，还能被编译并运行。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>C</dt><dd>Physical Composition：对象、几何、真实尺寸、质量、摩擦、重力与参与接触的环境实体。</dd></div>
+              <div class="formula-legend__row"><dt>E</dt><dd>Dynamic Evolution：初始状态、时变轨迹、关键事件、约束、模拟时长与终止条件。</dd></div>
+              <div class="formula-legend__row"><dt>A</dt><dd>Visual Appearance：相机、背景、材质、灯光、帧率与分辨率；原则上不改变底层物理。</dd></div>
+              <div class="formula-legend__row"><dt>P<sub>exec</sub></dt><dd>满足 simulator SDK 接口的程序空间；语法正确但不能运行的描述不在其中。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：把“世界是什么、怎样演化、怎样被看见”分开，才能只改相机而不改物理，或只改初速度而重放同一场景。</div>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="code-loop-title code-loop-desc">
+            <svg viewBox="0 0 760 470" role="img" aria-labelledby="code-loop-title code-loop-desc">
+              <title id="code-loop-title">文本与视频适配器进入 Agentic discovery loop</title>
+              <desc id="code-loop-desc">文本由语言模型抽取实体关系和事件，视频由分割、深度相机与三维网格适配；证据进入修改世界、编译、模拟、渲染投影、比较诊断循环，到给定预算后接受或拒绝，视频重建实验将预算设为五轮。</desc>
+              <defs>
+                <marker id="code-loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="470" fill="#fbfaf6"/>
+              <rect x="34" y="58" width="194" height="126" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="54" y="88" fill="#17201d" font-size="15" font-weight="700">文本 adapter</text>
+              <text x="54" y="115" fill="#52605b" font-size="11">实体 · 关系 · 事件 · 目标</text>
+              <text x="54" y="139" fill="#52605b" font-size="11">缺失参数用物理先验初始化</text>
+              <text x="54" y="163" fill="#86321f" font-size="10">文本规范经人工审核</text>
+              <rect x="34" y="218" width="194" height="148" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="248" fill="#17201d" font-size="15" font-weight="700">视频 adapter</text>
+              <text x="54" y="275" fill="#52605b" font-size="11">SAM3 · mask / track</text>
+              <text x="54" y="299" fill="#52605b" font-size="11">VGGT-Omega · depth / camera</text>
+              <text x="54" y="323" fill="#52605b" font-size="11">SAM3D · object mesh</text>
+              <text x="54" y="347" fill="#86321f" font-size="10">筛除相机运动、剪辑与低运动视频</text>
+              <path d="M230 121H282" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+              <path d="M230 292H258V174H282" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+
+              <rect x="286" y="80" width="176" height="70" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="374" y="108" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">1 · Modify EWR</text>
+              <text x="374" y="132" text-anchor="middle" fill="#52605b" font-size="11">提出 / 修改世界假设 p</text>
+              <path d="M464 115H510" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+              <rect x="514" y="80" width="180" height="70" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="604" y="108" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">2 · Compile / Run</text>
+              <text x="604" y="132" text-anchor="middle" fill="#52605b" font-size="11">p → θ → MuJoCo 轨迹 τ</text>
+              <path d="M604 152V204" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+              <rect x="514" y="208" width="180" height="70" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="604" y="236" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">3 · Render / Project</text>
+              <text x="604" y="260" text-anchor="middle" fill="#52605b" font-size="11">RGB · depth · mask · track</text>
+              <path d="M512 243H466" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+              <rect x="286" y="208" width="176" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="374" y="236" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">4 · Compare / Diagnose</text>
+              <text x="374" y="260" text-anchor="middle" fill="#52605b" font-size="11">关键帧误差 → 结构化 Δ</text>
+              <path d="M374 206V154" fill="none" stroke="#86321f" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#code-loop-arrow)"/>
+              <text x="388" y="183" fill="#86321f" font-size="10">不满足：反馈下一轮</text>
+
+              <path d="M374 280V330" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-loop-arrow)"/>
+              <rect x="286" y="334" width="408" height="76" rx="5" fill="#17201d"/>
+              <text x="490" y="363" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">5 · Accept or Reject at budget K</text>
+              <text x="490" y="387" text-anchor="middle" fill="#d8d4ca" font-size="11">重建实验设 K=5；解释充分且足够简约则接受，否则拒绝</text>
+              <text x="286" y="443" fill="#52605b" font-size="11">论文说追求 parsimonious，但没有把简约度写成明确损失或报告独立指标。</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>可执行性让每个世界假设必须经过模拟器；渲染与投影又把内部状态重新翻译成输入可比较的证据。循环比一次生成更容易定位“错在几何、相机还是动力学”，但 accept 仍包含 Agent 判断；K 是算法预算，论文只在视频重建实验中固定为 5。</figcaption>
+          </figure>
+
+          <h3>Animation engine 与 physics engine 是同一接口的两种执行语义</h3>
+          <p>Animation engine 直接用时变位姿描述“什么在怎样运动”，主文视频重建主要使用它；physics engine 则从力、接触和约束推出运动，附录 Figure 11 再验证迭代收益。前者更易拟合观测轨迹，后者更接近机制推演，不能把两种证据混成同一物理精度。</p>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="code-train-title code-train-desc">
+            <svg viewBox="0 0 700 370" role="img" aria-labelledby="code-train-title code-train-desc">
+              <title id="code-train-title">Code-as-World-VL 的两阶段训练与测试边界</title>
+              <desc id="code-train-desc">第一阶段用像素空间的框、掩码与轨迹训练测量，第二阶段用文本和视频恢复的可执行世界产生世界单位问题做 GRPO；测试只输入十六帧、问题和参考量，没有模拟器或 EWR。</desc>
+              <defs>
+                <marker id="code-train-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="700" height="370" fill="#fbfaf6"/>
+              <rect x="34" y="62" width="188" height="102" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="128" y="92" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">D_pix · 73,335 QA</text>
+              <text x="128" y="119" text-anchor="middle" fill="#52605b" font-size="11">bbox · mask · track</text>
+              <text x="128" y="141" text-anchor="middle" fill="#52605b" font-size="11">像素尺寸 / 位移 / 速度 / 加速度</text>
+              <path d="M224 113H270" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-train-arrow)"/>
+              <rect x="274" y="62" width="152" height="102" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="350" y="98" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Stage 1 · SFT</text>
+              <text x="350" y="126" text-anchor="middle" fill="#52605b" font-size="11">先学定位、跟踪与测量</text>
+              <path d="M428 113H474" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-train-arrow)"/>
+              <rect x="478" y="62" width="188" height="102" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="572" y="92" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">D_world · 2,573 VQA</text>
+              <text x="572" y="119" text-anchor="middle" fill="#52605b" font-size="11">text-derived VQA 1,585</text>
+              <text x="572" y="141" text-anchor="middle" fill="#52605b" font-size="11">video-derived VQA 988</text>
+              <path d="M572 166V204H426" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-train-arrow)"/>
+              <rect x="274" y="198" width="152" height="82" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="350" y="229" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Stage 2 · GRPO</text>
+              <text x="350" y="255" text-anchor="middle" fill="#52605b" font-size="11">数值 + 单位 + 格式奖励</text>
+              <path d="M350 282V314" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#code-train-arrow)"/>
+              <rect x="118" y="310" width="464" height="42" rx="21" fill="#17201d"/>
+              <text x="350" y="336" text-anchor="middle" fill="#fffef9" font-size="12" font-weight="700">测试：16 帧 + 问题 + 给定参考量（3D 再给深度）→ 标量与单位</text>
+              <text x="350" y="365" text-anchor="middle" fill="#86321f" font-size="11">无 EWR · 无模拟器 · 无对象轨迹 · 无工具 · 无检索</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>世界发现是外部数据生产过程，模型只消费结果监督。73K 像素 QA 先教会“量得准”，2.6K 世界 QA 再教会“换成物理单位”；第二阶段数据远少，却对 QuantiPhy 带来 4.5–6.4 分宏平均提升。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="尺度校准公式说明">
+            <div class="formula-card__label">公式拆解 · 像素运动怎样变成世界单位</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">γ</span> = ρ / ρ<sub>pix</sub>,
+              &nbsp; <span class="formula-symbol">y</span> = γy<sub>pix</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：单目视频没有绝对尺度时，怎样利用题目给定的参考物理量校准尺寸、位移、速度或加速度。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>ρ</dt><dd>参考物在世界坐标中的已知真实量，例如球的直径。</dd></div>
+              <div class="formula-legend__row"><dt>ρ<sub>pix</sub></dt><dd>同一参考量在图像中的像素测量；模型先在 Image-Space 阶段学会定位它。</dd></div>
+              <div class="formula-legend__row"><dt>γ</dt><dd>像素到世界单位的比例尺。透视变化明显的 3D 题还需要 benchmark 提供的深度上下文。</dd></div>
+              <div class="formula-legend__row"><dt>y<sub>pix</sub>, y</dt><dd>目标像素量与最终世界量。QuantiPhy 主要考查这一校准链，不是无参考尺度恢复。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：模型不是凭外观猜“一米有多长”，而是先找到一把题目给定的尺子，再把图像差分测得的运动量按比例换算。</div>
+          </div>
+
+          <div class="formula-card" aria-label="物理强化学习奖励公式说明">
+            <div class="formula-card__label">公式拆解 · GRPO 怎样奖励定量回答</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">r<sub>num</sub></span> = exp(−|ŷ−y|/(|y|+ε)),
+              &nbsp; r = r<sub>num</sub> + λ<sub>u</sub>r<sub>unit</sub> + λ<sub>f</sub>r<sub>fmt</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：怎样同时约束数值接近、单位正确和输出可解析。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>ŷ, y</dt><dd>模型预测值与 EWR 状态提供的精确真值。</dd></div>
+              <div class="formula-legend__row"><dt>r<sub>num</sub></dt><dd>相对误差指数奖励，范围 (0,1]；误差越小越接近 1。</dd></div>
+              <div class="formula-legend__row"><dt>r<sub>unit</sub></dt><dd>单位奖励，防止“数值对但 m/s 写成 m”仍得高分。</dd></div>
+              <div class="formula-legend__row"><dt>r<sub>fmt</sub></dt><dd>格式奖励，保证答案能被 benchmark parser 稳定读取。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：可执行世界提供连续真值，奖励不必只做对/错二分；但论文没有公布 λu、λf，完整训练配方仍不可复现。</div>
+          </div>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">QuantiPhy 的提升成立，但口径是公开 validation</h2>
+
+          <h3>主结果：9B 平均略超最佳 proprietary，27B 再提高 3.2 分</h3>
+          <div class="table-wrap" role="region" aria-label="Code-as-World-VL QuantiPhy validation 结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">Code-as-World-VL 在 QuantiPhy 公开 validation 四个子集上的 MRA 百分制结果</caption>
+              <thead><tr><th scope="col">模型</th><th scope="col">2S</th><th scope="col">2D</th><th scope="col">3S</th><th scope="col">3D</th><th scope="col">Avg MRA</th></tr></thead>
+              <tbody>
+                <tr><td>Gemini-3.1 Flash</td><td>49.4</td><td>47.5</td><td><strong>61.4</strong></td><td>61.1</td><td>54.8</td></tr>
+                <tr><td>ChatGPT-5.1</td><td><strong>56.9</strong></td><td>34.6</td><td>45.6</td><td>56.4</td><td>48.4</td></tr>
+                <tr><td>Qwen3-VL-32B-Instruct</td><td>38.1</td><td>39.7</td><td>39.8</td><td>43.0</td><td>40.2</td></tr>
+                <tr class="evidence-table__emphasis"><td>Code-as-World-VL-4B</td><td>45.4</td><td>55.4</td><td>45.8</td><td>56.0</td><td><strong>50.6</strong></td></tr>
+                <tr class="evidence-table__emphasis"><td>Code-as-World-VL-9B</td><td>55.0</td><td>52.9</td><td>55.6</td><td>58.1</td><td><strong>55.4</strong></td></tr>
+                <tr class="evidence-table__emphasis"><td>Code-as-World-VL-27B Reasoning</td><td>48.7</td><td><strong>62.4</strong></td><td>60.5</td><td><strong>62.8</strong></td><td><strong>58.6</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>MRA 先取解析数值的绝对值，在 10 个相对误差阈值上计算准确率均值，再对 2S、2D、3S、3D 做不加权宏平均；主表将结果乘以 100。9B 比 Gemini-3.1 Flash 宏平均高 0.6，却在 3S/3D 仍落后；27B 平均高 3.8，却在 2S/3S 仍略低。</p>
+          <p class="evidence-note"><strong>27B 协议：</strong>论文使用 step-60 checkpoint，temperature 1.0、top-p 0.95、最多 6,144 tokens，每题只采样一次，不做 self-consistency、投票或 best-of-N；parser 只读取最终 &lt;/think&gt; 后的第一个标量，未闭合的多行推理记 0。27B 同时改变参数规模、thinking 模式和回答协议，不能把 9B→27B 的 3.2 分全归因于 reasoning。</p>
+
+          <h3>世界数据消融：宏平均互补，不是每个子集都单调</h3>
+          <div class="table-wrap" role="region" aria-label="Code-as-World-VL 数据来源消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">文本世界与视频世界训练数据对 QuantiPhy validation MRA 的消融</caption>
+              <thead><tr><th scope="col">变体</th><th scope="col">Size</th><th scope="col">2S</th><th scope="col">2D</th><th scope="col">3S</th><th scope="col">3D</th><th scope="col">Avg</th></tr></thead>
+              <tbody>
+                <tr><td>Image-Space only</td><td>4B</td><td>45.3</td><td>45.1</td><td>31.6</td><td>54.6</td><td>44.2</td></tr>
+                <tr><td>+ Text worlds</td><td>4B</td><td>47.5</td><td>49.4</td><td>40.0</td><td>57.0</td><td>48.5</td></tr>
+                <tr><td>+ Video worlds</td><td>4B</td><td>42.2</td><td>52.7</td><td>46.5</td><td>49.8</td><td>47.8</td></tr>
+                <tr class="evidence-table__emphasis"><td>Full</td><td>4B</td><td>45.4</td><td>55.4</td><td>45.8</td><td>56.0</td><td><strong>50.6</strong></td></tr>
+                <tr><td>Image-Space only</td><td>9B</td><td>44.3</td><td>51.9</td><td>51.4</td><td>60.0</td><td>50.9</td></tr>
+                <tr><td>+ Text worlds</td><td>9B</td><td>47.2</td><td>48.1</td><td>53.5</td><td>61.1</td><td>52.5</td></tr>
+                <tr><td>+ Video worlds</td><td>9B</td><td>43.1</td><td>50.5</td><td><strong>57.4</strong></td><td><strong>61.5</strong></td><td>53.1</td></tr>
+                <tr class="evidence-table__emphasis"><td>Full</td><td>9B</td><td>55.0</td><td>52.9</td><td>55.6</td><td>58.1</td><td><strong>55.4</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>完整训练比 Image-only 提升 4B +6.4、9B +4.5。9B 的 video-only 在 3S/3D 反而高于 full，说明“文本世界 + 视频世界互补”最稳地成立在宏平均，不是所有子集都同时改善。</p>
+          <p class="evidence-note"><strong>论文内部不一致：</strong>Table 4、Table 1 与项目页都给 9B full Avg=55.4，表后正文却写从 50.9 升到 56.8。本页按三处一致的表格数值 55.4 处理，并把 56.8 视为编辑笔误。</p>
+
+          <h3>世界监督没有损坏像素测量，反而继续提升</h3>
+          <p>4B full 相对 Image-Space-only 在 RefCOCO/RefCOCOg/RefCOCO+/RefCLEF/GOT-10K 五项全部提高；9B 也全部提高，其中 RefCLEF 从 47.2 到 61.9，GOT-10K 从 20.1 到 26.6。这支持第二阶段不仅教单位换算，也反向改善定位和时序测量。</p>
+
+          <h3>Sim-to-real 更像真，却不是完全无损</h3>
+          <div class="table-wrap" role="region" aria-label="Code-as-World sim-to-real 结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">模拟器渲染与 sim-to-real 视频的视觉分布和运动保持指标</caption>
+              <thead><tr><th scope="col">视频</th><th scope="col">JEDi ↓</th><th scope="col">TRAJAN ↓</th><th scope="col">Traj-ADE ↓</th><th scope="col">Velocity-ADE ↓</th><th scope="col">Accuracy@2%D ↑</th></tr></thead>
+              <tbody>
+                <tr><td>Simulator render</td><td>3.000</td><td>406.872</td><td>1.682</td><td><strong>0.404</strong></td><td><strong>78.81</strong></td></tr>
+                <tr class="evidence-table__emphasis"><td>Sim-to-real</td><td><strong>1.484</strong></td><td><strong>185.321</strong></td><td><strong>1.677</strong></td><td>0.472</td><td>77.49</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>写实化使分布指标 JEDi/TRAJAN 分别下降约 50.5%/54.5%，轨迹 ADE 基本不变；但速度误差变差约 16.8%，阈值准确率下降 1.32 个百分点。更准确的结论是“显著改善视觉分布、整体运动近似保持”，不是物理轨迹完全无损。</p>
+
+          <h3>Agent loop 优于 Best-of-5，但主图没有精确数表或误差条</h3>
+          <p>Figure 5 显示五轮迭代在 Visual Alignment、Object IoU、Traj-ADE 与 Accuracy@2%D 上超过同为五次评估预算的独立 Best-of-5；Velocity-ADE 则没有。附录 physics-engine Figure 11 的五项都超过 Best-of-5。图中曲线只能做近似读数，不能写成精确表格结果。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">程序让假设可失败，却没有让物理逆问题变唯一</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>EWR 是有效的物理监督源</h3>
+              <p>两阶段训练在 QuantiPhy 与五项像素测量上同时提升，数据源消融方向一致。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>恢复与证据一致的世界</h3>
+              <p>循环可提高重建指标，但输入经筛选、有人审，且当前主要覆盖刚体运动。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>恢复唯一真实机制</h3>
+              <p>多组尺度、相机与物理参数可能产生相近观测；论文没有因果可识别性证明。</p>
+            </article>
+          </div>
+
+          <h3>第一，模拟器覆盖决定可表达世界</h3>
+          <p>当前重点是刚体、显著运动与碰撞。流体、布料、燃烧、断裂、弹塑性和气体需要新的专用引擎与验证证据；地形、材质、接触几何或隐变量差异也可能让恢复结果只是局部视觉合理。</p>
+
+          <h3>第二，数据生产仍有人类筛选与未披露成本</h3>
+          <p>文本规范经过人工审核，WISA-80K 候选也筛除相机运动、剪辑、低运动和事件不完整视频。论文未报告最终 EWR 数量、接受/拒绝率、Agent token 成本、墙钟时间或总工具调用；Best-of-5 只匹配评估次数，不一定匹配总预算。</p>
+
+          <h3>第三，QuantiPhy 范围窄且答案公开</h3>
+          <p>评估使用 159 题公开 validation，主要考查参考尺度下的尺寸、位移、速度和加速度；27B 还在该 validation 协议上报告训练 step 60。没有隐藏测试来验证复杂接触、遮挡、形变、流体或长时多体推理。</p>
+
+          <h3>第四，VLM 尚未内化 world discovery</h3>
+          <p>发现 Agent 负责假设构造、模拟、诊断与迭代；VLM 只学习这些世界产生的 QA。若任务要求对一段新视频主动提出多个机制、调用模拟器做干预并解释失败，当前 Code-as-World-VL 本身不会执行这套循环。</p>
+
+          <h3>第五，报告仍有复现与编辑缺口</h3>
+          <p>未披露 discovery agent 所用 LLM、关键帧选择细节、奖励 λu/λf 和 4B/9B 的完整优化配置。除 55.4/56.8 冲突外，附录 B.2 说 physics-engine 结果见 C.1，实际 Figure 11 位于 C.2。</p>
+
+          <h3>第六，论文日期与 arXiv 日期要分开记</h3>
+          <p>标题页写 “Date: August 31, 2026”，官方 arXiv v1 提交为 2026-08-27。本页目录元数据采用 arXiv 提交日，首屏同时标注 MirroS Technical Report；二者不是同一个发布日期口径。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2608.27549v1">论文摘要页：arXiv:2608.27549v1</a> — 17 位作者、提交日期、分类与项目页入口。</li>
+            <li><a href="https://arxiv.org/pdf/2608.27549v1">用户提供附件对应的官方 v1 PDF</a> — EWR、Agent 循环、公式、QuantiPhy、附录消融与局限的主要来源，共 31 页。</li>
+            <li><a href="https://mirros-lab.github.io/code-as-world">官方项目页</a> — 模型、可视化与项目材料入口；正式引用元数据以 arXiv 为准。</li>
+            <li><a href="https://github.com/mirros-lab/code-as-world">官方代码仓库</a> — 可执行 SDK 与后续复现入口；代码许可与论文 PDF 许可分别处理。</li>
+            <li><a href="https://mirros.ai/blog/representing-physical-world">MirroS 官方博客</a> — 面向读者的项目说明；本页定量结论仍以 PDF 表格为准。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>EWR schema、数据量、训练设置、重建指标与 MRA 是论文事实；“模拟器拟合框架 + 物理数据引擎”“验证一致不代表因果唯一”“VLM 学结果而非发现过程”“公开 validation 不能外推通用物理智能”等是依据方法与评测协议作出的分析判断。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

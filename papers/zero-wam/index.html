@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Zero-WAM: In-Context World-Action Modeling from Human Videos for Open-Ended Task Generalization">
+    <meta name="citation_author" content="Jiaming Zhou">
+    <meta name="citation_author" content="Qihang Zhang">
+    <meta name="citation_author" content="Gangwei Xu">
+    <meta name="citation_author" content="Cunxin Fan">
+    <meta name="citation_author" content="Yujie Zhao">
+    <meta name="citation_author" content="Ruilin Wang">
+    <meta name="citation_author" content="Yiming Luo">
+    <meta name="citation_author" content="Shuai Yang">
+    <meta name="citation_author" content="Xing Zhu">
+    <meta name="citation_author" content="Yujun Shen">
+    <meta name="citation_author" content="Junwei Liang">
+    <meta name="citation_author" content="Yinghao Xu">
+    <meta name="citation_publication_date" content="2026-08-26">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.26103v2">
+    <meta name="citation_public_url" content="https://robbyant-research.github.io/Zero-WAM/">
+    <meta name="description" content="从人类视频任务接口、HumanGen 自动配对、任务均衡预训练与 IFP 远期监督解读 Zero-WAM，并区分仿真未见任务、真实未见配置与开放世界泛化的证据边界。">
+    <meta name="keywords" content="Zero-WAM, world action model, in-context learning, human video, robot manipulation, HumanGen, future chunk prediction, RoboTwin">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>Zero-WAM：把人类视频变成机器人部署时的任务说明</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/zero-wam/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2608.26103V2 · 2026-08-27 修订 · 核对日期：2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住任务说明问题</a></li>
+          <li><a href="#concepts">分清 ICL、HumanGen 与 IFP</a></li>
+          <li><a href="#problem-chain">看数据稀缺和训练捷径</a></li>
+          <li><a href="#mechanism">沿视频未来翻译成动作</a></li>
+          <li><a href="#evidence">核对七任务与真实试验</a></li>
+          <li><a href="#limits">限定 zero-shot 与 open-ended</a></li>
+          <li><a href="#sources">回到论文与项目材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">HUMAN VIDEO PROMPTS · WORLD-ACTION MODELING · ZERO-SHOT CROSS-TASK GENERALIZATION</p>
+          <h1 id="paper-title" class="paper-title">Zero-WAM</h1>
+          <p class="paper-subtitle">
+            它不把人类动作直接重定向到机器人，而是让人类视频先规定“这个世界应该怎样变化”，再由视频预测与逆动力学把目标演化翻译成机器人自己的动作。
+          </p>
+          <div class="paper-byline">
+            <span>Jiaming Zhou、Qihang Zhang、Gangwei Xu 等 12 位作者</span>
+            <span>Robbyant、HKUST (GZ)、HKUST</span>
+            <span>arXiv v2 · 21 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              把部署时的未见操作任务从“重新采机器人示范或更新参数”改成“给策略一段人类视频作为上下文”；同时解决任务级人机配对数据稀缺，以及模型在已见任务上仅凭机器人历史和语言就能预测下一步、从而学会忽略视频提示的捷径。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="zero-overview-title zero-overview-desc">
+            <svg viewBox="0 0 760 456" role="img" aria-labelledby="zero-overview-title zero-overview-desc">
+              <title id="zero-overview-title">Zero-WAM 的问题、方法与证据总览</title>
+              <desc id="zero-overview-desc">语言难表达操作过程，人机配对数据稀缺，下一块预测容易忽略视频；Zero-WAM 用合成 HumanGen、任务均衡采样与 IFP，让人类视频经未来视频瓶颈影响动作，并在七个未见仿真任务和三类真实配置上评估。</desc>
+              <defs>
+                <marker id="zero-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="456" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">01 / 三个旧瓶颈</text>
+              <rect x="34" y="64" width="202" height="70" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="92" fill="#17201d" font-size="15" font-weight="700">语言欠描述</text>
+              <text x="54" y="115" fill="#52605b" font-size="12">空间、顺序、中间状态难说全</text>
+              <rect x="34" y="149" width="202" height="70" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="54" y="177" fill="#17201d" font-size="15" font-weight="700">人机配对稀缺</text>
+              <text x="54" y="200" fill="#52605b" font-size="12">人类视频没有可执行动作</text>
+              <rect x="34" y="234" width="202" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="262" fill="#17201d" font-size="15" font-weight="700">局部预测走捷径</text>
+              <text x="54" y="285" fill="#52605b" font-size="12">已见任务可忽略视频提示</text>
+
+              <path d="M248 184H278" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#zero-overview-arrow)"/>
+              <text x="284" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">02 / 三个关键动作</text>
+              <rect x="280" y="64" width="228" height="70" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="300" y="92" fill="#17201d" font-size="15" font-weight="700">HumanGen · 74.2K 对</text>
+              <text x="300" y="115" fill="#52605b" font-size="12">从机器人轨迹合成人类操作视频</text>
+              <rect x="280" y="149" width="228" height="70" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="300" y="177" fill="#17201d" font-size="15" font-weight="700">Task-diverse VA</text>
+              <text x="300" y="200" fill="#52605b" font-size="12">按任务采样，约 400K 轨迹/epoch</text>
+              <rect x="280" y="234" width="228" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="300" y="262" fill="#17201d" font-size="15" font-weight="700">IFP · 远期块监督</text>
+              <text x="300" y="285" fill="#52605b" font-size="12">迫使当前表示读取任务演化</text>
+
+              <path d="M520 184H550" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#zero-overview-arrow)"/>
+              <text x="556" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">03 / 做到与没做到</text>
+              <rect x="552" y="64" width="174" height="240" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="572" y="94" fill="#17201d" font-size="14" font-weight="700">RoboTwin 未见任务</text>
+              <text x="572" y="118" fill="#52605b" font-size="12">46.95% 成功率</text>
+              <text x="572" y="138" fill="#52605b" font-size="11">LingBot-VA 17.45%</text>
+              <line x1="572" y1="157" x2="706" y2="157" stroke="#d8d4ca"/>
+              <text x="572" y="183" fill="#17201d" font-size="14" font-weight="700">真实未见配置</text>
+              <text x="572" y="207" fill="#52605b" font-size="12">53.3 / 33.3 / 16.7%</text>
+              <line x1="572" y1="226" x2="706" y2="226" stroke="#d8d4ca"/>
+              <text x="572" y="252" fill="#86321f" font-size="13" font-weight="700">平均仍失败过半</text>
+              <text x="572" y="276" fill="#52605b" font-size="11">开放世界只是方向，不是结案</text>
+
+              <path d="M128 330V366H642V330" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="126" y="359" width="528" height="70" rx="35" fill="#17201d"/>
+              <text x="390" y="388" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">人类视频规定目标演化，机器人视频承担跨本体翻译</text>
+              <text x="390" y="411" text-anchor="middle" fill="#d8d4ca" font-size="12">IFP 在训练时施压，推理时删除；视频提示只编码一次并缓存</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>Zero-WAM 把任务泛化拆成“说明任务、造出配对数据、确保模型使用说明”三层。主结果提升很大，但 46.95% 也意味着七个未见任务上平均仍有超过一半 rollout 失败。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，视频在这里不是动作示范，而是视觉任务规范。</strong>人类手的轨迹不会直接变成机器人关节动作；它先影响“机器人场景接下来应变成什么样”，动作 Transformer 再从预测未来做 inverse dynamics。</p>
+            <p><strong>第二，规模化依赖合成，而不是现成网络人类视频。</strong>HumanGen 的 74,187 对样本由机器人轨迹、图像编辑、视频生成和 VLM 筛选自动构造；这让任务覆盖扩到约 8.6K，却也把生成伪影、语义错配和筛选器偏差带进训练。</p>
+            <p><strong>第三，IFP 是最干净的机制证据。</strong>去掉 IFP 后仿真均值从 46.95% 降到 28.55%；它只在训练期从当前表示预测更远视频块，部署时删除，因此增益更接近表示学习而非额外推理算力。</p>
+            <p><strong>第四，“open-ended”仍是研究愿景。</strong>现有证据覆盖 7 个仿真留出任务和 3 个真实任务族的未见配置；精细插入只有 16.7%，三块堆叠仅 9%。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">先看懂三个词：视频 ICL、合成人机配对与远期块预测</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">IN-CONTEXT TASK SPECIFICATION（上下文任务说明）</span>
+            <p><strong>英译中：</strong>部署时把一个新任务放进输入上下文，不更新模型参数，让策略从这段上下文推断“要完成什么”。</p>
+            <p><strong>怎么理解：</strong>视频比文字多给了对象对应、空间关系、动作顺序和中间状态。它仍不提供机器人控制量，只给出一段目标世界演化。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">HUMANGEN（自动生成的人机 ICL 配对集）</span>
+            <p><strong>英译中：</strong>从带动作标注的机器人轨迹出发，自动合成语义匹配的人类操作视频，再把视频与原机器人动作重新配对。</p>
+            <p><strong>怎么理解：</strong>它不是把真实人类动作捕捉后重定向，也不是 74.2K 段自然采集视频。可执行性来自原机器人轨迹，任务说明来自生成的人类视频。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">IN-CONTEXT FUTURE CHUNK PREDICTION（上下文远期块预测，IFP）</span>
+            <p><strong>英译中：</strong>训练当前下一块时，额外要求当前表示跨间隔预测更远的多个视频块。</p>
+            <p><strong>怎么理解：</strong>局部机器人历史足以猜下一小步，却很难猜 2、4、6、8 个 chunk 之后的目标状态。要降低远期损失，主分支就必须把人类视频中的任务演化压进当前表示。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">DATA AND SHORTCUTS</p>
+          <h2 id="problem-title">“给视频”还不够：要先造配对，再阻止模型假装看过</h2>
+
+          <figure class="svg-figure" aria-labelledby="zero-humangen-title zero-humangen-desc">
+            <svg viewBox="0 0 760 402" role="img" aria-labelledby="zero-humangen-title zero-humangen-desc">
+              <title id="zero-humangen-title">HumanGen 自动生成与重新配对流程</title>
+              <desc id="zero-humangen-desc">带动作的机器人轨迹先由视觉语言模型解析任务和状态，再编辑机器人首帧为人类场景、生成操作视频、做语义与物理筛选，最后与原机器人动作重新配对。</desc>
+              <defs>
+                <marker id="zero-data-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="402" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">可执行性留在机器人轨迹里；任务说明被改写成人类视觉形式</text>
+              <rect x="34" y="70" width="142" height="92" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="105" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">机器人轨迹</text>
+              <text x="105" y="125" text-anchor="middle" fill="#52605b" font-size="11">视频 + 原生动作</text>
+              <text x="105" y="146" text-anchor="middle" fill="#355e7c" font-size="10">按任务采样</text>
+              <path d="M178 116H214" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="218" y="70" width="142" height="92" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="289" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">VLM 解析</text>
+              <text x="289" y="125" text-anchor="middle" fill="#52605b" font-size="11">对象 · 初态 · 变化 · 终态</text>
+              <path d="M362 116H398" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="402" y="70" width="142" height="92" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="473" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">首帧编辑</text>
+              <text x="473" y="125" text-anchor="middle" fill="#52605b" font-size="11">机器人场景 → 人类场景</text>
+              <path d="M546 116H582" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="586" y="70" width="140" height="92" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="656" y="99" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">视频生成</text>
+              <text x="656" y="125" text-anchor="middle" fill="#52605b" font-size="11">合成人手操作过程</text>
+
+              <path d="M656 164V205H565" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="426" y="194" width="274" height="88" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="563" y="223" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">VLM 语义 / 物理门控</text>
+              <text x="563" y="249" text-anchor="middle" fill="#52605b" font-size="11">只保留任务一致、运动看起来合理的视频</text>
+              <text x="563" y="268" text-anchor="middle" fill="#86321f" font-size="10">未报告通过率、人工复核比例或错配率</text>
+              <path d="M424 238H360" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="142" y="194" width="216" height="88" rx="5" fill="#17201d"/>
+              <text x="250" y="223" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">重新配对</text>
+              <text x="250" y="249" text-anchor="middle" fill="#d8d4ca" font-size="11">合成人类视频 h + 原机器人轨迹</text>
+              <text x="250" y="268" text-anchor="middle" fill="#f2b7a8" font-size="10">human video instruction ≠ human action labels</text>
+              <path d="M250 284V322" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-data-arrow)"/>
+              <rect x="130" y="320" width="240" height="54" rx="27" fill="#dcebe5" stroke="#24624e"/>
+              <text x="250" y="351" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">74,187 对 · 约 8.6K 任务</text>
+              <rect x="402" y="320" width="288" height="54" rx="27" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="546" y="351" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">Task-diverse VA · &gt;6K 任务 / epoch</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>管线用生成模型解决配对规模，却没有消除监督来源：所有合成人类视频最终仍要与原机器人轨迹重连，动作标签和可执行性从那里继承。自动筛选让数据更干净，也可能把筛选器偏好固化进任务分布。</figcaption>
+          </figure>
+
+          <h3>下一块预测为什么会忽略人类视频</h3>
+          <p>在训练任务上，当前机器人画面、最近动作和文字通常足够预测紧邻下一块。教师强制又会把真实下一视频交给动作分支，局部损失即使下降，也不能证明人类视频被编码。模型到未见任务才第一次真正需要视频说明，却可能从未学会读它。</p>
+
+          <h3>按任务均衡不是简单“再加 400K 数据”</h3>
+          <p>作者把五个公开视频—动作数据源重分成“操作动作 + 对象”的任务，再按任务设采样上限，每个 epoch 约 400K 轨迹、超过 6,000 个任务。它降低了少数高频遥操作任务的权重，但这种粗粒度任务定义仍可能把不同空间关系、顺序和目标配置合并。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">任务视频先塑造未来画面，未来画面再塑造动作</h2>
+
+          <figure class="svg-figure" aria-labelledby="zero-model-title zero-model-desc">
+            <svg viewBox="0 0 760 444" role="img" aria-labelledby="zero-model-title zero-model-desc">
+              <title id="zero-model-title">Zero-WAM 的视频瓶颈与动作生成流程</title>
+              <desc id="zero-model-desc">人类视频只直接进入视频 Transformer，视频分支预测下一机器人视频块，动作 Transformer 再读取该未来视频和历史解码动作；训练时使用真实未来视频，推理时使用生成未来。</desc>
+              <defs>
+                <marker id="zero-model-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="444" fill="#fbfaf6"/>
+              <rect x="34" y="66" width="170" height="88" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="119" y="97" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">人类视频 h</text>
+              <text x="119" y="124" text-anchor="middle" fill="#52605b" font-size="11">视觉任务规范 · 编码一次缓存</text>
+              <rect x="34" y="184" width="170" height="88" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="119" y="215" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">机器人历史</text>
+              <text x="119" y="242" text-anchor="middle" fill="#52605b" font-size="11">x≤i · a≤i · 语言 ℓ</text>
+              <path d="M206 110H268" fill="none" stroke="#bd4c32" stroke-width="2" marker-end="url(#zero-model-arrow)"/>
+              <path d="M206 228H240V152H268" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-model-arrow)"/>
+              <path d="M206 242H510V184H534" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-model-arrow)"/>
+              <rect x="272" y="90" width="208" height="124" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="376" y="122" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">Video Transformer</text>
+              <text x="376" y="150" text-anchor="middle" fill="#52605b" font-size="11">Wan-2.2-TI2V-5B · causal MoT</text>
+              <text x="376" y="177" text-anchor="middle" fill="#24624e" font-size="13" font-weight="700">预测 x^(i+1)</text>
+              <text x="376" y="198" text-anchor="middle" fill="#52605b" font-size="10">“任务完成时，机器人世界应怎样变化”</text>
+              <path d="M482 152H534" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-model-arrow)"/>
+              <rect x="538" y="90" width="188" height="124" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="632" y="122" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">Action Transformer</text>
+              <text x="632" y="150" text-anchor="middle" fill="#52605b" font-size="11">x^(i+1) + history + ℓ</text>
+              <text x="632" y="177" text-anchor="middle" fill="#9c7b1f" font-size="13" font-weight="700">解码 a^(i+1)</text>
+              <text x="632" y="198" text-anchor="middle" fill="#52605b" font-size="10">人类视频 h 不直接进入此分支</text>
+
+              <path d="M632 216V260" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-model-arrow)"/>
+              <rect x="538" y="258" width="188" height="70" rx="5" fill="#17201d"/>
+              <text x="632" y="286" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">执行动作并滚动</text>
+              <text x="632" y="309" text-anchor="middle" fill="#d8d4ca" font-size="11">生成下一段机器人历史</text>
+
+              <rect x="250" y="256" width="248" height="90" rx="5" fill="#fffef9" stroke="#bd4c32"/>
+              <text x="374" y="284" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">视频瓶颈的 train–test gap</text>
+              <text x="270" y="311" fill="#52605b" font-size="11">训练：动作分支读取真实 x^(i+1)</text>
+              <text x="270" y="332" fill="#86321f" font-size="11">推理：动作分支读取生成 x^(i+1)</text>
+
+              <path d="M374 348V378" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="142" y="374" width="468" height="48" rx="24" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="376" y="403" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">跨本体翻译发生在“未来视觉状态”，不是手—机器人动作同构</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>机器人历史与语言同时直达视频和动作分支；人类视频则只能通过预测未来影响动作，这是作者刻意设置的信息瓶颈。它让视频任务语义必须落到可见世界变化，却也让生成误差继续传给动作；训练时真值未来、推理时生成未来的差异没有被单独量化。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="视频动作分解公式说明">
+            <div class="formula-card__label">公式拆解 · 世界预测怎样变成逆动力学</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">p(x<sup>i+1</sup>,a<sup>i+1</sup> | history,h,ℓ)</span>
+              = p<sup>vid</sup>(x<sup>i+1</sup> | history,h,ℓ) · p<sup>act</sup>(a<sup>i+1</sup> | history,x<sup>i+1</sup>,ℓ)
+            </div>
+            <p class="formula-card__caption">这条公式回答：如何把“下一段世界长什么样”和“怎样动作才能得到它”拆成因果有序的两个条件分布。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>x<sup>i+1</sup></dt><dd>下一机器人视频块，由人类视频、语言和机器人历史条件化生成。</dd></div>
+              <div class="formula-legend__row"><dt>a<sup>i+1</sup></dt><dd>与未来视频对齐的动作块；动作 token 排在未来视频 token 之后。</dd></div>
+              <div class="formula-legend__row"><dt>h, ℓ</dt><dd>人类视频与语言条件。h 只直达视频分支，动作分支通过未来视频间接获得 h；ℓ 可直接进入两个分支。</dd></div>
+              <div class="formula-legend__row"><dt>history</dt><dd>截至 i 的机器人视频与动作。它保证输出符合当前 embodiment 与局部动力学。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：人类视频回答“结果过程”，机器人历史回答“我现在是谁、在哪里”，动作分支把两者会合成当前机器人可执行的下一步。</div>
+          </div>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="zero-ifp-title zero-ifp-desc">
+            <svg viewBox="0 0 700 360" role="img" aria-labelledby="zero-ifp-title zero-ifp-desc">
+              <title id="zero-ifp-title">IFP 的远期目标与信息防火墙</title>
+              <desc id="zero-ifp-desc">主分支当前表示 phi 从人类视频获得信息，四个辅助模块分别预测 i 加二、四、六、八的视频块；辅助模块不能直接读取人类视频，训练后删除。</desc>
+              <defs>
+                <marker id="zero-ifp-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="700" height="360" fill="#fbfaf6"/>
+              <rect x="34" y="58" width="142" height="66" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="105" y="87" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">人类视频 h</text>
+              <text x="105" y="108" text-anchor="middle" fill="#52605b" font-size="10">任务演化信息</text>
+              <path d="M178 91H248" fill="none" stroke="#bd4c32" stroke-width="2" marker-end="url(#zero-ifp-arrow)"/>
+              <rect x="252" y="52" width="196" height="78" rx="5" fill="#17201d"/>
+              <text x="350" y="82" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">当前融合表示 φ^(i+1)</text>
+              <text x="350" y="105" text-anchor="middle" fill="#d8d4ca" font-size="10">人类视频进入辅助预测器的唯一入口</text>
+              <path d="M450 91H494" fill="none" stroke="#86321f" stroke-width="2" stroke-dasharray="5 5"/>
+              <text x="520" y="84" fill="#86321f" font-size="12" font-weight="700">h 不能直达 Gₖ</text>
+              <text x="520" y="106" fill="#52605b" font-size="10">语言 ℓ 仍可直达</text>
+
+              <path d="M350 132V184" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#zero-ifp-arrow)"/>
+              <line x1="88" y1="270" x2="612" y2="270" stroke="#aaa69c"/>
+              <g fill="#dfeaf1" stroke="#355e7c">
+                <rect x="80" y="220" width="98" height="50" rx="4"/><rect x="226" y="220" width="98" height="50" rx="4"/><rect x="372" y="220" width="98" height="50" rx="4"/><rect x="518" y="220" width="98" height="50" rx="4"/>
+              </g>
+              <text x="129" y="250" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">x^(i+2)</text>
+              <text x="275" y="250" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">x^(i+4)</text>
+              <text x="421" y="250" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">x^(i+6)</text>
+              <text x="567" y="250" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">x^(i+8)</text>
+              <path d="M350 184L129 216M350 184L275 216M350 184L421 216M350 184L567 216" fill="none" stroke="#355e7c" stroke-width="1.7" marker-end="url(#zero-ifp-arrow)"/>
+              <text x="350" y="303" text-anchor="middle" fill="#52605b" font-size="11">权重 w = 0.50 / 0.25 / 0.15 / 0.15</text>
+              <rect x="188" y="318" width="324" height="30" rx="15" fill="#dcebe5" stroke="#24624e"/>
+              <text x="350" y="338" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">训练后删除全部 IFP 模块，推理图不变</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>IFP 不让辅助模块直接偷看人类视频，只有主分支先把任务信息写进 φ，它们才能预测远期。这个“防火墙”并非绝对：语言仍可直达辅助模块，作者用 ICL 样本 0.4 的语言 dropout 缓解。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="IFP 公式说明">
+            <div class="formula-card__label">公式拆解 · 远期目标怎样迫使当前表示承载任务</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">j<sub>k</sub></span> = (i+1)+1+(k−1)s,
+              &nbsp; L<sub>ifp</sub> = Σ<sub>k=1</sub><sup>K</sup> w<sub>k</sub>L<sub>fm</sub>(x<sup>jₖ</sup>;φ<sup>i+1</sup>,history,ℓ)
+            </div>
+            <p class="formula-card__caption">这组公式回答：当前预测之后，选择哪些更远视频块作为训练目标，以及怎样把它们的误差回传到当前融合表示。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>K=4</dt><dd>并行辅助目标数量；每个目标有独立远期预测模块。</dd></div>
+              <div class="formula-legend__row"><dt>s=2</dt><dd>chunk 级间隔；得到 i+2、i+4、i+6、i+8 四个目标。</dd></div>
+              <div class="formula-legend__row"><dt>j<sub>k</sub></dt><dd>第 k 个远期目标的 chunk 索引；四个目标并行预测，彼此不构成递归链。</dd></div>
+              <div class="formula-legend__row"><dt>φ<sup>i+1</sup></dt><dd>从主视频 Transformer 多层隐藏状态融合出的当前表示，也是 h 的唯一间接通道。</dd></div>
+              <div class="formula-legend__row"><dt>L<sub>fm</sub></dt><dd>对应远期视频块的 flow-matching 误差；它把远期预测压力回传给当前表示。</dd></div>
+              <div class="formula-legend__row"><dt>w<sub>k</sub></dt><dd>四个远期损失权重 0.50、0.25、0.15、0.15；近目标更重，但远目标仍持续施压。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：模型若只记“眼前这一帧怎么动”，很难同时预测直至 i+8 的多个远期目标；要做到，它必须先理解提示视频展示的任务终局与阶段顺序。</div>
+          </div>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">七个仿真未见任务很强，现实结论更窄</h2>
+
+          <h3>RoboTwin：43 个任务训练，7 个任务完整留出</h3>
+          <div class="table-wrap" role="region" aria-label="Zero-WAM 七个未见 RoboTwin 任务结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">七个未见 RoboTwin 任务的闭环成功率百分比，均值加减三个随机种子的标准差</caption>
+              <thead><tr><th scope="col">未见任务</th><th scope="col">WAN-Action</th><th scope="col">LingBot-VA</th><th scope="col">Zero-WAM</th></tr></thead>
+              <tbody>
+                <tr><td>Place object on scale</td><td>3.00±2.16</td><td>6.17±4.87</td><td><strong>24.67±2.05</strong></td></tr>
+                <tr><td>Stamp seal</td><td>7.33±1.25</td><td>3.67±2.49</td><td><strong>47.00±4.55</strong></td></tr>
+                <tr><td>Open microwave</td><td>2.26±1.60</td><td>29.33±10.66</td><td><strong>59.00±2.83</strong></td></tr>
+                <tr><td>Move stapler to pad</td><td>10.67±1.70</td><td>23.33±8.22</td><td><strong>69.14±2.93</strong></td></tr>
+                <tr><td>Place bread in basket</td><td>15.26±2.55</td><td>17.33±6.18</td><td><strong>35.00±3.74</strong></td></tr>
+                <tr><td>Place empty cup</td><td>38.33±2.05</td><td>42.33±7.85</td><td><strong>84.87±0.18</strong></td></tr>
+                <tr><td>Stack blocks three</td><td>0.00±0.00</td><td>0.00±0.00</td><td><strong>9.00±2.16</strong></td></tr>
+                <tr class="evidence-table__emphasis"><td>Macro average</td><td>10.98±1.07</td><td>17.45±1.40</td><td><strong>46.95±0.72</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>每个方法、每个任务使用 3 个随机种子，每种子 100 次闭环 rollout。作者轻微调整了 Stamp seal 与 Move stapler to pad 的成功判据，并让所有方法共用同一调整版本。Zero-WAM 相对 LingBot-VA 提升 29.50 个百分点；但最难的三块堆叠仍只有 9%，平均成功率也尚未过半。</p>
+
+          <h3>消融：视频 ICL、任务均衡与 IFP 都有贡献，主表却把它们一起加入</h3>
+          <div class="table-wrap" role="region" aria-label="Zero-WAM 关键消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">Zero-WAM 的人类视频、任务均衡与 IFP 消融，单位为成功率百分点</caption>
+              <thead><tr><th scope="col">比较</th><th scope="col">起点</th><th scope="col">终点</th><th scope="col">绝对提升</th><th scope="col">能支持的判断</th></tr></thead>
+              <tbody>
+                <tr><td>人类视频 ICL，无大规模预训练</td><td>WAN-Action 10.98</td><td>36.36</td><td>+25.38</td><td>视频任务接口本身有用</td></tr>
+                <tr><td>任务均衡文本模式</td><td>LingBot-VA 17.45</td><td>39.44</td><td>+21.99</td><td>任务级采样有用，但配方不完全同构</td></tr>
+                <tr class="evidence-table__emphasis"><td>IFP</td><td>w/o IFP 28.55</td><td><strong>46.95</strong></td><td>+18.40</td><td>远期监督显著改善未见任务</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>真实机器人：先适配 Franka，再留出任务配置</h3>
+          <div class="table-wrap" role="region" aria-label="Zero-WAM 真实未见配置结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">真实双臂 Franka 的训练示范数、成功率百分比与测试次数</caption>
+              <thead><tr><th scope="col">任务族</th><th scope="col">训练示范</th><th scope="col">LingBot-VA</th><th scope="col">Zero-WAM</th><th scope="col">测试次数</th></tr></thead>
+              <tbody>
+                <tr><td>物体放入容器</td><td>120</td><td>43.3</td><td><strong>53.3</strong></td><td>30</td></tr>
+                <tr><td>三物体顺序操作</td><td>96</td><td>10.0</td><td><strong>33.3</strong></td><td>30</td></tr>
+                <tr><td>两桌腿插入</td><td>36</td><td>0.0</td><td><strong>16.7</strong></td><td>30</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这不是“零机器人数据”：三类任务族共有 252 对现实训练数据用于 embodiment 与任务族适配。测试时 Zero-WAM 看人类视频，LingBot-VA 看详细语言，因此比较的是“模型 + 指令接口”组合，而非完全相同输入条件下的纯模型对照。</p>
+
+          <p class="evidence-note"><strong>训练成本：</strong>预训练约 15,360 GPU-hours；RoboTwin post-training 使用 64 GPUs、4,000 steps。论文没有给 flow 积分步数、控制频率或端到端推理延迟，5B 视频模型的闭环实时性无法从现有材料判断。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它把任务说明打开了，却还没有打开真正的开放世界</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>视频提示能改善完整留出任务</h3>
+              <p>七任务、三随机种子和视频 ICL/IFP 消融共同支持，不只来自一个简单任务。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>真实世界 zero-shot</h3>
+              <p>现实实验先用 252 对数据适配 Franka，留出的是配置而非全新任务族和本体。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>任意自然人类视频</h3>
+              <p>HumanGen 主要是生成、筛选后的干净提示；普通手机视频、遮挡和错误示范未测。</p>
+            </article>
+          </div>
+
+          <h3>第一，HumanGen 没有公开质量审计</h3>
+          <p>论文没有报告生成通过率、VLM 评分一致性、人工复核比例、语义错配率或视频伪影统计。仿真测试提示还由对应任务的机器人轨迹生成，虽未把动作给策略，却比开放网络视频更贴近 benchmark 任务。</p>
+
+          <h3>第二，还缺“视频内容被正确读取”的反事实验证</h3>
+          <p>没有 shuffled prompt、错误对象/目标视频、时间倒放、静态首帧或移除中间状态等测试。IFP 消融证明远期监督有效，却不能区分模型到底读取了对象、顺序、终态，还是其他与任务相关的视觉线索。</p>
+
+          <h3>第三，视频瓶颈同时制造误差传递</h3>
+          <p>动作分支必须经过未来视频，这有助于跨本体翻译；但生成视频若错物体、错接触或错终态，动作也会跟着错。训练时动作读取真实未来，推理时读取生成未来，这个 train–test gap 没有独立消融。</p>
+
+          <h3>第四，IFP 的信息防火墙并不绝对</h3>
+          <p>辅助模块不能直接看人类视频，却仍能直接看语言。语言足够明确时仍可能成为捷径，0.4 的语言 dropout 只是缓解。正文也未报告抽取主干层数 M、动作表示、λa 与 λifp。</p>
+
+          <h3>第五，“open-ended”超出了当前样本覆盖</h3>
+          <p>主要实验仍是静态桌面操作；动态、非结构化环境、移动操作和显著更长时程尚未覆盖。46.95%、16.7% 与 9% 分别揭示总体可靠性、精密接触与长时序仍是硬瓶颈。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2608.26103v2">论文摘要页：arXiv:2608.26103v2</a> — 12 位作者、v1/v2 日期、分类和项目链接。</li>
+            <li><a href="https://arxiv.org/pdf/2608.26103v2">用户提供附件对应的官方 v2 PDF</a> — 方法、公式、HumanGen 统计、RoboTwin 与真实机器人结果的主要来源，共 21 页。</li>
+            <li><a href="https://robbyant-research.github.io/Zero-WAM/">官方项目页</a> — 论文给出的演示与项目入口；本页定量判断仍以 v2 PDF 为准。</li>
+            <li><a href="https://github.com/robbyant-research/Zero-WAM">作者给出的代码仓库</a> — 作为后续复现入口；本页没有把仓库当前发布进度当成论文实验事实。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>数据规模、训练配置、公式和成功率是论文事实；“视频是任务规范而非动作示范”“HumanGen 把生成偏差带入监督”“真实实验是未见配置而非完整未见任务”“open-ended 仍是愿景”等是依据实验协议作出的分析判断。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

@@ -10,6 +10,9 @@
 
 ## 最近更新
 
+- **BrainWAM**：把 VLA 的语义先验与 WAM 的预测动力学分别压成 action tokens，再以 CAB/CIF 协调；重点解释 Tri-MoT 87.8 低于 WAM-only 88.1 的融合负结果，并限定 89.5/89.6 与 475–644 ms 延迟的部署含义。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/brainwam/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/brainwam/)
+- **Zero-WAM**：把人类视频作为部署时任务规范，用 HumanGen、任务均衡采样与 IFP 连接未见任务泛化；并区分仿真完整留出任务、真实 Franka 未见配置和仍未覆盖的开放世界视频。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/zero-wam/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/zero-wam/)
+- **Code as Worlds**：把物理组成、动态演化与视觉外观写成可执行世界表示，通过 Agent 循环反复模拟验证，再用世界状态监督 VLM；重点区分观测一致性、唯一真实机制与公开 QuantiPhy-validation 上的定量提升。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/code-as-worlds/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/code-as-worlds/)
 - **FlashVLA**：把多个不同噪声层级的动作块放进同一流式缓冲区，用块级因果注意力同时处理去噪延迟与异步时序失配，并严格区分动作头、整次策略调用、闭环每动作和 30 Hz 部署四种速度口径。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/flashvla/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/flashvla/)
 - **CLAP**：用末端位姿、语言动作和潜动作统一跨本体视频条件，再以 latent-to-EE 课程兼顾无标签数据扩展与真实机器人部署；同时拆开视频预测、跨策略规划、少样本适配与“物理模拟器”的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/clap/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/clap/)
 - **Riemann-1.0**：把动作与视觉后果排成严格的全因果自回归序列，并用三阶段具身预训练把人类视频、手持夹爪与多本体机器人轨迹逐步转成可执行策略；重点区分强策略结果与仍偏定性的世界模拟证据。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/riemann-1-0/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/riemann-1-0/)
@@ -30,6 +33,9 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [BrainWAM: Action-Space Coordination of Semantic Priors and Predictive Dynamics for Autonomous Driving](papers/brainwam/) | 让 VLA 与 WAM 先形成专业化动作表征，再用 CAB 和 CIF 在动作空间协调，避免 raw-token 联合注意力中的语义捷径压制预测动力学。 |
+| [Zero-WAM: In-Context World-Action Modeling from Human Videos for Open-Ended Task Generalization](papers/zero-wam/) | 把人类视频变成部署时视觉任务规范，以 HumanGen 扩展人机配对、用 IFP 迫使主干编码远期任务演化。 |
+| [Code as Worlds: Agentic Discovery of Executable World Representations for Physical Reasoning](papers/code-as-worlds/) | 用可执行代码显式表示物理组成、动态演化与视觉外观，通过模拟—渲染—验证循环发现世界，再产出定量物理监督。 |
 | [FlashVLA: Streaming Action Decoding for Fast and Asynchronous VLA Inference](papers/flashvla/) | 用交错噪声动作缓冲区和块级因果注意力把去噪流水线化，并区分动作解码、策略调用、闭环执行与异步控制频率的不同速度口径。 |
 | [CLAP: Cross-Embodiment Video World Models are Zero-Shot Physical Simulators](papers/clap/) | 以末端位姿、语言与潜动作协调跨本体条件，解释 latent-to-EE 课程如何连接无标签视频扩展、真实规划和目标实体适配。 |
 | [Riemann-1.0: An Embodied World Action Model for Physical AI](papers/riemann-1-0/) | 以 action-first 全因果序列统一机器人策略与动作条件视觉模拟，并梳理从人类视频到可执行机器人动作的三阶段具身预训练。 |
@@ -51,7 +57,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 20 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 23 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 

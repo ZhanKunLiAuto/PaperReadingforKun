@@ -2,6 +2,39 @@
   "updatedAt": "2026-08-31",
   "papers": [
     {
+      "slug": "zero-wam",
+      "title": "Zero-WAM: In-Context World-Action Modeling from Human Videos for Open-Ended Task Generalization",
+      "authors": [
+        "Jiaming Zhou",
+        "Qihang Zhang",
+        "Gangwei Xu",
+        "Cunxin Fan",
+        "Yujie Zhao",
+        "Ruilin Wang",
+        "Yiming Luo",
+        "Shuai Yang",
+        "Xing Zhu",
+        "Yujun Shen",
+        "Junwei Liang",
+        "Yinghao Xu"
+      ],
+      "publicationDate": "2026-08-26",
+      "readAt": "2026-08-31",
+      "description": "从人类视频任务接口、HumanGen 自动配对、任务均衡预训练与 IFP 远期监督解读 Zero-WAM，并区分仿真未见任务、真实未见配置与开放世界泛化的证据边界。",
+      "tags": [
+        "Zero-WAM",
+        "world action model",
+        "in-context learning",
+        "human video",
+        "robot manipulation",
+        "HumanGen",
+        "future chunk prediction",
+        "RoboTwin"
+      ],
+      "sourceUrl": "https://robbyant-research.github.io/Zero-WAM/",
+      "href": "papers/zero-wam/"
+    },
+    {
       "slug": "self-harness",
       "title": "Self-Harness: Harnesses That Improve Themselves",
       "authors": [
@@ -125,6 +158,44 @@
       "href": "papers/flashvla/"
     },
     {
+      "slug": "code-as-worlds",
+      "title": "Code as Worlds: Agentic Discovery of Executable World Representations for Physical Reasoning",
+      "authors": [
+        "Hanyang Wang",
+        "Yimo Cai",
+        "Weiliang Chen",
+        "Jiawei Chi",
+        "Haowen Sun",
+        "Qiyu Dai",
+        "Yi-Hsin Hung",
+        "Xingzhuo Guo",
+        "Jinshan Ren",
+        "Runmao Yao",
+        "Ziwei Liu",
+        "Mingsheng Long",
+        "Yueqi Duan",
+        "Jun Gao",
+        "Jiangran Lyu",
+        "Fangfu Liu",
+        "Jialong Wu"
+      ],
+      "publicationDate": "2026-08-27",
+      "readAt": "2026-08-31",
+      "description": "从可执行世界表示、溯因式 Agent 发现循环、像素到世界尺度校准与两阶段物理监督解读 Code as Worlds，并区分可观测一致性、真实机制恢复和 QuantiPhy-validation 证据边界。",
+      "tags": [
+        "Code as Worlds",
+        "Code-as-World",
+        "executable world representation",
+        "physical reasoning",
+        "agentic discovery",
+        "simulation",
+        "QuantiPhy",
+        "vision-language model"
+      ],
+      "sourceUrl": "https://mirros-lab.github.io/code-as-world",
+      "href": "papers/code-as-worlds/"
+    },
+    {
       "slug": "clap",
       "title": "CLAP: Cross-Embodiment Video World Models are Zero-Shot Physical Simulators",
       "authors": [
@@ -147,6 +218,35 @@
       ],
       "sourceUrl": "https://arxiv.org/abs/2608.27406v1",
       "href": "papers/clap/"
+    },
+    {
+      "slug": "brainwam",
+      "title": "BrainWAM: Action-Space Coordination of Semantic Priors and Predictive Dynamics for Autonomous Driving",
+      "authors": [
+        "Bing Zhan",
+        "Shuyao Shang",
+        "Shuo Lu",
+        "Yuan Xu",
+        "Zhao Wang",
+        "Yida Wang",
+        "Xueyang Zhang",
+        "Kun Zhan",
+        "Jiahao Gu"
+      ],
+      "publicationDate": "2026-08-13",
+      "readAt": "2026-08-31",
+      "description": "从注意力分配失衡、动作空间瓶颈、CAB/CIF 双通路协调与异步整流流四条线解读 BrainWAM，并区分 NAVSIM 得分、融合机制证据和真实车载部署边界。",
+      "tags": [
+        "BrainWAM",
+        "autonomous driving",
+        "vision-language-action",
+        "world action model",
+        "action-space coordination",
+        "rectified flow",
+        "NAVSIM"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2608.12854v2",
+      "href": "papers/brainwam/"
     },
     {
       "slug": "robottt",

@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="BrainWAM: Action-Space Coordination of Semantic Priors and Predictive Dynamics for Autonomous Driving">
+    <meta name="citation_author" content="Bing Zhan">
+    <meta name="citation_author" content="Shuyao Shang">
+    <meta name="citation_author" content="Shuo Lu">
+    <meta name="citation_author" content="Yuan Xu">
+    <meta name="citation_author" content="Zhao Wang">
+    <meta name="citation_author" content="Yida Wang">
+    <meta name="citation_author" content="Xueyang Zhang">
+    <meta name="citation_author" content="Kun Zhan">
+    <meta name="citation_author" content="Jiahao Gu">
+    <meta name="citation_publication_date" content="2026-08-13">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2608.12854v2">
+    <meta name="description" content="从注意力分配失衡、动作空间瓶颈、CAB/CIF 双通路协调与异步整流流四条线解读 BrainWAM，并区分 NAVSIM 得分、融合机制证据和真实车载部署边界。">
+    <meta name="keywords" content="BrainWAM, autonomous driving, vision-language-action, world action model, action-space coordination, rectified flow, NAVSIM">
+    <meta name="paper:read_at" content="2026-08-31">
+    <title>BrainWAM：为什么语义先验与预测动力学要在动作空间会合</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body
+    data-page-kind="paper"
+    data-page-path="/papers/brainwam/"
+    data-bridge-url="http://127.0.0.1:8766"
+  >
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2608.12854V2 · 2026-08-19 修订 · 核对日期：2026-08-31</span>
+    </header>
+
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先抓住目的与判断</a></li>
+          <li><a href="#concepts">分清语义、动力学与动作瓶颈</a></li>
+          <li><a href="#problem-chain">看懂联合注意力为何失灵</a></li>
+          <li><a href="#mechanism">沿双通路追到最终轨迹</a></li>
+          <li><a href="#evidence">核对得分、消融与延迟</a></li>
+          <li><a href="#limits">把 SOTA 放回证据边界</a></li>
+          <li><a href="#sources">回到论文材料</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">SEMANTIC PRIORS · PREDICTIVE DYNAMICS · ACTION-SPACE COORDINATION</p>
+          <h1 id="paper-title" class="paper-title">BrainWAM</h1>
+          <p class="paper-subtitle">
+            它没有继续把 VLM、视频生成模型和动作 token 全部塞进同一个注意力池，而是先让语义与动力学各自形成驾驶动作，再通过一个紧凑的动作接口交流。
+          </p>
+          <div class="paper-byline">
+            <span>Bing Zhan、Shuyao Shang、Shuo Lu 等 9 位作者</span>
+            <span>中国科学院自动化研究所、理想汽车</span>
+            <span>arXiv v2 · 13 页</span>
+          </div>
+
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>
+              让端到端驾驶规划同时利用 VLA 的交通规则、导航意图与场景语义，以及 WAM 的未来运动、交互后果与物理可行性；关键瓶颈不是缺少模态，而是干净、易学的语义 token 会在共享注意力中压制仍在去噪的视频动力学 token。
+            </p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="brain-overview-title brain-overview-desc">
+            <svg viewBox="0 0 760 448" role="img" aria-labelledby="brain-overview-title brain-overview-desc">
+              <title id="brain-overview-title">BrainWAM 的问题、动作与证据总览</title>
+              <desc id="brain-overview-desc">VLA 擅长语义却缺少显式未来，WAM 擅长未来却缺少规则意图；原始 token 联合注意力出现语义捷径，BrainWAM 改为双分支形成动作 token，再用 CAB 与 CIF 协调。</desc>
+              <defs>
+                <marker id="brain-overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="448" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">01 / 两种不完整的能力</text>
+              <rect x="34" y="64" width="202" height="104" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="54" y="95" fill="#17201d" font-size="16" font-weight="700">VLA：应该做什么</text>
+              <text x="54" y="122" fill="#52605b" font-size="12">规则 · 导航 · 场景语义</text>
+              <text x="54" y="147" fill="#86321f" font-size="12">缺少显式未来场景演化</text>
+              <rect x="34" y="184" width="202" height="104" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="215" fill="#17201d" font-size="16" font-weight="700">WAM：接下来会怎样</text>
+              <text x="54" y="242" fill="#52605b" font-size="12">运动 · 交互 · 物理可行性</text>
+              <text x="54" y="267" fill="#355e7c" font-size="12">规则与任务意图较弱</text>
+
+              <path d="M248 176H278" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#brain-overview-arrow)"/>
+              <text x="284" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">02 / 改变融合接口</text>
+              <rect x="280" y="64" width="228" height="66" rx="5" fill="#fffef9" stroke="#9c7b1f"/>
+              <text x="300" y="92" fill="#17201d" font-size="15" font-weight="700">各自形成动作表征</text>
+              <text x="300" y="114" fill="#52605b" font-size="12">A_sem ↔ A_pred，同一噪声轨迹</text>
+              <rect x="280" y="146" width="228" height="66" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="300" y="174" fill="#17201d" font-size="15" font-weight="700">CAB：中间层双向通信</text>
+              <text x="300" y="196" fill="#52605b" font-size="12">零初始化门控，不混 raw token</text>
+              <rect x="280" y="228" width="228" height="66" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="300" y="256" fill="#17201d" font-size="15" font-weight="700">CIF：最终意图协调</text>
+              <text x="300" y="278" fill="#52605b" font-size="12">16 token → Transformer → 轨迹</text>
+
+              <path d="M520 176H550" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#brain-overview-arrow)"/>
+              <text x="556" y="42" fill="#bd4c32" font-size="13" font-weight="700" letter-spacing="1.7">03 / 证据与代价</text>
+              <rect x="552" y="64" width="174" height="230" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="572" y="95" fill="#17201d" font-size="14" font-weight="700">诊断负结果</text>
+              <text x="572" y="119" fill="#52605b" font-size="12">Tri-MoT 87.8</text>
+              <text x="572" y="138" fill="#52605b" font-size="11">低于 WAM-only 88.1</text>
+              <line x1="572" y1="156" x2="706" y2="156" stroke="#d8d4ca"/>
+              <text x="572" y="182" fill="#17201d" font-size="14" font-weight="700">NAVSIM</text>
+              <text x="572" y="206" fill="#52605b" font-size="12">89.5 PDMS</text>
+              <text x="572" y="226" fill="#52605b" font-size="12">89.6 EPDMS</text>
+              <line x1="572" y1="244" x2="706" y2="244" stroke="#d8d4ca"/>
+              <text x="572" y="270" fill="#86321f" font-size="13" font-weight="700">475–644 ms</text>
+              <text x="572" y="288" fill="#52605b" font-size="10">论文承认尚非车载实时</text>
+
+              <path d="M132 320V356H638V320" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <rect x="128" y="349" width="520" height="70" rx="35" fill="#17201d"/>
+              <text x="388" y="378" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">关键不是“模态越多越强”，而是“公共接口应放在哪里”</text>
+              <text x="388" y="401" text-anchor="middle" fill="#d8d4ca" font-size="12">动作空间压缩了异质表征，也限制了两条通路彼此干扰</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文先用 Tri-MoT 的失败证明 raw-token 融合不是免费午餐，再把两种知识各自压成行为相关的 action tokens。CAB 负责途中交流，CIF 负责终点会合；得分提升成立，但实时性与闭环安全仍没有被解决。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，全文最有诊断价值的是负结果。</strong>相同大骨干下，Tri-MoT 只有 87.8 PDMS，反而低于 WAM-only 的 88.1；Fig. 2 同时显示 action token 在多数层更偏向 VLM token，支持“语义捷径压制预测动力学”的解释。</p>
+            <p><strong>第二，BrainWAM 的贡献是架构分工，不是神经科学验证。</strong>真正起作用的组件是专业化分支、动作瓶颈、双向 cross-attention、零初始化残差门和晚期 Transformer 融合；左右脑、胼胝体与小脑只是命名隐喻。</p>
+            <p><strong>第三，89.5/89.6 是 benchmark SOTA，却不是道路部署结论。</strong>两项领先幅度分别只有 0.4 和 0.9 分，论文没有多种子方差；评估仍是 NAVSIM 的短时 non-reactive simulation，而最高分配置单帧延迟约 565 ms。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">READING OBJECT</p>
+          <h2 id="concepts-title">三个概念：模态竞争、动作瓶颈与异步整流流</h2>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ATTENTION-ALLOCATION MISMATCH（注意力分配失衡）</span>
+            <p><strong>英译中：</strong>多种模态虽然进入同一注意力空间，但动作查询并未公平使用它们，而是偏向更稳定、更容易优化的语义 token。</p>
+            <p><strong>怎么理解：</strong>VLM token 已被大规模预训练压成紧凑语义；VGM token 却随视频去噪不断变化。前者像一条清晰近路，后者像仍在施工的动态地图。共享注意力并不会自动学会“各取所长”。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION-SPACE BOTTLENECK（动作空间瓶颈）</span>
+            <p><strong>英译中：</strong>两条大模型通路不直接交换全部视觉或语言特征，只交换与未来轨迹相关的紧凑 action tokens。</p>
+            <p><strong>怎么理解：</strong>它既是共同语言，也是信息过滤器。语义通路只能传“对驾驶动作有什么影响”，预测通路也只能传“未来动力学怎样改变动作”；大量与当前轨迹无关的异质细节被挡在接口外。</p>
+          </div>
+
+          <div class="term-bridge">
+            <span class="term-bridge__label">ASYNCHRONOUS RECTIFIED-FLOW INFERENCE（异步整流流推理）</span>
+            <p><strong>英译中：</strong>视频和动作沿各自 flow timestep 去噪，视频可提前停止并缓存特征，动作继续细化。</p>
+            <p><strong>怎么理解：</strong>规划不一定需要一段高保真未来电影。实验显示第一步视频去噪已恢复大部分规划得分；随后继续生成视频的收益很小，因而可以先拿到粗动态上下文，再把算力留给动作。</p>
+          </div>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY RAW-TOKEN FUSION FAILS</p>
+          <h2 id="problem-title">更多输入为何会更差：从干净语义到动力学失声</h2>
+
+          <figure class="svg-figure" aria-labelledby="brain-failure-title brain-failure-desc">
+            <svg viewBox="0 0 760 382" role="img" aria-labelledby="brain-failure-title brain-failure-desc">
+              <title id="brain-failure-title">Tri-MoT 的注意力分配失败链</title>
+              <desc id="brain-failure-desc">稳定的 VLM 语义 token 与正在去噪的 VGM token 同时进入共享空间，动作 token 更偏向前者，形成语义捷径并削弱预测动力学，Tri-MoT 得分低于 WAM-only。</desc>
+              <defs>
+                <marker id="brain-failure-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#86321f"/>
+                </marker>
+              </defs>
+              <rect width="760" height="382" fill="#fbfaf6"/>
+              <rect x="34" y="68" width="182" height="96" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="125" y="99" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">VLM token</text>
+              <text x="125" y="126" text-anchor="middle" fill="#52605b" font-size="12">干净 · 紧凑 · 易学习</text>
+              <text x="125" y="148" text-anchor="middle" fill="#86321f" font-size="11">浅层注意力优势尤其强</text>
+              <rect x="34" y="202" width="182" height="96" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="125" y="233" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">VGM token</text>
+              <text x="125" y="260" text-anchor="middle" fill="#52605b" font-size="12">带噪 · 高维 · 随时间变化</text>
+              <text x="125" y="282" text-anchor="middle" fill="#355e7c" font-size="11">动态有用，但读取成本更高</text>
+
+              <path d="M228 116H306" fill="none" stroke="#bd4c32" stroke-width="5" marker-end="url(#brain-failure-arrow)"/>
+              <path d="M228 250C266 250 266 164 306 164" fill="none" stroke="#355e7c" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#brain-failure-arrow)"/>
+              <rect x="310" y="104" width="180" height="116" rx="5" fill="#fffef9" stroke="#17201d"/>
+              <text x="400" y="136" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">共享 action token</text>
+              <text x="400" y="166" text-anchor="middle" fill="#86321f" font-size="13">选择语义捷径</text>
+              <text x="400" y="190" text-anchor="middle" fill="#52605b" font-size="12">未来动力学被低估</text>
+
+              <path d="M502 162H548" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#brain-failure-arrow)"/>
+              <rect x="552" y="82" width="174" height="160" rx="5" fill="#17201d"/>
+              <text x="639" y="116" text-anchor="middle" fill="#fffef9" font-size="15" font-weight="700">同协议结果</text>
+              <text x="572" y="151" fill="#d8d4ca" font-size="13">VLA-only</text><text x="706" y="151" text-anchor="end" fill="#fffef9" font-size="13">86.1</text>
+              <text x="572" y="179" fill="#d8d4ca" font-size="13">WAM-only</text><text x="706" y="179" text-anchor="end" fill="#fffef9" font-size="13">88.1</text>
+              <text x="572" y="207" fill="#f2b7a8" font-size="13">Tri-MoT</text><text x="706" y="207" text-anchor="end" fill="#f2b7a8" font-size="13" font-weight="700">87.8</text>
+
+              <path d="M125 325H639" fill="none" stroke="#aaa69c" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="382" y="354" text-anchor="middle" fill="#86321f" font-size="13" font-weight="700">注意力权重是诊断线索，不是“所有早期融合必然失败”的因果定理</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>论文把 Tri-MoT 的内部注意力偏向与外部性能下降放在一起，形成了有说服力的机制解释；但它只证明这一种 raw-token 融合实现失衡。不同归一化、路由或损失配平仍可能改变结论。</figcaption>
+          </figure>
+
+          <h3>去掉视频去噪后的断崖，证明“动力学无用”不是答案</h3>
+          <p>视频去噪步数为 0 时，PDMS 只有 79.3；增加到 1 步即回到 89.3。也就是说，VGM 通路包含强规划信号。Tri-MoT 的问题更准确地说是<strong>信息没有被稳定取用</strong>，而不是视频预测与规划无关。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">MECHANISM CHAIN</p>
+          <h2 id="mechanism-title">两条通路先各自回答，再由 CAB 交流、CIF 定案</h2>
+
+          <figure class="svg-figure" aria-labelledby="brain-arch-title brain-arch-desc">
+            <svg viewBox="0 0 760 486" role="img" aria-labelledby="brain-arch-title brain-arch-desc">
+              <title id="brain-arch-title">BrainWAM 双通路动作协调架构</title>
+              <desc id="brain-arch-desc">Wan2.2 视频生成通路产生预测动作 token，Qwen3-VL 语义通路产生语义动作 token；两个 CAB 在第九和第十八层双向交流，CIF 融合两组八乘一零二四 token，独立动作解码器再输出八个轨迹点。</desc>
+              <defs>
+                <marker id="brain-arch-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" fill="#355e7c"/>
+                </marker>
+              </defs>
+              <rect width="760" height="486" fill="#fbfaf6"/>
+              <text x="34" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">同一观测 · 同一带噪轨迹 · 两种专业化解释</text>
+              <rect x="34" y="68" width="264" height="246" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="54" y="101" fill="#17201d" font-size="17" font-weight="700">预测通路 / WAM</text>
+              <text x="54" y="128" fill="#52605b" font-size="12">Wan2.2-TI2V-5B</text>
+              <rect x="58" y="151" width="216" height="54" rx="4" fill="#fffef9" stroke="#355e7c"/>
+              <text x="166" y="175" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">未来视频 rectified flow</text>
+              <text x="166" y="194" text-anchor="middle" fill="#52605b" font-size="11">运动趋势 · 交互 · 物理</text>
+              <rect x="58" y="225" width="216" height="58" rx="4" fill="#fffef9" stroke="#355e7c"/>
+              <text x="166" y="251" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">A_pred · 8 × 1024</text>
+              <text x="166" y="271" text-anchor="middle" fill="#52605b" font-size="11">prediction-grounded action</text>
+
+              <rect x="462" y="68" width="264" height="246" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="482" y="101" fill="#17201d" font-size="17" font-weight="700">语义通路 / VLA</text>
+              <text x="482" y="128" fill="#52605b" font-size="12">Qwen3-VL-4B</text>
+              <rect x="486" y="151" width="216" height="54" rx="4" fill="#fffef9" stroke="#bd4c32"/>
+              <text x="594" y="175" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">多视角 + 指令 + 自车历史</text>
+              <text x="594" y="194" text-anchor="middle" fill="#52605b" font-size="11">规则 · 导航 · 高层意图</text>
+              <rect x="486" y="225" width="216" height="58" rx="4" fill="#fffef9" stroke="#bd4c32"/>
+              <text x="594" y="251" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">A_sem · 8 × 1024</text>
+              <text x="594" y="271" text-anchor="middle" fill="#52605b" font-size="11">semantic-grounded action</text>
+
+              <path d="M286 191H474" fill="none" stroke="#9c7b1f" stroke-width="2" marker-end="url(#brain-arch-arrow)"/>
+              <path d="M474 229H286" fill="none" stroke="#9c7b1f" stroke-width="2" marker-end="url(#brain-arch-arrow)"/>
+              <rect x="316" y="170" width="128" height="80" rx="40" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="380" y="201" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">CAB × 2</text>
+              <text x="380" y="222" text-anchor="middle" fill="#52605b" font-size="11">第 9 / 18 层</text>
+              <text x="380" y="239" text-anchor="middle" fill="#52605b" font-size="10">双向 cross-attn + gate</text>
+
+              <path d="M166 326V356H380" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#brain-arch-arrow)"/>
+              <path d="M594 326V356H380" fill="none" stroke="#bd4c32" stroke-width="2" marker-end="url(#brain-arch-arrow)"/>
+              <rect x="286" y="350" width="188" height="72" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="380" y="379" text-anchor="middle" fill="#17201d" font-size="16" font-weight="700">CIF · 2-layer Transformer</text>
+              <text x="380" y="401" text-anchor="middle" fill="#52605b" font-size="11">来源嵌入 + timestep AdaLN + 平均</text>
+              <path d="M474 386H548" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#brain-arch-arrow)"/>
+              <rect x="552" y="350" width="174" height="72" rx="5" fill="#17201d"/>
+              <text x="639" y="379" text-anchor="middle" fill="#fffef9" font-size="14" font-weight="700">action decoder</text>
+              <text x="639" y="402" text-anchor="middle" fill="#d8d4ca" font-size="11">4 秒 · 2 Hz · 8 waypoint</text>
+              <text x="34" y="459" fill="#52605b" font-size="11">CAB + CIF 约 66.1M 参数；两个大骨干与最终 decoder 不包含在这个数字中。</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>两条分支都看到同一条带噪轨迹，因此 CAB 对接的是“同一行为问题的两种解释”。它不把全部 VLM/VGM hidden states 拉进来；最终 CIF 才把两组动作意图拼成 16-token 序列并生成统一向量场。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="整流流公式说明">
+            <div class="formula-card__label">公式拆解 · 视频与动作怎样共享直线路径</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">x<sub>t</sub></span> = (1 − t)x<sub>0</sub> + tε,
+              &nbsp; <span class="formula-symbol">u</span> = ε − x<sub>0</sub>
+            </div>
+            <p class="formula-card__caption">这组公式回答：怎样把干净未来视频或真值轨迹变成可由少步向量场恢复的带噪状态。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>x<sub>0</sub></dt><dd>干净样本；在视频流中是未来视频 latent，在动作流中是 8 个真值 waypoint。</dd></div>
+              <div class="formula-legend__row"><dt>ε</dt><dd>标准高斯噪声；t=1 时只剩噪声，推理从这里反向积分。</dd></div>
+              <div class="formula-legend__row"><dt>t<sub>v</sub>, t<sub>a</sub></dt><dd>视频与动作各自的 flow 时间。独立设置让视频可提前停止、动作继续去噪。</dd></div>
+              <div class="formula-legend__row"><dt>u</dt><dd>直线插值的目标速度场。模型最小化的是 ||û−u||² 预测误差；u 本身的幅值没有“越小越好”的含义。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：两条流不必同时跑到终点。只要粗未来已经给出规划相关的方向，视频流可以停下，缓存特征继续服务动作流。</div>
+          </div>
+
+          <div class="formula-card" aria-label="CAB 公式说明">
+            <div class="formula-card__label">公式拆解 · 两条动作流怎样安全交换消息</div>
+            <div class="formula-card__equation">
+              <span class="formula-symbol">Ã<sub>x</sub><sup>l</sup></span> = A<sub>x</sub><sup>l</sup> + tanh(g<sub>x</sub><sup>l</sup>) ⊙ Attn(A<sub>x</sub><sup>l</sup>, A<sub>y</sub><sup>l</sup>)
+            </div>
+            <p class="formula-card__caption">这条公式回答：怎样让当前通路读取另一通路，又不在训练开始时破坏两个已经收敛的专家。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>A<sub>x</sub><sup>l</sup></dt><dd>第 l 层待更新的 action tokens，作为 cross-attention 的 Query。</dd></div>
+              <div class="formula-legend__row"><dt>A<sub>y</sub><sup>l</sup></dt><dd>另一通路的 action tokens，作为 Key/Value；两个方向各算一次。</dd></div>
+              <div class="formula-legend__row"><dt>g<sub>x</sub><sup>l</sup></dt><dd>1024 维可学习门，零初始化；经 tanh 后逐通道控制跨流残差。</dd></div>
+              <div class="formula-legend__row"><dt>⊙</dt><dd>逐元素乘法。门可以选择哪些动作维度值得共享，而非整体全开或全关。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">直觉读法：CAB 刚接上时等价于一根关闭的旁路，不动原模型；训练只需逐渐打开有用通道。附录中冻结两个大分支得到 89.5，优于全量微调的 88.8。</div>
+          </div>
+
+          <h3>三阶段训练是在保护两种已经形成的专业能力</h3>
+          <p>Stage 1 单独训练 WAM 的视频与动作向量场；Stage 2 单独训练 VLA 的语义动作向量场；Stage 3 冻结两条大分支，只训练 CAB、CIF 与最终 decoder。两个分支在 Stage 3 共享同一个带噪轨迹和同一动作时间步，避免协调层面对噪声等级错位的表示。</p>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="brain-async-title brain-async-desc">
+            <svg viewBox="0 0 700 360" role="img" aria-labelledby="brain-async-title brain-async-desc">
+              <title id="brain-async-title">视频去噪步数的延迟与规划收益</title>
+              <desc id="brain-async-desc">零到一步视频去噪使 PDMS 从七十九点三升到八十九点三，之后两步与三步几乎不再提升，而延迟继续从四百七十五毫秒上升到六百四十四毫秒。</desc>
+              <rect width="700" height="360" fill="#fbfaf6"/>
+              <text x="38" y="42" fill="#bd4c32" font-size="12" font-weight="700" letter-spacing="1.5">单张 H20 · ACTION FLOW 继续运行 · VIDEO FLOW 可提前停止</text>
+              <line x1="90" y1="286" x2="650" y2="286" stroke="#aaa69c"/>
+              <line x1="90" y1="76" x2="90" y2="286" stroke="#aaa69c"/>
+              <text x="370" y="326" text-anchor="middle" fill="#52605b" font-size="12">推理延迟（ms）</text>
+              <text x="28" y="186" transform="rotate(-90 28 186)" text-anchor="middle" fill="#52605b" font-size="12">NAVSIM v1 PDMS</text>
+              <polyline points="130,264 285,100 440,96 580,98" fill="none" stroke="#bd4c32" stroke-width="3"/>
+              <g fill="#fffef9" stroke="#bd4c32" stroke-width="3">
+                <circle cx="130" cy="264" r="7"/><circle cx="285" cy="100" r="7"/><circle cx="440" cy="96" r="7"/><circle cx="580" cy="98" r="7"/>
+              </g>
+              <text x="130" y="247" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">0 步 · 79.3</text>
+              <text x="285" y="82" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">1 步 · 89.3</text>
+              <text x="440" y="78" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">2 步 · 89.5</text>
+              <text x="580" y="80" text-anchor="middle" fill="#17201d" font-size="12" font-weight="700">3 步 · 89.4</text>
+              <text x="130" y="306" text-anchor="middle" fill="#52605b" font-size="11">382</text>
+              <text x="285" y="306" text-anchor="middle" fill="#52605b" font-size="11">475</text>
+              <text x="440" y="306" text-anchor="middle" fill="#52605b" font-size="11">565</text>
+              <text x="580" y="306" text-anchor="middle" fill="#52605b" font-size="11">644</text>
+              <rect x="244" y="128" width="198" height="70" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="343" y="157" text-anchor="middle" fill="#17201d" font-size="13" font-weight="700">收益的拐点在第 1 步</text>
+              <text x="343" y="181" text-anchor="middle" fill="#52605b" font-size="11">再多算 169 ms，得分只 +0.1</text>
+            </svg>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>0→1 步带来 +10.0 PDMS，1→3 步却几乎完全饱和。这支持“规划只需早期、粗粒度预测上下文”，但论文没有同时评估未来视频质量，所以不能据此说一轮去噪已学到完整世界动力学。</figcaption>
+          </figure>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">EVIDENCE CHAIN</p>
+          <h2 id="evidence-title">主表、内部对照与延迟必须分开读</h2>
+
+          <h3>主结果：总分领先来自较均衡的规则与进度，不是每项都第一</h3>
+          <div class="table-wrap" role="region" aria-label="BrainWAM NAVSIM 主结果" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">BrainWAM 在 NAVSIM v1 与 v2 的主结果及证据限定</caption>
+              <thead><tr><th scope="col">Benchmark</th><th scope="col">BrainWAM</th><th scope="col">最强既有基线</th><th scope="col">绝对提升</th><th scope="col">重要限定</th></tr></thead>
+              <tbody>
+                <tr class="evidence-table__emphasis"><td>NAVSIM v1</td><td><strong>89.5 PDMS</strong></td><td>89.1</td><td>+0.4</td><td>NC/TTC 并非最高，DAC 与 EP 较强</td></tr>
+                <tr class="evidence-table__emphasis"><td>NAVSIM v2</td><td><strong>89.6 EPDMS</strong></td><td>88.7</td><td>+0.9</td><td>规则、车道与舒适项较均衡</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>v1 人类参考为 94.8。BrainWAM 仅用图像、无 lidar；v2 中 DriveVLA-W0 的 NC/DAC/TTC 更高，ARTEMIS 的 EC 更高。总分 SOTA 不等于每种驾驶风险都同时下降。</p>
+
+          <h3>内部消融：动作级协调同时胜过单分支与 raw-token 融合</h3>
+          <div class="table-wrap" role="region" aria-label="BrainWAM 分支与协调消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">BrainWAM 单分支、原始 token 融合与动作空间协调消融</caption>
+              <thead><tr><th scope="col">方法</th><th scope="col">VLA 语义</th><th scope="col">WAM 预测</th><th scope="col">融合位置</th><th scope="col">PDMS</th></tr></thead>
+              <tbody>
+                <tr><td>VLA-only</td><td>✓</td><td>—</td><td>—</td><td>86.1</td></tr>
+                <tr><td>WAM-only</td><td>—</td><td>✓</td><td>—</td><td>88.1</td></tr>
+                <tr><td>Tri-MoT</td><td>✓</td><td>✓</td><td>raw-token shared attention</td><td>87.8</td></tr>
+                <tr class="evidence-table__emphasis"><td>BrainWAM</td><td>✓</td><td>✓</td><td>action-space CAB + CIF</td><td><strong>89.5</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-wrap" role="region" aria-label="CAB 与 CIF 消融" tabindex="0">
+            <table class="evidence-table evidence-table--compact">
+              <caption class="sr-only">CAB 与 CIF 协调模块的组合消融</caption>
+              <thead><tr><th scope="col">CAB</th><th scope="col">CIF</th><th scope="col">PDMS</th><th scope="col">读法</th></tr></thead>
+              <tbody>
+                <tr><td>✓</td><td>—</td><td>88.7</td><td>途中交流有效，但缺少统一终点</td></tr>
+                <tr><td>—</td><td>✓</td><td>88.5</td><td>只在末端融合，错过中间层互补</td></tr>
+                <tr class="evidence-table__emphasis"><td>✓</td><td>✓</td><td><strong>89.5</strong></td><td>中间通信与最终协调互补</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>附录：更多桥、更深融合与全量微调都没有继续涨分</h3>
+          <p>两个 CAB 已基本饱和：1/2/3/5/28 个 CAB 分别得到 88.9/89.3/89.2/89.3/89.3。CIF 用 Transformer 得 89.3，高于 MLP 的 88.8 与门控的 89.1；2 层与 3 层同为 89.3。Stage 3 全模型微调只有 88.8，冻结专业分支并只训协调层则为 89.5。</p>
+          <p class="evidence-note"><strong>协议提醒：</strong>附录 Tables 6–8 统一使用视频、动作各 10 步 joint denoising，不能把其中 89.3 与主表的 3-step action / 异步视频设置当作完全同协议直接比较。</p>
+
+          <h3>定性图展示互补，但没有失败率统计</h3>
+          <p>导航跟随与红灯案例更依赖语义规则，行人交互与弯道更依赖未来动力学；补充图还给出两个单分支都失败、BrainWAM 成功的案例。这些图与机制叙事一致，却没有案例采样规则、总量或置信区间，只能作为解释性证据。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">TECHNICAL DEBT &amp; BOUNDARIES</p>
+          <h2 id="limits-title">它解决了融合失衡，却把系统代价留给了部署</h2>
+
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported">
+              <span>证据较强</span>
+              <h3>这一版 raw-token 融合确实失衡</h3>
+              <p>注意力偏向、Tri-MoT 低于 WAM-only、动作级融合反超三条证据彼此吻合。</p>
+            </article>
+            <article class="claim-card claim-card--bounded">
+              <span>只能有限外推</span>
+              <h3>粗预测上下文足以规划</h3>
+              <p>一轮视频去噪几乎恢复全部得分，但没有同步测视频质量与预测校准。</p>
+            </article>
+            <article class="claim-card claim-card--open">
+              <span>仍待验证</span>
+              <h3>闭环真实道路安全</h3>
+              <p>NAVSIM 是短时 non-reactive simulation；没有真实车辆、跨城市或交互闭环实验。</p>
+            </article>
+          </div>
+
+          <h3>第一，实时性仍远离严格车载要求</h3>
+          <p>系统同时运行 5B 视频生成骨干与 4B VLM，最低 382 ms 是几乎不使用视频预测的低分配置；较好的 1–3 步配置为 475–644 ms。论文也把视频分支蒸馏、双通路去冗余、特征复用和 early exit 列为后续工作。</p>
+
+          <h3>第二，0.4/0.9 分领先缺少不确定性</h3>
+          <p>论文没有多随机种子、标准差或显著性检验；主表还汇总了来自不同工作的已报告结果。最可信的机制证据是相同骨干、相同数据流程下的内部 ablation，而不是“榜单第一”本身。</p>
+
+          <h3>第三，注意力权重只能支持解释，不能完成因果证明</h3>
+          <p>Fig. 2 显示多数层的 VLM/VGM attention ratio 大于 1，但没有精确数表、误差条或改变注意力分配的干预。不同 early-fusion 设计仍可能缓解模态竞争；论文证明的是其 Tri-MoT 方案失败，不是原始特征永远不可融合。</p>
+
+          <h3>第四，“世界模型”没有单独接受世界质量评估</h3>
+          <p>实验只用规划分数证明未来视频特征有用，没有报告生成视频的 FVD、校准、反事实正确性或交通参与者长期一致性。因此更稳妥的结论是“视频预测提供了规划上下文”，而不是“系统已学会完整、因果正确的交通世界”。</p>
+
+          <h3>第五，复现信息仍有缺口</h3>
+          <p>论文未给完整训练样本规模、split、seed、总参数量、FLOPs、峰值显存、车规硬件延迟以及 WAM 动作损失权重。当前也没有在 arXiv 记录中链接官方代码仓库。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES</p>
+          <h2 id="sources-title">材料来源与事实边界</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2608.12854v2">论文摘要页：arXiv:2608.12854v2</a> — 9 位作者、v1/v2 日期、分类与版本信息。</li>
+            <li><a href="https://arxiv.org/pdf/2608.12854v2">用户提供附件对应的官方 v2 PDF</a> — 本页方法、公式、NAVSIM 表格、消融、定性案例与局限的主要来源，共 13 页。</li>
+            <li><a href="https://arxiv.org/html/2608.12854v2">官方实验性 HTML</a> — 用于辅助核对公式与可访问文本；数值以 PDF 表格为准。</li>
+          </ol>
+          <p class="evidence-note"><strong>区分：</strong>架构、训练配置、公式、延迟和得分是论文事实；“动作空间也是信息过滤器”“注意力诊断并非因果定理”“第一轮视频去噪提示粗动态已足够”“神经科学只是结构隐喻”等是依据论文设计与证据范围作出的分析判断。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
