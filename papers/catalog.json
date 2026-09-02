@@ -1,6 +1,31 @@
 {
-  "updatedAt": "2026-08-31",
+  "updatedAt": "2026-09-02",
   "papers": [
+    {
+      "slug": "vla-to-world-action-models",
+      "title": "从 VLA 到 World-Action Model：六篇论文的横向对比导读",
+      "authors": [
+        "Paper Reading for Kun · 横向导读"
+      ],
+      "publicationDate": "2026-09-02",
+      "readAt": "2026-09-02",
+      "description": "横向比较 FlashVLA、CLAP、Riemann-1.0、BrainWAM、Zero-WAM 与 Code as Worlds 的任务、动作表示、世界模型、训练数据、实时性和证据边界，梳理从 VLA 到 world-action model 的研究脉络。",
+      "tags": [
+        "横向导读",
+        "VLA",
+        "world-action model",
+        "FlashVLA",
+        "CLAP",
+        "Riemann-1.0",
+        "BrainWAM",
+        "Zero-WAM",
+        "Code as Worlds",
+        "具身智能",
+        "世界模型"
+      ],
+      "sourceUrl": "",
+      "href": "papers/vla-to-world-action-models/"
+    },
     {
       "slug": "zero-wam",
       "title": "Zero-WAM: In-Context World-Action Modeling from Human Videos for Open-Ended Task Generalization",

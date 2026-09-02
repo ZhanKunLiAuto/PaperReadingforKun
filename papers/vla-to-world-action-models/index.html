@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="从 VLA 到 World-Action Model：六篇论文的横向对比导读">
+    <meta name="citation_author" content="Paper Reading for Kun · 横向导读">
+    <meta name="citation_publication_date" content="2026-09-02">
+    <meta name="description" content="横向比较 FlashVLA、CLAP、Riemann-1.0、BrainWAM、Zero-WAM 与 Code as Worlds 的任务、动作表示、世界模型、训练数据、实时性和证据边界，梳理从 VLA 到 world-action model 的研究脉络。">
+    <meta name="keywords" content="横向导读, VLA, world-action model, FlashVLA, CLAP, Riemann-1.0, BrainWAM, Zero-WAM, Code as Worlds, 具身智能, 世界模型">
+    <meta name="paper:read_at" content="2026-09-02">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="从 VLA 到 World-Action Model：六篇论文的横向对比导读">
+    <meta property="og:description" content="沿实时执行、动作后果、语义协调、示范迁移与可执行世界五个问题，读懂六条相关但不同的研究路线。">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="从 VLA 到 World-Action Model：六篇论文的横向对比导读">
+    <meta name="twitter:description" content="六篇论文、四张比较表、三张关系图；先对齐问题，再判断证据。">
+    <title>从 VLA 到 World-Action Model：六篇论文的横向对比导读</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <link rel="stylesheet" href="../../assets/paper-comparison.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body class="paper-comparison" data-page-kind="paper" data-page-path="/papers/vla-to-world-action-models/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">六篇横向导读 · 基于仓库既有解读 · 2026-09-02</span>
+    </header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先建立六篇的关系</a></li>
+          <li><a href="#concepts">对齐任务、动作与世界</a></li>
+          <li><a href="#problem-chain">沿瓶颈串起研究脉络</a></li>
+          <li><a href="#mechanism">比较机制与训练数据</a></li>
+          <li><a href="#realtime">拆开延迟与控制频率</a></li>
+          <li><a href="#evidence">把结果放回评测协议</a></li>
+          <li><a href="#limits">判断局限与下一步</a></li>
+          <li><a href="#sources">选择精读路线与来源</a></li>
+        </ol>
+      </nav>
+
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">COMPARATIVE READING · EMBODIED INTELLIGENCE</p>
+          <h1 id="paper-title" class="paper-title">从 VLA 到<br>World-Action Model</h1>
+          <p class="paper-subtitle">FlashVLA、CLAP、Riemann-1.0、BrainWAM、Zero-WAM 与 Code as Worlds：当模型既要行动，也要理解行动的后果。</p>
+          <div class="paper-byline"><span>中文横向导读</span><span>6 篇研究 · 4 张比较表 · 3 张关系图</span><span>研究脉络按问题组织，不按发表时间排序</span></div>
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>把六篇工作放在同一张问题地图上：机器人怎样及时执行动作，怎样预见后果，怎样借用人类经验，以及怎样检验自己想象的世界。读完应能分清每篇补了哪一块能力、付出什么代价，并据此选择精读对象和研究切入点。</p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="overview-title overview-desc">
+            <div class="comparison-diagram" role="region" aria-label="六篇研究关系图，小屏可横向滚动" tabindex="0">
+              <svg viewBox="0 0 760 640" role="img" aria-labelledby="overview-title overview-desc">
+                <title id="overview-title">从及时行动到理解世界：主线、并行架构与两条支线</title>
+                <desc id="overview-desc">FlashVLA 优化 VLA 执行；CLAP 加入动作条件后果预测。进一步耦合预测与行动有 Riemann 的统一时序和 BrainWAM 的双路协调两种组织。Zero-WAM 借未来视频迁移人类示范，Code as Worlds 用可执行程序拟合世界并生成监督。所有连线都是本导读的问题关系，不表示论文继承或系统集成。</desc>
+                <defs><marker id="overview-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+                <rect width="760" height="640" fill="#fbfaf6"/>
+                <text x="30" y="35" fill="#86321f" font-size="14" font-weight="700">问题主线：选动作 → 预见后果 → 组织预测与行动</text>
+                <rect x="30" y="62" width="280" height="94" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+                <text x="48" y="91" fill="#17201d" font-size="19" font-weight="700">FlashVLA</text>
+                <text x="48" y="119" fill="#17201d" font-size="14">VLA 的动作流水线</text>
+                <text x="48" y="142" fill="#86321f" font-size="13">补反应速度；不生成未来世界</text>
+                <path d="M314 110H444" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#overview-arrow)"/>
+                <text x="329" y="93" fill="#52605b" font-size="13">加入后果预测</text>
+                <rect x="450" y="62" width="280" height="94" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+                <text x="468" y="91" fill="#17201d" font-size="19" font-weight="700">CLAP</text>
+                <text x="468" y="119" fill="#17201d" font-size="14">给定动作 → 预测视频</text>
+                <text x="468" y="142" fill="#355e7c" font-size="13">策略另供候选，再想象与筛选</text>
+                <path d="M590 158V183H170V224M590 183V224" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#overview-arrow)"/>
+                <text x="30" y="209" fill="#52605b" font-size="13">两种组织方式：不是前后代关系</text>
+                <rect x="30" y="230" width="330" height="100" rx="5" fill="#dcebe5" stroke="#24624e"/>
+                <text x="48" y="261" fill="#17201d" font-size="19" font-weight="700">Riemann-1.0 · 统一时序</text>
+                <text x="48" y="288" fill="#17201d" font-size="14">历史 → 动作 → 视觉后果</text>
+                <text x="48" y="313" fill="#24624e" font-size="13">同一骨干：策略 / 模拟两种接口</text>
+                <rect x="400" y="230" width="330" height="100" rx="5" fill="#dcebe5" stroke="#24624e"/>
+                <text x="418" y="261" fill="#17201d" font-size="19" font-weight="700">BrainWAM · 双路协调</text>
+                <text x="418" y="288" fill="#17201d" font-size="14">语义动作 ↔ 预测动作 → 驾驶轨迹</text>
+                <text x="418" y="313" fill="#24624e" font-size="13">共同接口放在紧凑动作空间</text>
+                <text x="30" y="375" fill="#86321f" font-size="14" font-weight="700">支线：经验从哪里来？世界怎样变得可检验？</text>
+                <rect x="30" y="395" width="330" height="139" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+                <text x="48" y="426" fill="#17201d" font-size="19" font-weight="700">Zero-WAM · 示范迁移</text>
+                <text x="48" y="455" fill="#17201d" font-size="14">人类示范 → 机器人未来 → 动作</text>
+                <text x="48" y="482" fill="#52605b" font-size="13">先视频、后逆动力学</text>
+                <text x="48" y="507" fill="#52605b" font-size="13">测试时用视频提示新任务</text>
+                <path d="M194 393V334" fill="none" stroke="#9c7b1f" stroke-width="2" stroke-dasharray="5 5"/>
+                <rect x="400" y="395" width="330" height="139" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+                <text x="418" y="426" fill="#17201d" font-size="19" font-weight="700">Code as Worlds · 可执行表示</text>
+                <text x="418" y="455" fill="#17201d" font-size="14">观测 / 文本 → 程序 → 模拟检验</text>
+                <text x="418" y="482" fill="#52605b" font-size="13">生成物理监督，训练定量推理</text>
+                <text x="418" y="507" fill="#52605b" font-size="13">尚未验证机器人控制接口</text>
+                <path d="M565 393V334" fill="none" stroke="#9c7b1f" stroke-width="2" stroke-dasharray="5 5"/>
+                <rect x="30" y="561" width="700" height="53" rx="5" fill="#17201d"/>
+                <text x="380" y="583" text-anchor="middle" fill="#fffef9" font-size="13">实线：阅读时增加的问题　虚线：相关研究支线</text>
+                <text x="380" y="603" text-anchor="middle" fill="#d8d4ca" font-size="12">连线不表示引用、训练继承、时间先后或已实现的系统组合</text>
+              </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先沿上半部理解“及时行动 → 预测后果 → 耦合预测与行动”，再看两条支线怎样分别扩大经验来源和提高世界表示的可检验性。Riemann 与 BrainWAM 并列：前者讨论统一模型的时序，后者讨论异质模型的交流接口。小屏可横向滑动查看。</figcaption>
+          </figure>
+
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，六篇并不是六个同类 WAM。</strong>FlashVLA 是 VLA 解码与调度方案；CLAP 是外接动作条件视频模型；Riemann、BrainWAM、Zero-WAM 用不同接口连接世界预测与行动；Code as Worlds 是可执行世界发现与物理监督路线。</p>
+            <p><strong>第二，关键分歧是信息以什么形式、按什么顺序进入动作决策。</strong>动作先于视频、视频先于动作、两条通路先各自形成动作，这三种设计会产生不同的延迟、信息瓶颈和误差传播路径。</p>
+            <p><strong>第三，世界预测有用，不等于世界已经正确。</strong>控制成功率、视频相似度、驾驶规划分和物理量问答各自只检验部分能力。六篇合起来最值得追问的是：在统一预算下，更准确的行动后果预测，能否稳定改善真实闭环决策？</p>
+          </div>
+          <p class="evidence-note"><strong>比较范围：</strong>本文以仓库六篇解读为主要材料，沿用其锁定的论文版本；数值是各论文报告值，没有重新复现实验。“研究脉络”“互补关系”和后续实验建议是本导读的综合分析。所有简称均可通过表格中的论文名返回单篇解读。</p>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">ALIGN THE OBJECTS</p>
+          <h2 id="concepts-title">先对齐三个词：任务、动作、世界</h2>
+          <div class="term-bridge">
+            <span class="term-bridge__label">VLA / WAM · 视觉语言动作 / 世界动作模型</span>
+            <p><strong>怎么理解：</strong>VLA 通常从视觉与任务指令预测动作；显式世界预测进一步问“执行以后会看到什么”。WAM 在这些材料中指把行动与未来建模联系起来的一类方法，并没有唯一架构：可以共享骨干，也可以分支协作或先预测视频再推断动作。</p>
+          </div>
+          <div class="term-bridge">
+            <span class="term-bridge__label">ACTION REPRESENTATION · 动作表示</span>
+            <p><strong>避免误读：</strong>可执行控制量、用于预训练的潜动作、网络内部的 action token 不是同一层对象。潜动作从帧间变化中学出，不一定能直接驱动机器人；BrainWAM 的 action token 是协调特征，最终输出才是驾驶路点。</p>
+          </div>
+          <p>后文三个模块缩写可先记住功能：BrainWAM 的 <strong>CAB</strong> 是两路动作特征的双向交流模块，<strong>CIF</strong> 负责最终融合；Zero-WAM 的 <strong>IFP</strong> 是仅训练时使用的远期视频预测监督。它们分别处理信息协调和任务信息保留。</p>
+          <div class="table-wrap" role="region" aria-label="六篇论文任务、动作表示与世界模型形式比较，小屏可横向滚动" tabindex="0">
+            <table class="evidence-table comparison-table">
+              <caption>表 1 · 每篇到底接收什么、输出什么？</caption>
+              <thead><tr><th scope="col">工作</th><th scope="col">任务 / 输出接口</th><th scope="col">动作表示</th><th scope="col">世界模型形式</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><a href="../flashvla/#mechanism">FlashVLA</a></th><td>机器人操作；加速已有 flow-matching VLA 的在线动作输出。</td><td>连续动作块；多个块处于不同噪声层级，以因果注意力联系在途动作。</td><td><strong>无显式世界生成器。</strong>动作缓冲是短期动作上下文，不预测外界未来观测。</td></tr>
+                <tr><th scope="row"><a href="../clap/#mechanism">CLAP</a></th><td>给定候选动作，预测 RGB 视频；规划还需外部策略与评分器。</td><td>EE：7D 末端动作表示（含夹爪）；LANG：动作文本；LAM：32D 潜动作。</td><td>SVD 视频扩散模型；6 帧历史与 5 帧未来组成窗口，帧读取对应动作条件。</td></tr>
+                <tr><th scope="row"><a href="../riemann-1-0/#mechanism">Riemann-1.0</a></th><td>机器人操作策略 + 多本体视觉模拟，两个接口共享骨干。</td><td>连续动作块；本体专属投影与预测头、填充及有效性掩码；早期另用 32D 潜动作。</td><td>因果自回归：历史 → 动作 → 视觉后果；动作与视觉用 flow matching，机器人状态作为输入。</td></tr>
+                <tr><th scope="row"><a href="../brainwam/#mechanism">BrainWAM</a></th><td>端到端驾驶规划；输出 4 秒轨迹，8 个路点。</td><td>语义、预测两路各有 8 × 1024 动作特征；CAB 交流，CIF 融成轨迹。</td><td>视频生成分支 + VLM 语义分支；通过动作空间协调，视频与动作可异步去噪。</td></tr>
+                <tr><th scope="row"><a href="../zero-wam/#mechanism">Zero-WAM</a></th><td>用人类提示视频完成未见机器人任务；先生成机器人未来，再产出动作。</td><td>逆动力学分支预测动作块；现有材料未披露具体控制维度或关节 / 末端参数化。</td><td>视频优先的自回归 WAM；人类视频通过预测未来间接影响动作，IFP 辅助远期预测仅用于训练。</td></tr>
+                <tr><th scope="row"><a href="../code-as-worlds/#mechanism">Code as Worlds</a></th><td>从文本 / 视频发现世界程序，生成物理监督；下游 VLM 回答物理标量与单位。</td><td><strong>机器人控制动作不适用。</strong>程序描述初态、运动轨迹，或力、接触与约束。</td><td>EWR（可执行世界表示）：结构、演化、外观分离；经引擎模拟与渲染检验。不是机器人策略。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这里至少有四种“世界”：CLAP 的可见未来，Riemann / Zero-WAM 中与行动相连的视频过程，BrainWAM 中有助规划的预测特征，以及 Code as Worlds 中能编译、模拟和测量的结构化程序。它们有交集，但不能只凭名字互换。</p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">A RESEARCH THREAD, NOT A TIMELINE</p>
+          <h2 id="problem-title">从 VLA 出发：每补一种能力，就暴露下一个瓶颈</h2>
+          <h3>1 · 会选动作，还要赶得上执行</h3>
+          <p>大模型策略即使预测准确，等待完整去噪仍会让机器人使用过时信息，异步执行又可能造成新旧动作不连续。<a href="../flashvla/#problem-chain">FlashVLA</a>把完整动作块去噪拆进流水线，缓存中同时保留不同成熟度的动作块，使后续动作能看见正在执行的计划。它改善了“何时交付动作”，并没有因此获得外部世界预测能力。</p>
+          <h3>2 · 动作能及时交付，选之前能否看一眼后果？</h3>
+          <p><a href="../clap/#problem-chain">CLAP</a>把问题转为动作条件视频预测：先让已有策略提出候选，再想象不同候选的结果。瓶颈随之从动作解码转向跨本体动作条件对齐、未来视频可信度和生成开销。预测器能够筛选动作，但仍需有人提出候选、判断哪个后果更好。</p>
+          <h3>3 · 把动作与世界放进模型，接口应怎样组织？</h3>
+          <p><a href="../riemann-1-0/#mechanism">Riemann-1.0</a>选择统一时序：先动作、后视觉后果；同一骨干在策略模式接收真实反馈，在模拟模式回灌预测视觉。<a href="../brainwam/#mechanism">BrainWAM</a>选择专业分工：语义与动力学各自产生动作表示，再协调。前者回答“生成顺序如何统一”，后者回答“知识通路如何互补”，二者不是必然的替代关系。</p>
+          <h3>4 · 数据与任务怎样超出已有机器人示范？</h3>
+          <p>CLAP 和 Riemann 借潜动作吸收更广的人类或异构视频经验；<a href="../zero-wam/#mechanism">Zero-WAM</a>进一步把人类示范放进测试时上下文，让它指示新任务的未来过程。这里的难题是：模型是否真正读取示范中的任务信息，还是只靠机器人历史和语言就完成训练目标？Zero-WAM 用远期预测压力处理这条信息捷径。</p>
+          <h3>5 · 未来看起来合理，如何检查内部机制？</h3>
+          <p><a href="../code-as-worlds/#problem-chain">Code as Worlds</a>把隐含世界改成可执行程序，让世界假设经过模拟与观测比对，并产生可测量的监督。它为“怎样审查或训练物理理解”提供支线，但现有实验没有把这个循环接进机器人策略，也没有证明从单段视频能唯一恢复真实因果机制。</p>
+          <p class="evidence-note"><strong>这条脉络的含义：</strong>VLA → world-action model 是从“预测动作”扩展到“连接动作、后果与经验”的问题扩展。本文连线是帮助阅读的概念组织；六篇没有共同训练、统一评测或逐篇继承的证据。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">INTERFACES &amp; DATA</p>
+          <h2 id="mechanism-title">最关键的设计：谁先预测，信息经过哪里？</h2>
+          <figure class="svg-figure" aria-labelledby="order-title order-desc">
+            <div class="comparison-diagram" role="region" aria-label="三种预测行动接口对照图，小屏可横向滚动" tabindex="0">
+              <svg viewBox="0 0 760 430" role="img" aria-labelledby="order-title order-desc">
+                <title id="order-title">动作优先、视频优先与动作空间协调</title>
+                <desc id="order-desc">Riemann 从历史预测动作，再预测视觉，策略模式可跳过视觉生成。Zero-WAM 将人类视频注入未来视觉，然后结合历史和语言推断动作，存在生成误差传播。BrainWAM 让语义和预测通路各自形成动作特征，再通过 CAB 与 CIF 协调。</desc>
+                <defs><marker id="order-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+                <rect width="760" height="430" fill="#fbfaf6"/>
+                <text x="28" y="35" fill="#17201d" font-size="16" font-weight="700">Riemann-1.0：动作优先</text>
+                <rect x="28" y="53" width="150" height="48" rx="4" fill="#f1e8c9"/>
+                <rect x="260" y="53" width="182" height="48" rx="4" fill="#dcebe5"/>
+                <rect x="526" y="53" width="206" height="48" rx="4" fill="#dfeaf1"/>
+                <text x="103" y="82" text-anchor="middle" fill="#17201d" font-size="15">机器人历史</text>
+                <text x="351" y="82" text-anchor="middle" fill="#17201d" font-size="15">下一动作块</text>
+                <text x="629" y="82" text-anchor="middle" fill="#17201d" font-size="15">动作条件视觉后果</text>
+                <path d="M181 77H254M445 77H520" stroke="#355e7c" stroke-width="2" marker-end="url(#order-arrow)"/>
+                <text x="28" y="126" fill="#52605b" font-size="13">策略模式可不生成未来视频；减少生成环节 ≠ 已测得实时延迟。</text>
+                <line x1="28" y1="147" x2="732" y2="147" stroke="#d8d4ca"/>
+                <text x="28" y="179" fill="#17201d" font-size="16" font-weight="700">Zero-WAM：视频优先</text>
+                <rect x="28" y="196" width="190" height="48" rx="4" fill="#f1e8c9"/>
+                <rect x="277" y="196" width="192" height="48" rx="4" fill="#dfeaf1"/>
+                <rect x="529" y="196" width="203" height="48" rx="4" fill="#dcebe5"/>
+                <text x="123" y="225" text-anchor="middle" fill="#17201d" font-size="14">人类示范 + 历史 + 语言</text>
+                <text x="373" y="225" text-anchor="middle" fill="#17201d" font-size="15">机器人未来视频</text>
+                <text x="630" y="225" text-anchor="middle" fill="#17201d" font-size="15">逆动力学 → 动作块</text>
+                <path d="M221 220H271M472 220H523" stroke="#355e7c" stroke-width="2" marker-end="url(#order-arrow)"/>
+                <text x="28" y="269" fill="#52605b" font-size="13">历史与语言也直达动作分支；人类示范必须经由未来视频传递。</text>
+                <line x1="28" y1="290" x2="732" y2="290" stroke="#d8d4ca"/>
+                <text x="28" y="322" fill="#17201d" font-size="16" font-weight="700">BrainWAM：动作空间协调</text>
+                <rect x="28" y="339" width="216" height="48" rx="4" fill="#f4ded5"/>
+                <rect x="279" y="339" width="202" height="48" rx="4" fill="#dfeaf1"/>
+                <rect x="555" y="339" width="177" height="48" rx="4" fill="#dcebe5"/>
+                <text x="136" y="368" text-anchor="middle" fill="#17201d" font-size="14">语义动作特征</text>
+                <text x="380" y="368" text-anchor="middle" fill="#17201d" font-size="14">预测动作特征</text>
+                <text x="644" y="368" text-anchor="middle" fill="#17201d" font-size="14">CIF → 驾驶轨迹</text>
+                <text x="261" y="370" text-anchor="middle" fill="#355e7c" font-size="22">↔</text>
+                <path d="M484 363H549" stroke="#355e7c" stroke-width="2" marker-end="url(#order-arrow)"/>
+                <text x="28" y="412" fill="#52605b" font-size="13">CAB 双向交换动作特征，CIF 汇合两路；紧凑接口限制模态干扰。</text>
+              </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>顺序决定部署代价。Riemann 可先拿动作；Zero-WAM 需要先得到未来视频，因而动作会继承生成误差；BrainWAM 保留两条大模型通路，以协调成本换互补信息。这是机制差异，不能直接推出哪种架构总体更好。</figcaption>
+          </figure>
+
+          <div class="formula-card" aria-label="两种世界动作分解的概念比较">
+            <div class="formula-card__label">公式读法 · 用统一记号比较信息方向</div>
+            <div class="formula-card__equation comparison-equations">
+              <div><strong>动作优先（Riemann 的顺序抽象）</strong><br>p(<span class="formula-symbol">a</span>, <span class="formula-symbol">o⁺</span> | <span class="formula-symbol">H</span>, <span class="formula-symbol">g</span>) = p(a | H, g) · p(o⁺ | H, g, a)</div>
+              <div><strong>视频优先（Zero-WAM 的信息瓶颈）</strong><br>p(o⁺, a | H, <span class="formula-symbol">h</span>, g) = p(o⁺ | H, h, g) · p(a | H, o⁺, g)</div>
+            </div>
+            <p class="formula-card__caption">这组公式比较“预测一个动作块及其未来视觉”时的条件分解；是本文统一记号后的机制摘要，不是六篇共享的训练目标。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>H / g</dt><dd>H 表示模型可用的历史上下文，g 表示语言或任务条件。各论文的具体历史模态不同。</dd></div>
+              <div class="formula-legend__row"><dt>a / o⁺</dt><dd>a 是下一动作块，o⁺ 是相应未来视觉块；p 是条件分布，不是成功率指标。</dd></div>
+              <div class="formula-legend__row"><dt>h</dt><dd>人类提示视频。Zero-WAM 的第二项不直接读 h，而通过 o⁺ 接收其信息；这包含架构施加的条件独立假设。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">乘法顺序揭示了接口代价：一边先决定怎么动、再想象后果；另一边先确定未来该发生什么、再反推动作。Zero-WAM 训练时动作分支读真实未来、推理时读生成未来，因此还存在训练与推理输入不一致的问题。</div>
+          </div>
+
+          <h3>训练数据：增加小时数，还是改变经验进入模型的方式？</h3>
+          <div class="table-wrap" role="region" aria-label="六篇训练数据与迁移方式比较，小屏可横向滚动" tabindex="0">
+            <table class="evidence-table comparison-table">
+              <caption>表 2 · 数据来源、训练路径与“泛化”的含义</caption>
+              <thead><tr><th scope="col">工作</th><th scope="col">已报告数据</th><th scope="col">怎样学习 / 迁移</th><th scope="col">口径与缺口</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><a href="../flashvla/#mechanism">FlashVLA</a></th><td>LIBERO、RoboTwin 2.0、自采 Franka 示范；真机每任务 50 条。</td><td>在 π0.5 等 VLA 上微调多缓冲与时间条件；改变动作解码组织。</td><td>50K / 100K steps 是训练预算，不能当数据规模；主要验证已有任务执行效率。</td></tr>
+                <tr><th scope="row"><a href="../clap/#mechanism">CLAP</a></th><td>OXE 机器人数据 + EgoDex 人类视频；视频采样中 DROID 占 75%。</td><td>CURR 先用 LAM 学无动作标签视频，再换 EE 条件微调；另有目标本体适配。</td><td>表示组数据不完全匹配；few-shot 数量披露不足。“零样本”指世界模型未对目标任务微调。</td></tr>
+                <tr><th scope="row"><a href="../riemann-1-0/#mechanism">Riemann-1.0</a></th><td>作者数据章节称 230K+ 小时：200K+ 人类、12K+ 手持 / 穿戴、20K+ 机器人。</td><td>从潜动作预训练，逐步过渡到 3D 手 / UMI / 机器人监督，再强化高质量机器人动作。</td><td>分项都是下界，不能精确相加；摘要用 200K+ headline。数据、课程、架构贡献未被充分拆开。</td></tr>
+                <tr><th scope="row"><a href="../brainwam/#mechanism">BrainWAM</a></th><td>预训练 Wan2.2-TI2V-5B 与 Qwen3-VL-4B；驾驶视频 / 轨迹监督。</td><td>先分别训练 WAM、VLA，再冻结专业分支，训练动作协调层与解码器。</td><td>既有解读未给出训练集名称、规模和 split；不能把 NAVSIM 评测名补写成已核实训练集。</td></tr>
+                <tr><th scope="row"><a href="../zero-wam/#mechanism">Zero-WAM</a></th><td>HumanGen 74,187 对、约 8.6K 任务；公开视频动作源每 epoch 约采样 400K 轨迹。真机适配 252 对。</td><td>人类视频作任务提示；IFP 远期预测迫使主干保留任务过程信息，训练后删除辅助模块。</td><td>400K 是每 epoch 采样量；模型仍用机器人动作训练，“零样本”针对任务留出，不是零机器人数据。</td></tr>
+                <tr><th scope="row"><a href="../code-as-worlds/#mechanism">Code as Worlds</a></th><td>73,335 条像素 QA；2,573 条世界尺度 VQA（文字世界 1,585，视频世界 988）。</td><td>先像素测量 SFT，再世界尺度 GRPO；Agent 发现世界是外部数据生产过程。</td><td>QA 条数不能与交互小时数对齐；最终 EWR 数量、筛选接受率与总生产成本未充分报告。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>三种“借人类经验”的方式尤其值得分开：CLAP / Riemann 把人类视频作为预训练经验，Zero-WAM 还把人类视频作为测试时任务提示，Code as Worlds 把世界发现结果转成量化监督。它们分别扩大训练分布、改变任务输入、改变监督形式。</p>
+        </section>
+
+        <section id="realtime" aria-labelledby="realtime-title">
+          <p class="paper-kicker">LATENCY HAS A DENOMINATOR</p>
+          <h2 id="realtime-title">实时性：先问测了什么，再看有多快</h2>
+          <div class="table-wrap" role="region" aria-label="六篇实时性与计时口径比较，小屏可横向滚动" tabindex="0">
+            <table class="evidence-table comparison-table">
+              <caption>表 3 · 延迟、吞吐、控制循环与轨迹采样率不可互换</caption>
+              <thead><tr><th scope="col">工作</th><th scope="col">报告值 / 设置</th><th scope="col">能支持什么</th><th scope="col">不能推出什么</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><a href="../flashvla/#evidence">FlashVLA</a></th><td>A4000 单次策略 67.3 ms；d=2 重叠支撑 30 Hz 控制循环。LIBERO 闭环 22.1 ms/action。</td><td>流式缓冲能提高稳态交付速度，改善执行时序。</td><td>30 Hz 不等于单次策略 33 ms。19.9× 只属于动作头最佳 profile；整次策略和闭环加速更小。</td></tr>
+                <tr><th scope="row"><a href="../clap/#evidence">CLAP</a></th><td>11 帧窗口、25 步去噪：H200 1.49 s；A100 SXM 2.88 s，PCIe 3.24 s。</td><td>给出了视频窗口的生成成本；论文仍属较慢的想象式规划。</td><td>不能折算成机器人控制频率，也不是含候选策略与奖励评估的整套规划延迟。</td></tr>
+                <tr><th scope="row"><a href="../riemann-1-0/#limits">Riemann-1.0</a></th><td>未报告实测动作延迟或控制频率。</td><td>动作优先使策略模式可跳过未来视频生成，结构上减少一项开销。</td><td>“可以在线执行”或“无需生成视频”不能替代实时测量。</td></tr>
+                <tr><th scope="row"><a href="../brainwam/#evidence">BrainWAM</a></th><td>单张 H20：视频 1 / 2 / 3 步为 475 / 565 / 644 ms；对应 PDMS 89.3 / 89.5 / 89.4。</td><td>粗视频预测可保留大部分规划收益；异步去噪降低成本。</td><td>8 路点的 2 Hz 是轨迹采样率。最低 382 ms 是 0 步视频、79.3 分，不能与最高分拼接。</td></tr>
+                <tr><th scope="row"><a href="../zero-wam/#limits">Zero-WAM</a></th><td>未报告端到端延迟、控制频率或显存。</td><td>IFP 模块训练后移除，不增加原有推理图中的辅助预测器。</td><td>“IFP 推理零额外开销”不等于整套视频优先 WAM 已实时。</td></tr>
+                <tr><th scope="row"><a href="../code-as-worlds/#limits">Code as Worlds</a></th><td>未报告发现循环墙钟、Agent token 总成本或机器人控制周期。</td><td>五次评估预算下可比较迭代发现与独立采样；下游 VLM 测试不调用 EWR。</td><td>五轮世界发现不是五个控制周期；VLM 的直接问答也不证明实时闭环控制。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>横向计时至少需要：</strong>相同硬件、输入分辨率、动作块长、去噪步数、并行候选数，以及感知 → 规划 → 实际执行的端到端定义。上述硬件与工作单元不同，本表用来辨认开销来源，不据此排速度名次。</p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">WHAT THE EXPERIMENTS ESTABLISH</p>
+          <h2 id="evidence-title">评测证据：成功率高，究竟证明了哪种能力？</h2>
+          <div class="table-wrap" role="region" aria-label="六篇主要评测结果与局限比较，小屏可横向滚动" tabindex="0">
+            <table class="evidence-table comparison-table">
+              <caption>表 4 · 结果保留原协议，局限紧随结论</caption>
+              <thead><tr><th scope="col">工作</th><th scope="col">代表性报告结果</th><th scope="col">最稳妥的证据解释</th><th scope="col">主要局限</th></tr></thead>
+              <tbody>
+                <tr><th scope="row"><a href="../flashvla/#evidence">FlashVLA</a></th><td>LIBERO 成功率 97.8% vs π0.5 96.9%；闭环 22.1 vs 53.8 ms/action，2.43×。</td><td>在该控制与计时协议下，加速没有牺牲成功率；同步长任务也有收益。</td><td>仍需微调，有 N−1 次前向的冷启动；真机 84.4% 是 rubric 任务分数，不是二项成功率。</td></tr>
+                <tr><th scope="row"><a href="../clap/#evidence">CLAP</a></th><td>真实 5 任务规划均值 90%，π0.5 为 76%，MolmoAct-2 为 69%；CURR 的 DROID PSNR 为 19.138。</td><td>世界预测能参与有效候选筛选；视频质量在部分指标上较强。</td><td>90% 来自 CLAP-LAM、双策略四候选及 GPT-5 mini reward 整套系统；CURR 是另一配置。Bridge 专用模型仍更强，视频也会幻觉。</td></tr>
+                <tr><th scope="row"><a href="../riemann-1-0/#evidence">Riemann-1.0</a></th><td>RoboCasa-365 Target-50 62.6%；RoboTwin 2.0 94.3%；LIBERO 99.0%；真实四任务 SR 85.0%、PSR 94.43%。</td><td>多任务操作策略很强，尤其长程组合；展示了共享模型的视觉模拟接口。</td><td>视觉模拟主要是定性展示，无反事实或物理一致性量化。真实主表评估次数与置信区间未交代；数据 / 架构贡献未拆开。</td></tr>
+                <tr><th scope="row"><a href="../brainwam/#evidence">BrainWAM</a></th><td>NAVSIM v1 89.5 PDMS、v2 89.6 EPDMS；内部 Tri-MoT 87.8 低于 WAM-only 88.1。</td><td>内部对照比榜首名次更能支持“动作空间协调缓解该融合方案的失衡”。</td><td>短时 non-reactive simulation；不是实际道路安全验证。无多种子方差和独立世界质量评测；双骨干延迟高。</td></tr>
+                <tr><th scope="row"><a href="../zero-wam/#evidence">Zero-WAM</a></th><td>RoboTwin 43 任务训练、7 任务留出；宏平均 46.95±0.72%，LingBot-VA 为 17.45±1.40%。</td><td>IFP 消融从 28.55% 升至 46.95%，支持远期监督有效；有未见任务闭环迁移证据。</td><td>合成配对质量未审计、缺错视频等反事实；真实实验是适配后的未见配置，视频误差仍会传入动作。</td></tr>
+                <tr><th scope="row"><a href="../code-as-worlds/#evidence">Code as Worlds</a></th><td>Code-as-World-VL 27B：QuantiPhy validation 宏平均 MRA 58.6；评测共 159 QA。</td><td>像素测量与世界尺度监督可改善参考量条件下的定量物理推理。</td><td>公开 validation、给定参考量，3D 题另有深度上下文；无机器人动作评测，不能等同物理控制成功率。</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="evidence-note"><strong>Zero-WAM 的仿真与真机要分开：</strong>仿真每任务每方法为 3 个随机种子 × 100 次闭环 rollout，表中为均值 ± 标准差；三块堆叠仍只有 9%。真机三类任务在适配后未见配置上分别为 53.3%、33.3%、16.7%，每类 30 次。Zero-WAM 看人类视频，对照看详细语言，比较还包含指令接口差异。</p>
+          <h3>三个容易误读的“领先”</h3>
+          <p><strong>同名 benchmark 不保证同一协议。</strong>FlashVLA 与 Riemann 都报 LIBERO、RoboTwin，但骨干、数据量、任务拆分、训练和计时配置不同。现有材料不足以把 99.0% 与 97.8% 的差直接解释为“WAM 比 VLA 好多少”。</p>
+          <p><strong>组件收益与系统收益要分开。</strong>CLAP 的真实规划将两个策略的四个候选交给世界模型与奖励器筛选，90% 是系统结果；BrainWAM 的同骨干内部消融则更接近验证融合接口的作用。注意力图可支持解释，但仍不是严格的因果干预证明。</p>
+          <p><strong>指标名字里都有“准确”，含义也未必相同。</strong>SR 是任务完成比例，PSR 衡量任务进度，PDMS / EPDMS 是驾驶规划综合分，MRA 是多个相对误差阈值上的准确率均值。它们没有共同分母，不应平均成“六篇总体能力分”。</p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">THE OPEN RESEARCH GAP</p>
+          <h2 id="limits-title">六篇共同留下的缺口：预测怎样可靠地改善行动？</h2>
+          <figure class="svg-figure" aria-labelledby="gap-title gap-desc">
+            <div class="comparison-diagram" role="region" aria-label="从预测到可靠闭环所需的证据链，小屏可横向滚动" tabindex="0">
+              <svg viewBox="0 0 760 335" role="img" aria-labelledby="gap-title gap-desc">
+                <title id="gap-title">世界预测转成闭环收益，需要四道检验</title>
+                <desc id="gap-desc">外观质量、动作敏感性、选择收益和部署可靠性是不同检验。像真不必然意味着改变动作会产生正确后果；正确后果不自动意味着更会挑动作；离线选择收益还要在延迟与闭环交互中验证。</desc>
+                <defs><marker id="gap-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+                <rect width="760" height="335" fill="#fbfaf6"/>
+                <text x="28" y="36" fill="#86321f" font-size="15" font-weight="700">这是一条待补齐的证据链，不是六篇已经达到的能力阶梯</text>
+                <g fill="#fffef9" stroke="#aaa69c"><rect x="28" y="68" width="157" height="154" rx="5"/><rect x="210" y="68" width="157" height="154" rx="5"/><rect x="392" y="68" width="157" height="154" rx="5"/><rect x="574" y="68" width="158" height="154" rx="5"/></g>
+                <text x="44" y="99" fill="#17201d" font-size="16" font-weight="700">01 外观质量</text>
+                <text x="44" y="133" fill="#52605b" font-size="13">像不像真实视频？</text>
+                <text x="44" y="164" fill="#355e7c" font-size="13">感知 / 轨迹指标</text>
+                <text x="44" y="196" fill="#86321f" font-size="12">不能替代动作检验</text>
+                <text x="226" y="99" fill="#17201d" font-size="16" font-weight="700">02 动作敏感性</text>
+                <text x="226" y="133" fill="#52605b" font-size="13">换动作，后果对吗？</text>
+                <text x="226" y="164" fill="#355e7c" font-size="13">同状态反事实对照</text>
+                <text x="226" y="196" fill="#86321f" font-size="12">不能只靠定性片段</text>
+                <text x="408" y="99" fill="#17201d" font-size="16" font-weight="700">03 选择收益</text>
+                <text x="408" y="133" fill="#52605b" font-size="13">预测能帮选动作吗？</text>
+                <text x="408" y="164" fill="#355e7c" font-size="13">固定候选 / 奖励器</text>
+                <text x="408" y="196" fill="#86321f" font-size="12">控制组件与预算</text>
+                <text x="590" y="99" fill="#17201d" font-size="16" font-weight="700">04 部署可靠性</text>
+                <text x="590" y="133" fill="#52605b" font-size="13">来得及且可纠错吗？</text>
+                <text x="590" y="164" fill="#355e7c" font-size="13">真实闭环 / 延迟尾部</text>
+                <text x="590" y="196" fill="#86321f" font-size="12">跨任务与失败统计</text>
+                <path d="M188 145H204M370 145H386M552 145H568" stroke="#355e7c" stroke-width="2" marker-end="url(#gap-arrow)"/>
+                <rect x="28" y="250" width="704" height="58" rx="5" fill="#dcebe5"/>
+                <text x="380" y="274" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">可执行程序能增加测量与干预接口，但仍需要以上证据</text>
+                <text x="380" y="295" text-anchor="middle" fill="#52605b" font-size="12">Code as Worlds 的“能运行”，不自动等于世界唯一真实或机器人可安全执行</text>
+              </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从左到右逐项增加验证问题，而不是替论文排名。CLAP 较直接测视频预测与候选规划；Riemann / Zero-WAM 有操作证据；BrainWAM 有融合消融；Code as Worlds 有可执行拟合和量化问答。它们覆盖的证据环节并不相同。</figcaption>
+          </figure>
+
+          <h3>把“可能互补”变成可检验的研究假设</h3>
+          <p><strong>假设一：世界预测需要自己的调度策略。</strong>FlashVLA 的分层缓冲和 BrainWAM 的视频提前停止都提示，并非每个输出都要同频、同精度更新。值得测试的是，在固定硬件与端到端预算下，怎样分配预测和动作算力。六篇没有证明 FlashVLA 已能直接接入任一 WAM；首先要验证接口兼容性与闭环误差。</p>
+          <p><strong>假设二：共享视觉未来可以转移任务，但也会传递错误。</strong>Zero-WAM 用视频连接人类示范与机器人动作，CLAP / Riemann 用潜动作连接异构经验。下一步可固定数据与骨干，分别改变示范提示、潜动作对齐及真值 / 生成未来条件，测量任务泛化和误差传播，而不是只比较最终成功率。</p>
+          <p><strong>假设三：可执行世界可成为预测器的检查工具。</strong>Code as Worlds 提供结构化参数和模拟接口，可能用于构造“同一状态、不同动作”的对照监督。但这仍是研究建议：动画式轨迹拟合与由力、约束驱动的物理模拟需要分开评估，且必须检验引擎误差、观测不可辨识和真实接触情形。</p>
+
+          <h3>读“零样本”和“世界模型”时保留的边界</h3>
+          <p>CLAP 的零样本是目标任务未对世界模型微调；Zero-WAM 是任务留出后的上下文泛化；Riemann 的另一组 held-out 实验是同平台四任务、各 10 次的 30/40 成功。它们都不能自动推出“无需机器人数据的新本体零样本控制”。</p>
+          <p>同样，动作条件视频看起来合理、内部特征能提高规划分、程序能重放观测，分别只是世界建模的一部分。是否具备稳定的反事实预测、长期一致性、误差校准以及低延迟纠错能力，还需要专门实验。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">READ NEXT &amp; SOURCES</p>
+          <h2 id="sources-title">按你的问题，选一条精读路线</h2>
+          <ul>
+            <li><strong>研究机器人策略与效率：</strong><a href="../flashvla/">FlashVLA</a> → <a href="../clap/">CLAP</a> → <a href="../riemann-1-0/">Riemann-1.0</a>。依次看动作交付、候选后果、统一建模。</li>
+            <li><strong>研究自动驾驶：</strong><a href="../brainwam/">BrainWAM</a> → <a href="../riemann-1-0/">Riemann-1.0</a> → <a href="../flashvla/">FlashVLA</a>。先看融合失衡，再比较组织方式，最后思考调度；跨领域迁移只是启发。</li>
+            <li><strong>研究示范泛化与物理理解：</strong><a href="../zero-wam/">Zero-WAM</a> → <a href="../clap/">CLAP</a> → <a href="../code-as-worlds/">Code as Worlds</a>。分别看测试时任务提示、预训练经验迁移和可测量世界监督。</li>
+          </ul>
+          <h3>版本锁定与可追溯来源</h3>
+          <ol class="source-list">
+            <li><strong>FlashVLA</strong> · <a href="../flashvla/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.27384v1">arXiv v1</a> · <a href="https://arxiv.org/pdf/2608.27384v1">PDF</a>。动作缓冲、GPU profile、闭环计时与真机评分口径见单篇机制和证据章节。</li>
+            <li><strong>CLAP</strong> · <a href="../clap/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.27406v1">arXiv v1</a> · <a href="https://arxiv.org/pdf/2608.27406v1">PDF</a>。重点区分 CURR 视频预测实验与 CLAP-LAM 真实规划配置。</li>
+            <li><strong>Riemann-1.0</strong> · <a href="../riemann-1-0/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.27033v1">arXiv v1</a> · <a href="https://arxiv.org/pdf/2608.27033v1">PDF</a>。数据章节采用 230K+ 小时口径；策略证据与定性模拟展示分开阅读。</li>
+            <li><strong>BrainWAM</strong> · <a href="../brainwam/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.12854v2">arXiv v2</a> · <a href="https://arxiv.org/pdf/2608.12854v2">PDF</a>。延迟须与视频步数对应，附录 joint-denoising 消融不能与主表异步配置直接拼接。</li>
+            <li><strong>Zero-WAM</strong> · <a href="../zero-wam/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.26103v2">arXiv v2</a> · <a href="https://arxiv.org/pdf/2608.26103v2">PDF</a>。任务留出、人类示范生成、IFP 与真实评测范围是核对重点。</li>
+            <li><strong>Code as Worlds</strong> · <a href="../code-as-worlds/">仓库完整解读</a> · <a href="https://arxiv.org/abs/2608.27549v1">arXiv v1</a> · <a href="https://arxiv.org/pdf/2608.27549v1">PDF</a>。区分 EWR 发现、监督数据生产与不调用模拟器的 VLM 测试。</li>
+          </ol>
+          <p class="evidence-note"><strong>事实与分析分界：</strong>表中模型、数据、设置和得分来自六篇既有解读及其论文版本；未报告项明确留空描述，不按常识补齐。关系图、阅读顺序、共同缺口和三条研究假设是本导读的综合判断。本文是仓库的二次导读，不冒充独立研究论文，也不代表六篇作者的共同结论。</p>
+        </section>
+      </main>
+
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面已写入解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与解释请求分开保存；本地写回服务离线时，仅保存在当前浏览器。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

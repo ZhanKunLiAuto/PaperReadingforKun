@@ -286,6 +286,11 @@
       const persisted = document.querySelectorAll(".paper-comment:not(.paper-comment--local)").length;
       countNode.textContent = String(persisted + localComments.length);
     }
+
+    const markCountNode = markPanel.querySelector("[data-mark-count]");
+    if (markCountNode) {
+      markCountNode.textContent = String(document.querySelectorAll(".paper-question-marker").length);
+    }
   }
 
   const flushPending = async () => {
