@@ -1,6 +1,48 @@
 {
-  "updatedAt": "2026-09-02",
+  "updatedAt": "2026-09-03",
   "papers": [
+    {
+      "slug": "qwen-drive-1-0",
+      "title": "Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving",
+      "authors": [
+        "Xin Zhou",
+        "Zongchuang Zhao",
+        "Zhibo Yang",
+        "Mingsheng Li",
+        "Humen Zhong",
+        "Shuai Bai",
+        "Du Chu",
+        "Ruizhe Chen",
+        "Zhaohai Li",
+        "Jun Tang",
+        "Qiuyue Wang",
+        "Mingkun Yang",
+        "Jiazhao Zhang",
+        "Dayiheng Liu",
+        "Dingkang Liang",
+        "Xiang Bai"
+      ],
+      "publicationDate": "2026-08-31",
+      "readAt": "2026-09-03",
+      "description": "解读 Qwen-Drive-1.0 如何以共享 Qwen3.5-4B、BEV 感知头、flow matching 规划器和四阶段训练连接三维感知、驾驶推理与轨迹生成，并核对通用能力保留、NAVSIM/WOD 成绩、闭环安全与进度的取舍。",
+      "tags": [
+        "Qwen-Drive-1.0",
+        "Qwen3.5",
+        "自动驾驶",
+        "vision-language-action",
+        "BEV",
+        "3D perception",
+        "flow matching",
+        "planning expert",
+        "Chain-of-Causation",
+        "reinforcement learning",
+        "NAVSIM",
+        "WOD-E2E",
+        "AlpaSim"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.00111v1",
+      "href": "papers/qwen-drive-1-0/"
+    },
     {
       "slug": "vla-to-world-action-models",
       "title": "从 VLA 到 World-Action Model：六篇论文的横向对比导读",

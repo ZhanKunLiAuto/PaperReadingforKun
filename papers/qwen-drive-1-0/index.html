@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving">
+    <meta name="citation_author" content="Xin Zhou">
+    <meta name="citation_author" content="Zongchuang Zhao">
+    <meta name="citation_author" content="Zhibo Yang">
+    <meta name="citation_author" content="Mingsheng Li">
+    <meta name="citation_author" content="Humen Zhong">
+    <meta name="citation_author" content="Shuai Bai">
+    <meta name="citation_author" content="Du Chu">
+    <meta name="citation_author" content="Ruizhe Chen">
+    <meta name="citation_author" content="Zhaohai Li">
+    <meta name="citation_author" content="Jun Tang">
+    <meta name="citation_author" content="Qiuyue Wang">
+    <meta name="citation_author" content="Mingkun Yang">
+    <meta name="citation_author" content="Jiazhao Zhang">
+    <meta name="citation_author" content="Dayiheng Liu">
+    <meta name="citation_author" content="Dingkang Liang">
+    <meta name="citation_author" content="Xiang Bai">
+    <meta name="citation_publication_date" content="2026-08-31">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.00111v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.00111v1">
+    <meta name="description" content="解读 Qwen-Drive-1.0 如何以共享 Qwen3.5-4B、BEV 感知头、flow matching 规划器和四阶段训练连接三维感知、驾驶推理与轨迹生成，并核对通用能力保留、NAVSIM/WOD 成绩、闭环安全与进度的取舍。">
+    <meta name="keywords" content="Qwen-Drive-1.0, Qwen3.5, 自动驾驶, vision-language-action, BEV, 3D perception, flow matching, planning expert, Chain-of-Causation, reinforcement learning, NAVSIM, WOD-E2E, AlpaSim">
+    <meta name="paper:read_at" content="2026-09-03">
+    <title>Qwen-Drive-1.0：让通用 VLM 学到三维感知与驾驶规划</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body class="paper-page" data-page-kind="paper" data-page-path="/papers/qwen-drive-1-0/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2609.00111V1 · PDF 2026-09-02 · 阅读于 2026-09-03</span>
+    </header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">先看它想保住哪三种能力</a></li>
+          <li><a href="#concepts">分清共享主干与两条外接分支</a></li>
+          <li><a href="#problem-chain">文本、几何和异构数据的缺口</a></li>
+          <li><a href="#mechanism">四阶段怎样连上感知与行动</a></li>
+          <li><a href="#evidence">从问答到闭环，逐层看证据</a></li>
+          <li><a href="#limits">因果一致性与部署还缺什么</a></li>
+          <li><a href="#sources">原文、开源材料与判断依据</a></li>
+        </ol>
+      </nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">SHARED VLM · EXPLICIT 3D PERCEPTION · TRAJECTORY GENERATION</p>
+          <h1 id="paper-title" class="paper-title">Qwen-Drive-1.0</h1>
+          <p class="paper-subtitle">让 Qwen3.5-4B 同时描述道路、给出可检查的三维结构，并生成未来 5 秒的自车轨迹。这篇论文最值得读的是：怎样在获得驾驶专长时保留通用能力，以及这些能力之间究竟有多强的实验证据。</p>
+          <div class="paper-byline">
+            <span>Xin Zhou、Zongchuang Zhao、Zhibo Yang 等 16 位作者</span>
+            <span>Qwen Team · 华中科技大学</span>
+            <span>用户提供的 v1 PDF · 40 页</span>
+          </div>
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>把通用视觉语言模型变成可继续扩展的驾驶基础模型：通过显式三维监督补上“会描述但空间不够准”的缺口，通过驾驶与通用数据混合训练减轻知识遗忘，再让专用规划器把共享表示变成连续轨迹。作者期待同一模型支撑驾驶与座舱应用；本论文验证的是能力兼容性和基准表现。</p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="qdo-title qdo-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 760 416" role="img" aria-labelledby="qdo-title qdo-desc">
+              <title id="qdo-title">Qwen-Drive 的目的、动作与证据总览</title>
+              <desc id="qdo-desc">空间监督、知识保留和轨迹目标三个问题，分别通过 BEV 监督、混合问答训练和规划专家解决。感知和问答有明确增益，闭环规划存在安全与进度取舍。</desc>
+              <defs><marker id="qdo-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="760" height="416" fill="#fbfaf6"/>
+              <text x="30" y="36" fill="#bd4c32" font-size="14" font-weight="700">同一套表示，要同时承担空间、语言与行动</text>
+              <text x="30" y="72" fill="#52605b" font-size="12">原来的缺口</text><text x="280" y="72" fill="#52605b" font-size="12">论文的关键动作</text><text x="530" y="72" fill="#52605b" font-size="12">实验告诉我们什么</text>
+              <rect x="30" y="89" width="210" height="62" rx="5" fill="#f4ded5"/>
+              <text x="45" y="115" fill="#17201d" font-size="14" font-weight="700">描述道路 ≠ 定量理解三维</text><text x="45" y="138" fill="#52605b" font-size="12">语言答案缺少几何约束</text>
+              <rect x="280" y="89" width="210" height="62" rx="5" fill="#dfeaf1"/>
+              <text x="295" y="115" fill="#17201d" font-size="14" font-weight="700">外接 BEV 感知头</text><text x="295" y="138" fill="#52605b" font-size="12">检测 + 占据 + 地图监督</text>
+              <rect x="530" y="89" width="200" height="62" rx="5" fill="#dcebe5"/>
+              <text x="545" y="115" fill="#17201d" font-size="14" font-weight="700">检测、地图明显改善</text><text x="545" y="138" fill="#52605b" font-size="12">占据仍受标签噪声限制</text>
+              <rect x="30" y="173" width="210" height="62" rx="5" fill="#f4ded5"/>
+              <text x="45" y="199" fill="#17201d" font-size="14" font-weight="700">领域适配可能遗忘常识</text><text x="45" y="222" fill="#52605b" font-size="12">驾驶能力与通用能力拉扯</text>
+              <rect x="280" y="173" width="210" height="62" rx="5" fill="#dfeaf1"/>
+              <text x="295" y="199" fill="#17201d" font-size="14" font-weight="700">驾驶 + 通用 VQA 混合</text><text x="295" y="222" fill="#52605b" font-size="12">保留原有模型结构与语言接口</text>
+              <rect x="530" y="173" width="200" height="62" rx="5" fill="#dcebe5"/>
+              <text x="545" y="199" fill="#17201d" font-size="14" font-weight="700">驾驶问答增强</text><text x="545" y="222" fill="#52605b" font-size="12">通用知识组均分下降 0.99</text>
+              <rect x="30" y="257" width="210" height="62" rx="5" fill="#f4ded5"/>
+              <text x="45" y="283" fill="#17201d" font-size="14" font-weight="700">示范只记录一种未来</text><text x="45" y="306" fill="#52605b" font-size="12">轨迹误差未覆盖全部驾驶目标</text>
+              <rect x="280" y="257" width="210" height="62" rx="5" fill="#dfeaf1"/>
+              <text x="295" y="283" fill="#17201d" font-size="14" font-weight="700">Flow 规划器 + 奖励优化</text><text x="295" y="306" fill="#52605b" font-size="12">学习轨迹，再调整行为偏好</text>
+              <rect x="530" y="257" width="200" height="62" rx="5" fill="#f1e8c9"/>
+              <text x="545" y="283" fill="#17201d" font-size="14" font-weight="700">NAVSIM 88.2 → 90.7</text><text x="545" y="306" fill="#52605b" font-size="12">闭环越界减少，进度也下降</text>
+              <path d="M240 120H273 M490 120H523 M240 204H273 M490 204H523 M240 288H273 M490 288H523" stroke="#52605b" stroke-width="1.5" fill="none" marker-end="url(#qdo-arrow)"/>
+              <rect x="30" y="348" width="700" height="42" rx="5" fill="#17201d"/>
+              <text x="380" y="375" text-anchor="middle" fill="#fbfaf6" font-size="14">最扎实的贡献：多种能力可共存；能力之间的因果传递仍待验证</text>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从左到右，把每个问题对应到一个训练动作和一组证据。右下角尤其关键：优化基准奖励确实改变了驾驶行为，但闭环表现要同时看越界、近距离事件和行驶进度。数值来自原文表 3、6、7。</figcaption>
+          </figure>
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心结论</span>
+            <p><strong>第一，创新重点在共享接口、监督和训练配方。</strong>Qwen3.5-4B 保持原有结构；外接 BEV 感知头与约 1.1B 参数的 Planning Expert（规划专家）。三维预测和连续轨迹各有输出接口，语言问答仍由原 VLM 完成。</p>
+            <p><strong>第二，显式三维能力需要定向适配。</strong>只训练感知头时，共同训练两种数据的 nuScenes mAP 为 33.49；让感知损失更新视觉编码器和 VLM 后达到 43.95。与此同时，通用知识、推理与识别十项均分从 67.40 到 66.41，说明这套适配大体保住了原有能力。</p>
+            <p><strong>第三，规划收益应按协议分开判断。</strong>RL 把 NAVSIM 单轨迹 PDMS 从 88.2 提到 90.7，把 WOD-E2E 测试集 RFS 从 7.78 提到 7.91；AlpaSim 的越界率从 24% 降到 12%，进度却从 54% 降到 48%。后者呈现了更保守的行为取舍。</p>
+            <p><strong>第四，尚不能把规划增益归因于三维监督或忠实的因果推理。</strong>对应消融中，加三维监督的 RFS 增益只有 0.05；作者还明确承认，生成的理由与实际轨迹有时不一致。把多项能力放进同一框架，已经成立；证明它们稳定互相促进，还需要进一步实验。</p>
+          </div>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <p class="paper-kicker">WHAT SHARES REPRESENTATIONS</p>
+          <h2 id="concepts-title">先分清：语言、三维结构与轨迹分别从哪里出来</h2>
+          <div class="term-bridge">
+            <span class="term-bridge__label">VISION-LANGUAGE MODEL · 视觉语言模型，VLM</span>
+            <p><strong>怎么理解：</strong>视觉编码器把图像变成 token，语言主干把这些 token 与文字提示一起处理，并逐词生成答案。Qwen-Drive 保留 Qwen3.5-4B 的结构和原有词表，用普通文字标签标注摄像头方向与帧序号。保持结构并不意味着保持初始权重：第二阶段会更新视觉编码器和 VLM。</p>
+          </div>
+          <div class="term-bridge">
+            <span class="term-bridge__label">BEV PERCEPTION HEAD · 鸟瞰感知头与三维探针</span>
+            <p><strong>怎么理解：</strong>BEV 是把道路放到自车坐标系里从上往下看。感知头输出三维框、体素占据和道路地图，让空间表示可以被量化检查。这里的 probe 是一个有学习能力的外接网络；其结果衡量的是“在这套解码器和训练条件下，三维信息有多容易读出”。低分不能证明原 VLM 完全没有空间知识。</p>
+          </div>
+          <div class="term-bridge">
+            <span class="term-bridge__label">CHAIN-OF-CAUSATION · 因果链式驾驶理由，CoC</span>
+            <p><strong>怎么理解：</strong>不止列出路上的车和灯，而是指出哪个因素主导当前决策。例如“前方停车标志要求停车，路旁建筑只是背景”。它提供文本形式的规划条件；这些理由来自数据生成与审核流程，尚不是通过干预实验确认的因果模型。</p>
+          </div>
+
+          <figure class="svg-figure" aria-labelledby="qda-title qda-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 760 458" role="img" aria-labelledby="qda-title qda-desc">
+              <title id="qda-title">共享 VLM 的三种输出接口</title>
+              <desc id="qda-desc">图像依次经过视觉编码器和 Qwen3.5 主干。感知头融合编码器特征和主干输出，语言接口生成文本，规划专家使用主干八个 softmax 注意力层的 KV。感知预测没有直接作为规划输入。</desc>
+              <defs><marker id="qda-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="760" height="458" fill="#fbfaf6"/>
+              <text x="28" y="36" fill="#bd4c32" font-size="14" font-weight="700">三种输出，共享视觉与语言表示</text>
+              <rect x="28" y="69" width="170" height="58" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="113" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">多视角 / 历史图像</text><text x="113" y="115" text-anchor="middle" fill="#52605b" font-size="12">方向与帧序号写进提示</text>
+              <rect x="256" y="69" width="210" height="58" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="361" y="94" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">共享视觉编码器</text><text x="361" y="115" text-anchor="middle" fill="#52605b" font-size="12">编码器特征 Fᵥ</text>
+              <rect x="256" y="185" width="210" height="68" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="361" y="213" text-anchor="middle" fill="#17201d" font-size="15" font-weight="700">Qwen3.5-4B 主干</text><text x="361" y="236" text-anchor="middle" fill="#52605b" font-size="12">上下文特征 Fₘ 与缓存 K、V</text>
+              <rect x="28" y="185" width="170" height="68" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="113" y="212" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">文字提示</text><text x="113" y="235" text-anchor="middle" fill="#52605b" font-size="12">任务、历史、导航、可选理由</text>
+              <path d="M198 98H249 M361 127V178 M198 219H249" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qda-arrow)"/>
+              <rect x="536" y="108" width="196" height="92" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="634" y="135" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">BEV 感知头</text><text x="634" y="161" text-anchor="middle" fill="#52605b" font-size="12">Fᵥ 几何 + Fₘ 语义</text><text x="634" y="184" text-anchor="middle" fill="#52605b" font-size="12">检测框 / 占据 / 地图</text>
+              <path d="M466 98H500V132H529 M466 219H500V178H529" fill="none" stroke="#355e7c" stroke-width="1.5" marker-end="url(#qda-arrow)"/>
+              <rect x="28" y="318" width="206" height="88" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="131" y="346" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">原有文本输出</text><text x="131" y="371" text-anchor="middle" fill="#52605b" font-size="12">驾驶问答 / 通用问答</text><text x="131" y="392" text-anchor="middle" fill="#52605b" font-size="12">逐 token 生成</text>
+              <rect x="294" y="318" width="210" height="88" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="399" y="346" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">Planning Expert</text><text x="399" y="371" text-anchor="middle" fill="#52605b" font-size="12">32 层 · 约 1.1B 参数</text><text x="399" y="392" text-anchor="middle" fill="#52605b" font-size="12">噪声轨迹 → 10 步 flow</text>
+              <rect x="552" y="318" width="180" height="88" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="642" y="346" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">未来自车轨迹</text><text x="642" y="371" text-anchor="middle" fill="#52605b" font-size="12">50 × (x, y, θ)</text><text x="642" y="392" text-anchor="middle" fill="#52605b" font-size="12">5 秒 · 10 Hz 采样</text>
+              <path d="M310 253V286H131V311 M400 253V311 M504 362H545" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qda-arrow)"/>
+              <text x="419" y="287" fill="#bd4c32" font-size="11">8 组 softmax 层 KV</text>
+              <text x="28" y="438" fill="#52605b" font-size="12">依据原文图 2、3：BEV 输出与轨迹输出是共享主干上的不同分支。</text>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>先沿中间读共享路径，再看分支各取哪一层的信息。规划专家读取 VLM 的 K、V 缓存，感知头融合编码器与 VLM 特征。图中两条外接分支之间没有直接连线；三维监督影响规划的可能通道是训练后改变的共享表示。</figcaption>
+          </figure>
+          <p>规划输出的每个点包含纵向位置 x、横向位置 y 和相对航向 θ，统一在当前自车坐标系下。它是未来运动的表示，尚需车辆跟踪与控制环节才能转成执行命令。论文表 7 按“排除语言 token embedding”的口径将完整规划模型记为约 5.0B，因此模型名中的 4B 不能直接当作带规划器的总参数量。</p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <p class="paper-kicker">WHY LANGUAGE SUPERVISION IS NOT ENOUGH</p>
+          <h2 id="problem-title">真正困难的部分：监督要对齐到同一个物理世界</h2>
+          <h3>第一处缺口：描述“有车”不强制学会车在哪里</h3>
+          <p>视觉问答可以监督交通规则、风险判断和解释，但一句“前方车辆正在减速”没有约束深度、三维边界和空闲空间。即使答案流畅，模型也可能在米制距离上偏差很大。论文因此增加可直接评估的检测、占据和地图目标，让空间错误产生明确的训练信号。</p>
+          <h3>第二处缺口：只追驾驶指标，容易丢掉原有知识</h3>
+          <p>长尾场景不可能完全被驾驶数据穷尽，作者希望保留预训练中的广泛视觉知识和指令遵循能力。训练中加入通用视觉语言样本，在学新领域时持续练习原来的任务。这提供了一个可测的能力保留机制；座舱与驾驶共用计算平台则是应用动机，论文没有测量量产座舱的算力节省。</p>
+          <h3>第三处缺口：两个相同大小的体素数组，可能表示不同位置</h3>
+          <p>nuScenes 和 OpenScene 的占据标签都是 200 × 200 × 16，但前者水平范围为 ±40 m、体素边长 0.4 m，后者是 ±50 m、0.5 m；高度范围和 LiDAR 到自车的变换也不同。直接混合数组索引，会让同一个位置标签对应到不同物理地点。</p>
+
+          <figure class="svg-figure concept-visual" aria-labelledby="qdg-title qdg-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 700 326" role="img" aria-labelledby="qdg-title qdg-desc">
+              <title id="qdg-title">跨数据集空间对齐：保留原生标签，重采样预测特征</title>
+              <desc id="qdg-desc">nuScenes 与 OpenScene 的网格形状相同但坐标范围和分辨率不同。模型从共享特征体按每个数据集原生坐标采样，再由同一个占据头预测。</desc>
+              <defs><marker id="qdg-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="700" height="326" fill="#fbfaf6"/>
+              <text x="26" y="34" fill="#bd4c32" font-size="14" font-weight="700">相同的数组形状，要先还原成各自的物理坐标</text>
+              <rect x="26" y="61" width="286" height="92" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="43" y="87" fill="#17201d" font-size="15" font-weight="700">nuScenes · 200 × 200 × 16</text><text x="43" y="112" fill="#52605b" font-size="12">水平 ±40 m · 0.4 m 体素</text><text x="43" y="136" fill="#52605b" font-size="12">z: −1.0 至 5.4 m · 需坐标变换</text>
+              <rect x="386" y="61" width="288" height="92" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="403" y="87" fill="#17201d" font-size="15" font-weight="700">OpenScene · 200 × 200 × 16</text><text x="403" y="112" fill="#52605b" font-size="12">水平 ±50 m · 0.5 m 体素</text><text x="403" y="136" fill="#52605b" font-size="12">z: −4.0 至 4.0 m · 恒等变换</text>
+              <rect x="26" y="218" width="175" height="66" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="113" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">共享预测特征体</text><text x="113" y="268" text-anchor="middle" fill="#52605b" font-size="12">由图像和标定构造</text>
+              <rect x="258" y="218" width="205" height="66" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="360" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">按原生坐标采样特征</text><text x="360" y="268" text-anchor="middle" fill="#52605b" font-size="12">一次可微三线性采样</text>
+              <rect x="519" y="218" width="155" height="66" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="596" y="245" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">同一个占据头</text><text x="596" y="268" text-anchor="middle" fill="#52605b" font-size="12">对原生标签计算损失</text>
+              <path d="M201 251H251 M463 251H512 M169 153V184H335V211 M530 153V184H386V211" stroke="#52605b" stroke-width="1.5" fill="none" marker-end="url(#qdg-arrow)"/>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上方两块提供采样坐标，下方是预测链路。论文保留各源的离散标签和原生网格，在连续特征上做空间对齐，避免重新插值类别标签造成监督失真。该设计也保留了源数据本身的噪声。（原文 §2.3.1，PDF 第 9 页）</figcaption>
+          </figure>
+          <p>语义也需要统一：检测合并为 7 类，占据为 10 类，BEV 地图为 6 类；只在一个来源标注的类别按来源计算损失。缺失标签用已有地图或三维框离线补齐。例如，OpenScene 的可行驶路面由矢量地图补充，nuScenes 的部分杂物占据由框生成伪标签。原有浮空体素、配准误差和类别粗化仍会影响训练。</p>
+
+          <h3>数据工程决定各项监督能否真正混用</h3>
+          <div class="table-wrap" tabindex="0" aria-label="数据处理与训练样本口径，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>环节</th><th>原文规模</th><th>具体处理</th></tr></thead>
+              <tbody>
+                <tr><td>公开驾驶视觉语言数据</td><td>24 个来源；5.53M → 3.09M</td><td>统一对话、框坐标与视角标签；保留率 55.9%</td></tr>
+                <tr><td>Stage 2，重复采样之前</td><td>1.54M 样本</td><td>感知 9.7%；通用 VQA 26.0%；驾驶 VQA 64.3%</td></tr>
+                <tr><td>Stage 2，有效采样比例</td><td>按任务重复后</td><td>感知 12.7%；通用 VQA 31.0%；驾驶 VQA 56.3%</td></tr>
+                <tr><td>Stage 3，规划训练</td><td>约 2.83M；含理由 685K</td><td>四个来源统一成 10 Hz、5 秒、50 个路点</td></tr>
+                <tr><td>Stage 4，奖励优化</td><td>15K + 15K + 479 个场景</td><td>分别来自 NAVSIM、PAI-AV 与 WOD-E2E</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>3.09M 是清洗后的公开驾驶数据池，不是全部直接进入 Stage 2。作者从各公开来源按任务类型抽取约 20%，再混入自建数据和通用数据。重复采样之后的比例，才更接近模型实际见到的监督分布。（原文图 6、§2.3.2–2.3.3，PDF 第 10–12 页）</p>
+          <p>清洗分两步：Qwen3.5-Plus 改写格式，Qwen3.5-Flash 检查改写后的回答是否与源标注语义一致。这能减少格式混乱和改写偏移，但一致性审核本身不会修复错误的源标注。</p>
+          <p>规划理由另有生成过程：先从真实未来轨迹归纳机动先验，再由 Qwen3.7-Plus 结合当前图像、历史轨迹和导航生成理由；随后检查机动一致性、因素的因果角色和是否泄露未来信息。这里使用未来轨迹是训练标注的构造方式。测试时理由由模型根据可观测输入生成，因此仍需检查训练理由与推理理由之间的差异。</p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <p class="paper-kicker">FROM PERCEPTION SUPERVISION TO A TRAJECTORY POLICY</p>
+          <h2 id="mechanism-title">四阶段训练：先稳定空间与语言，再学习如何行动</h2>
+          <figure class="svg-figure" aria-labelledby="qdt-title qdt-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 760 404" role="img" aria-labelledby="qdt-title qdt-desc">
+              <title id="qdt-title">四阶段中哪些模块接受更新</title>
+              <desc id="qdt-desc">第一阶段只训练感知头，第二阶段联合更新视觉编码器、VLM 与感知头，第三阶段冻结共享表示训练规划专家，第四阶段保持共享表示冻结，以轨迹奖励更新规划专家。</desc>
+              <defs><marker id="qdt-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="760" height="404" fill="#fbfaf6"/>
+              <text x="28" y="33" fill="#bd4c32" font-size="14" font-weight="700">阶段 2 改造共享表示；阶段 3、4 在固定表示上学习策略</text>
+              <rect x="28" y="59" width="704" height="63" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="46" y="87" fill="#17201d" font-size="14" font-weight="700">01 · 初始化感知头</text><text x="46" y="108" fill="#52605b" font-size="12">只有三维感知损失</text>
+              <text x="274" y="87" fill="#17201d" font-size="14">更新：BEV 头</text><text x="274" y="108" fill="#52605b" font-size="12">冻结：视觉编码器、VLM</text>
+              <text x="533" y="88" fill="#355e7c" font-size="13" font-weight="700">先让新接口能够读特征</text>
+              <rect x="28" y="147" width="704" height="63" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="46" y="175" fill="#17201d" font-size="14" font-weight="700">02 · 感知与问答联合训练</text><text x="46" y="196" fill="#52605b" font-size="12">三维损失 + 文本预测损失</text>
+              <text x="274" y="175" fill="#17201d" font-size="14">更新：视觉编码器、VLM、BEV 头</text><text x="274" y="196" fill="#52605b" font-size="12">混合驾驶与通用数据</text>
+              <text x="559" y="176" fill="#24624e" font-size="13" font-weight="700">空间适配与知识保留</text>
+              <rect x="28" y="235" width="704" height="63" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="46" y="263" fill="#17201d" font-size="14" font-weight="700">03 · 轨迹模仿学习</text><text x="46" y="284" fill="#52605b" font-size="12">Flow matching → SFT 版本</text>
+              <text x="274" y="263" fill="#17201d" font-size="14">更新：Planning Expert</text><text x="274" y="284" fill="#52605b" font-size="12">冻结：视觉编码器、VLM</text>
+              <text x="533" y="264" fill="#9c7b1f" font-size="13" font-weight="700">学会预测记录中的未来</text>
+              <rect x="28" y="323" width="704" height="63" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="46" y="351" fill="#17201d" font-size="14" font-weight="700">04 · 轨迹奖励优化</text><text x="46" y="372" fill="#52605b" font-size="12">分组策略梯度 → RL 版本</text>
+              <text x="274" y="351" fill="#17201d" font-size="14">更新：Planning Expert</text><text x="274" y="372" fill="#52605b" font-size="12">冻结：视觉编码器、VLM</text>
+              <text x="533" y="352" fill="#bd4c32" font-size="13" font-weight="700">偏好、安全代理指标与位移</text>
+              <path d="M380 122V140 M380 210V228 M380 298V316" stroke="#52605b" stroke-width="1.5" fill="none" marker-end="url(#qdt-arrow)"/>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>看中间的“更新”列即可分清能力在哪里改变。Stage 2 的感知头学习率是 VLM 的 20 倍，让新模块更快适配；Stage 3 和 Stage 4 仅调整规划专家。Stage 3 的有理由与无理由样本都只计算轨迹损失，不在这一阶段训练文本生成。（原文图 4、§2.2，PDF 第 6–8 页）</figcaption>
+          </figure>
+          <h3>感知头：用标定约束空间，再用 VLM 特征补充场景语义</h3>
+          <p>感知分支使用当前时刻的 6 或 8 个环视图像及摄像头标定。它读取两路互补特征：进入语言主干之前的视觉特征 Fᵥ，保留外观信息；经过完整 VLM 后的图像 token 特征 Fₘ，带有更广泛的上下文。后者也使感知损失能够通过 VLM 回传到视觉编码器。</p>
+          <div class="formula-card" aria-label="图像特征如何形成三维体素的公式说明">
+            <div class="formula-card__label">公式 1 · 给像素特征一个可学习的深度分布（原文公式 2）</div>
+            <div class="formula-card__equation"><span class="formula-symbol">V(p)</span> = ∑<sub>i∈Ω(p)</sub> Dᵢ(uᵢ,vᵢ,dᵢ) Fᵥᵢ(uᵢ,vᵢ)</div>
+            <p class="formula-card__caption">它回答：多张二维图像上的特征，应该以多大权重放到三维位置 p？</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>p</dt><dd>自车坐标系内的一个体素中心；通过第 i 个摄像头的标定矩阵投影到图像。</dd></div>
+              <div class="formula-legend__row"><dt>uᵢ,vᵢ,dᵢ</dt><dd>该投影的像素坐标和对应的离散深度区间。</dd></div>
+              <div class="formula-legend__row"><dt>Dᵢ</dt><dd>轻量深度网络预测的类别概率，表示这个像素的内容有多可能位于该深度；原文没有给它单独的深度监督。</dd></div>
+              <div class="formula-legend__row"><dt>Fᵥᵢ</dt><dd>图像上的视觉编码器特征；它按深度概率沿相机射线分配。</dd></div>
+              <div class="formula-legend__row"><dt>Ω(p)</dt><dd>p 能够有效投影到的摄像头集合；多个视角的贡献相加得到体素特征 V(p)。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">相机标定负责“这个像素沿哪条射线看出去”，深度概率负责“内容更可能在哪一段”。几何投影固定了空间对应关系，深度与语义仍需要从任务损失中学习。</div>
+          </div>
+          <p>随后，V 沿高度汇聚得到 BEV 查询的几何初值；Fₘ 经简单特征金字塔变成多尺度语义特征。BEV Transformer 在鸟瞰网格内做自注意力，并通过可变形交叉注意力读取语义特征，形成共享 BEV 表示 B。</p>
+          <p>三个输出分别读取 B：检测解码器预测三维框；占据分支把 B 沿高度展开并与保留高度的 V 融合，以恢复体素结构；地图分支输出栅格化道路元素。总损失是 L<sub>perc</sub> = L<sub>det</sub> + L<sub>occ</sub> + L<sub>map</sub>，分别约束框、体素语义和道路结构。（原文图 3a、公式 2–5）</p>
+
+          <h3>规划器：从主干里读取条件，一次生成整段连续轨迹</h3>
+          <p>Planning Expert 是隐藏维度 1024、32 层的 diffusion transformer，约 1.1B 参数。Qwen3.5 的注意力结构混合了 Gated DeltaNet（门控线性注意力）与 softmax GQA（分组查询注意力）。论文从其中 <strong>8 个 softmax GQA 层</strong>缓存 RoPE 之后的 K 和对应 V；每组缓存供连续 4 个规划器层使用。</p>
+          <p>规划器每层把这些缓存与轨迹 token 自己的 K、V 拼接后做联合注意力。每个轨迹 token 编码一个带噪路点与历史轨迹；自适应层归一化再注入生成进度、导航指令和当前自车状态。这样，它可以使用图像、历史、导航以及可选文字理由，而不必把所有连续坐标变成语言 token 逐个输出。</p>
+          <p>实际规划输入是前、左前、右前三个视角，每个视角使用当前帧和间隔 0.5 秒的三帧历史，共 12 张图像、覆盖 1.5 秒历史。当前图保留 720p，历史图降至 320p。序列按摄像头优先排列，让同一视角的连续变化相邻；VQA 则主要采用帧优先排列。方向和帧标签都是普通词表中的文本。</p>
+          <div class="term-bridge">
+            <span class="term-bridge__label">FLOW MATCHING · 流匹配</span>
+            <p><strong>怎么理解：</strong>先给整条轨迹加噪，再学习怎样把它逐步推回合理的轨迹。这里有两条不同的时间轴：50 个路点对应未来 5 秒的驾驶时间；t∈[0,1] 对应整条轨迹从噪声到成品的生成进度。</p>
+          </div>
+          <div class="formula-card" aria-label="流匹配轨迹生成的公式说明">
+            <div class="formula-card__label">公式 2 · 预测干净终点，再换算成推进方向（原文公式 7–8）</div>
+            <div class="formula-card__equation"><span class="formula-symbol">τₜ</span> = (1 − t)τ₀ + tτ₁</div>
+            <div class="formula-card__equation"><span class="formula-symbol">v̂ₜ</span> = (τ̂₁ − τₜ) / (1 − t)</div>
+            <p class="formula-card__caption">前一式构造训练时的带噪轨迹，后一式把网络预测的完整轨迹换成当前一步该怎样移动。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>τ₀</dt><dd>与 50 × 3 轨迹同形状的标准高斯噪声。</dd></div>
+              <div class="formula-legend__row"><dt>τ₁</dt><dd>归一化后的真实轨迹。x、y、θ 分别除以 165 m、25 m、π/2 rad，使不同通道便于共同训练。</dd></div>
+              <div class="formula-legend__row"><dt>t、τₜ</dt><dd>生成进度与该进度下的整条轨迹；t 越大，训练样本中干净轨迹的占比越大。</dd></div>
+              <div class="formula-legend__row"><dt>τ̂₁</dt><dd>Planning Expert 直接预测的干净终点。这里的“终点”是完整 50 点轨迹，不是最后一个路点。</dd></div>
+              <div class="formula-legend__row"><dt>v̂ₜ</dt><dd>生成空间中的速度；分母 1−t 表示剩余生成进度，不是车辆物理速度。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">如果当前猜测离预测出的完整轨迹还很远，推进方向就朝向它；剩余生成进度越少，修正越集中。训练中 t 从 Beta(1.5,1.0) 采样并截到 0.9，避免除以接近零的数。</div>
+          </div>
+          <p>原文的流匹配损失比较“预测速度”与真实速度 τ₁−τ₀。把上面的插值关系代入，可等价写成 ‖τ̂₁−τ₁‖²/(1−t)²：接近干净端的预测误差权重更大。额外的一阶、二阶时序差分 Huber 项，权重分别是 2×10<sup>−4</sup> 和 2×10<sup>−5</sup>，用来减少路点抖动和加速度突变。</p>
+          <p>推理从高斯噪声开始，用 10 步 Euler 积分得到整条轨迹。这是生成器的迭代次数。<strong>输出按 10 Hz 采样，不等于整个系统能以 10 Hz 完成感知、理由生成和规划。</strong>原文没有提供硬件延迟或实时频率测量。</p>
+
+          <h3>RL：让模型比较不同可接受的未来，而不只追随唯一示范</h3>
+          <p>示范轨迹只是一个可行未来。比如同一处并线，可以稍早减速，也可以在规则允许时适度前进；只最小化与记录轨迹的误差，会把其他合理方案也当作错误。Stage 4 因而加入任务奖励，调整规划器更偏好哪些轨迹。</p>
+          <p>困难在于：固定初始噪声后，10 步 Euler 过程是确定性的，没有可直接用于策略梯度的随机转移概率。作者保留前 7 步，在最后 3 个转移上加入随机性；噪声限制在 6 个低频余弦时间模态中，鼓励整段轨迹发生平滑变化，减少逐路点独立噪声造成的高频抖动。</p>
+          <figure class="svg-figure" aria-labelledby="qdr-title qdr-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 760 372" role="img" aria-labelledby="qdr-title qdr-desc">
+              <title id="qdr-title">流匹配策略的末段平滑探索与分组奖励</title>
+              <desc id="qdr-desc">同一场景的八个 rollout 共用初始噪声、各自使用采样理由。在十步生成中的最后三步加入低频平滑扰动，按各数据源的奖励计算组内相对优势，只更新规划器。</desc>
+              <defs><marker id="qdr-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="760" height="372" fill="#fbfaf6"/>
+              <text x="28" y="35" fill="#bd4c32" font-size="14" font-weight="700">每组 8 条 rollout：先保持生成稳定，再在接近输出处探索</text>
+              <rect x="28" y="63" width="184" height="66" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="120" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">同一场景 + 初始噪声</text><text x="120" y="112" text-anchor="middle" fill="#52605b" font-size="12">冻结的 VLM 采样 8 份理由</text>
+              <rect x="254" y="63" width="218" height="66" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="363" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">转移 k = 0…6</text><text x="363" y="112" text-anchor="middle" fill="#52605b" font-size="12">给定各自条件后确定性推进</text>
+              <rect x="514" y="63" width="218" height="66" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="623" y="89" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">转移 k = 7、8、9</text><text x="623" y="112" text-anchor="middle" fill="#52605b" font-size="12">加入独立的低频平滑扰动</text>
+              <path d="M212 96H247 M472 96H507" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qdr-arrow)"/>
+              <path d="M623 129V168H380V192" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qdr-arrow)"/>
+              <rect x="28" y="198" width="218" height="64" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="137" y="224" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">NAVSIM：PDMS + 位移</text><text x="137" y="247" text-anchor="middle" fill="#52605b" font-size="12">道路规则、进度、舒适代理分</text>
+              <rect x="270" y="198" width="218" height="64" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="379" y="224" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">WOD：RFS + 位移</text><text x="379" y="247" text-anchor="middle" fill="#52605b" font-size="12">匹配人工评级过的候选轨迹</text>
+              <rect x="514" y="198" width="218" height="64" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="623" y="224" text-anchor="middle" fill="#17201d" font-size="14" font-weight="700">PAI-AV：多时域位移</text><text x="623" y="247" text-anchor="middle" fill="#52605b" font-size="12">对前 1 秒误差赋予更高系数</text>
+              <path d="M137 262V287H623V262 M380 287V304" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qdr-arrow)"/>
+              <rect x="116" y="311" width="528" height="40" rx="5" fill="#17201d"/>
+              <text x="380" y="337" text-anchor="middle" fill="#fbfaf6" font-size="14">同一场景组内比较奖励，更新最后三次随机转移的策略</text>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>上方是采样过程，下方三种奖励按数据来源选用。组内差异来自采样出的理由和末段平滑扰动；共享初始轨迹噪声只固定了一项随机来源。RL 训练没有使用 AlpaSim 的闭环奖励。（原文 §2.2、附录 A，PDF 第 7–8、33 页）</figcaption>
+          </figure>
+          <div class="formula-card" aria-label="组内相对优势的公式说明">
+            <div class="formula-card__label">公式 3 · 当前候选相对同组表现如何（原文公式 13）</div>
+            <div class="formula-card__equation"><span class="formula-symbol">Aᵢ</span> = (Rᵢ − R̄) / (σ<sub>R</sub> + ε)</div>
+            <p class="formula-card__caption">在同一个场景的 8 条候选内部比较好坏，减少不同场景天然难度的影响。</p>
+            <dl class="formula-legend">
+              <div class="formula-legend__row"><dt>Rᵢ</dt><dd>第 i 条轨迹的来源特定奖励；越大代表越符合当前奖励目标。</dd></div>
+              <div class="formula-legend__row"><dt>R̄、σ<sub>R</sub></dt><dd>同组 8 个奖励的均值和总体标准差。减均值给出相对好坏，除标准差调整尺度。</dd></div>
+              <div class="formula-legend__row"><dt>ε</dt><dd>1×10<sup>−8</sup>，防止候选奖励相同时除零。</dd></div>
+              <div class="formula-legend__row"><dt>Aᵢ</dt><dd>大于零时提高该候选随机转移的概率，小于零时降低。它衡量的是组内相对表现，并不直接判定轨迹绝对安全。</dd></div>
+            </dl>
+            <div class="formula-card__intuition">无需另训一个价值网络，组内其他候选即可提供比较基线。论文使用当轮采样、当轮更新的 on-policy 策略梯度，并以 γ=0.6 让更靠近输出的随机步骤承担更高权重；它没有采用 PPO 的裁剪目标。</div>
+          </div>
+          <p>为避免随机扰动把轨迹推离预训练分布，作者还加入基于预测终点的近似恢复 score。因为真实终点被模型估计替代，噪声又限制在低维子空间，原文把它解释为稳定扰动的近似修正，没有声称严格保持原始边缘分布。（原文公式 9–12）</p>
+          <p>奖励中的位移项统一写作 Δ=(δ−ADE)/κ：ADE 是预测位置与记录位置的平均距离，越小越好；κ 调整它相对任务分的权重。NAVSIM 使用 PDMS + 2(2−ADE<sub>5s</sub>)/10，WOD 使用 RFS + 2(2−ADE<sub>5s</sub>)，因为两种任务分分别处于 [0,1] 与 [0,10]。PAI-AV 只用多时域位移项，其中前 1 秒 ADE 的系数最高。组内标准化会消除共同的加法偏置，δ=2 主要影响日志中的奖励数值。</p>
+          <p class="evidence-note"><strong>评测口径：</strong>NAVSIM 奖励内部的进度、TTC、舒适权重为 6/4/2，最终表 6 回到官方评测协议。WOD 的 RFS 依据已有人工评分的候选匹配，不是给每次新输出重新找人打分。数据源的奖励也没有覆盖所有真实驾驶目标。</p>
+        </section>
+        <section id="evidence" aria-labelledby="evidence-title">
+          <p class="paper-kicker">READ EVERY RESULT WITH ITS PROTOCOL</p>
+          <h2 id="evidence-title">证据链：哪些进步很清楚，哪些还受评测方式限制</h2>
+          <h3>1. 驾驶理解明显增强，通用能力在平均意义上保留</h3>
+          <div class="table-wrap" tabindex="0" aria-label="Qwen 原模型与驾驶适配模型的理解能力，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>指标与方向</th><th>Qwen3.5-4B</th><th>Qwen-Drive SFT</th><th>变化</th></tr></thead>
+              <tbody>
+                <tr><td>驾驶 QA 六项均分 ↑</td><td>63.52</td><td>69.43</td><td>+5.91 点</td></tr>
+                <tr><td>CoC 整体准确率 ↑</td><td>2.58</td><td>41.26</td><td>+38.68 点</td></tr>
+                <tr><td>Ego3D 距离估计 RMSE ↓</td><td>13.17</td><td>7.78</td><td>约 −40.9%</td></tr>
+                <tr><td>通用知识 / 推理 / 识别十项均分 ↑</td><td>67.40</td><td>66.41</td><td>−0.99 点</td></tr>
+                <tr><td>通用空间理解 / grounding 五项均分 ↑</td><td>52.99</td><td>53.96</td><td>+0.97 点</td></tr>
+                <tr><td>CountQA 计数单项 ↑</td><td>35.86</td><td>31.74</td><td>−4.12 点</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>前两行说明定向训练对驾驶问答和指定 CoC 任务有效；中间两组均值支撑“总体能力大体保留”。最后一行提醒，均值接近不代表每个能力都保持不变。驾驶 QA 平均只包含表 2 左组的六个越高越好指标，不把距离 RMSE 混进平均。（原文表 2–3，PDF 第 15、17 页）</p>
+          <p>CoC 的整体准确率要求关键对象与驾驶决策同时正确，来自作者构建的 PAI-AV-CoC 评测，使用 Qwen3.5-Plus 抽取并评判答案；无效或无法解析的输出在相应平均中按零计算。它反映了理解、指令遵循和输出格式适配的共同效果。作者特别指出，Alpamayo 在这个协议下的低分可能与输入和指令格式差异有关，不能由此直接断言其因果推理能力弱。</p>
+          <p class="evidence-note"><strong>LingoQA 分数要带上裁判：</strong>主表的 77.80 使用 Qwen-Plus 评分；官方 LingoJudge 协议下，作者另报 79.4。跨论文比较前需要统一评分器。距离 RMSE 下降也不能单独证明 VLM 获得了精确的米制三维表示，作者认为它还可能受益于语义尺度线索与定量推理。</p>
+
+          <h3>2. 三维监督让感知可用，检测与占据的收益并不一致</h3>
+          <div class="table-wrap" tabindex="0" aria-label="nuScenes 统一标签下的感知对照，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>nuScenes；共同视觉初始化</th><th>检测 mAP ↑</th><th>地图 mIoU ↑</th><th>占据 mIoU ↑</th><th>RayIoU ↑</th></tr></thead>
+              <tbody>
+                <tr><td>BEVFormerV2*，专用多任务基线</td><td>41.94</td><td>47.76</td><td>25.72</td><td>43.89</td></tr>
+                <tr><td>Head-only，仅 nuScenes</td><td>35.60</td><td>55.55</td><td>20.21</td><td>36.98</td></tr>
+                <tr><td>Head-only，混合两种来源</td><td>33.49</td><td>51.15</td><td>14.83</td><td>29.54</td></tr>
+                <tr class="evidence-table__emphasis"><td>Qwen-Drive SFT，联合适配</td><td>43.95</td><td>60.99</td><td>19.82</td><td>37.02</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>让感知损失更新共享主干后，相对混合数据的 head-only，检测 mAP 提高 10.46 点、地图 mIoU 提高 9.84 点。感知头在此前已收敛，因此结果支持：仅把新头训练得更久不足以获得同样效果，共享特征也需要适配。占据指标虽然恢复了一部分，却仍落后专用 BEVFormerV2*。（原文表 1，PDF 第 13 页）</p>
+          <p>OpenScene 上也有分化：检测 mAP 从 40.57 到 43.45，地图 mIoU 从 66.34 到 71.27；占据 mIoU 从 20.13 到 19.84、RayIoU 从 25.36 到 25.17。跨源标签映射让混合训练成为可能，但没有消除自动占据标注中的浮空体素和语义差异。</p>
+          <p class="evidence-note"><strong>这些数字采用统一重映射协议：</strong>检测使用合并后的类别，NDS 还将缺少的属性误差 mAAE 设为零。对比感知模型只在重映射的 nuScenes 上训练，Qwen-Drive 使用混合来源；所有输入分辨率为 896 × 512。结论适用于这张对照表，不能把其分数直接拼到标准 nuScenes 榜单。</p>
+
+          <h3>3. 先理解评测的反馈程度，再读规划成绩</h3>
+          <figure class="svg-figure" aria-labelledby="qde-title qde-desc">
+            <div class="svg-scroll" tabindex="0" aria-label="机制图，窄屏可横向滚动">
+            <svg viewBox="0 0 760 246" role="img" aria-labelledby="qde-title qde-desc">
+              <title id="qde-title">开环、伪闭环和闭环分别测到了什么</title>
+              <desc id="qde-desc">WOD 与 PAI-AV 对照记录数据评估一次预测；NAVSIM 用车辆模型对一次预测评分，周围车辆回放记录；AlpaSim 多次重规划，观察随自车动作变化，能够暴露累积误差。</desc>
+              <defs><marker id="qde-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="760" height="246" fill="#fbfaf6"/>
+              <text x="28" y="35" fill="#bd4c32" font-size="14" font-weight="700">反馈越深入，越能暴露预测之后才出现的问题</text>
+              <rect x="28" y="67" width="214" height="126" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="46" y="95" fill="#17201d" font-size="15" font-weight="700">开环 · WOD / PAI-AV</text><text x="46" y="122" fill="#52605b" font-size="13">给定记录，预测未来</text><text x="46" y="147" fill="#52605b" font-size="13">测偏好匹配与位移误差</text><text x="46" y="172" fill="#52605b" font-size="13">不反馈行动后的新观察</text>
+              <rect x="273" y="67" width="214" height="126" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="291" y="95" fill="#17201d" font-size="15" font-weight="700">伪闭环 · NAVSIM</text><text x="291" y="122" fill="#52605b" font-size="13">车辆模型推进预测轨迹</text><text x="291" y="147" fill="#52605b" font-size="13">只查询规划器一次</text><text x="291" y="172" fill="#52605b" font-size="13">周围车辆回放原始运动</text>
+              <rect x="518" y="67" width="214" height="126" rx="5" fill="#dcebe5" stroke="#24624e"/>
+              <text x="536" y="95" fill="#17201d" font-size="15" font-weight="700">闭环 · AlpaSim</text><text x="536" y="122" fill="#52605b" font-size="13">执行、观察、再次规划</text><text x="536" y="147" fill="#52605b" font-size="13">视角随自车偏移而更新</text><text x="536" y="172" fill="#52605b" font-size="13">暴露误差累积与恢复能力</text>
+              <path d="M242 130H266 M487 130H511" fill="none" stroke="#52605b" stroke-width="1.5" marker-end="url(#qde-arrow)"/>
+              <text x="380" y="226" text-anchor="middle" fill="#52605b" font-size="13">三类分数的目标不同；闭环仿真之后仍需真实车辆验证。</text>
+            </svg>
+            </div>
+            <figcaption class="read-guide"><strong>这张图怎么读：</strong>从左到右增加的是行动对下一次输入的影响。NAVSIM 虽然模拟轨迹执行，却不会反复让模型根据新场景修正计划，因此很高的 PDMS 不能替代 AlpaSim 的闭环表现。（原文 §3.3，PDF 第 18–20 页）</figcaption>
+          </figure>
+          <div class="table-wrap" tabindex="0" aria-label="主要规划结果及其推理设置，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>评测与设置</th><th>SFT</th><th>RL</th><th>结论口径</th></tr></thead>
+              <tbody>
+                <tr><td>NAVSIM 单轨迹 PDMS ↑</td><td>88.2</td><td>90.7</td><td>均为有理由规划</td></tr>
+                <tr><td>NAVSIM 真实分数选优，N=6 ↑</td><td>89.3</td><td>91.4</td><td>候选集 oracle 上界</td></tr>
+                <tr><td>WOD-E2E 测试集 RFS ↑</td><td>7.78</td><td>7.91</td><td>保留的测试集</td></tr>
+                <tr><td>WOD-E2E 测试集 ADE，5 秒 ↓</td><td>2.65 m</td><td>2.67 m</td><td>位移误差基本不变</td></tr>
+                <tr><td>WOD-E2E 验证集 RFS ↑</td><td>7.95</td><td>8.45</td><td>验证评分参与过 RL</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>NAVSIM：</strong>无理由 SFT 为 87.8，增加理由为 88.2，RL 后是 90.7；单轨迹成绩比表中最强对比的 90.4 高 0.3 点。91.4 使用实际 PDMS 在六条候选里挑最好的那条，体现候选集中存在更好轨迹；论文没有同时证明，一个部署时可用的选择器能够恢复这份收益。</p>
+          <p><strong>WOD：</strong>更值得看测试集的 7.78→7.91；这比表中 RL 后的 MindVLA-U1 7.87 高 0.04 点，属于小幅领先。验证集 8.45 虽高于人类参考 8.13，但这些验证评分用于了奖励训练，因此只能说明对训练评分的有效优化，不能据此得出超越人类驾驶的结论。（原文表 4、6）</p>
+
+          <h3>4. 多候选预测还有短板：六条轨迹比较相似</h3>
+          <p>PAI-AV 的标准 644 样本集按官方构造就与公开训练数据有重叠。作者另构建了来自留出测试 clips 的 700 帧子集；下面优先看该子集，并统一比较每个场景六条轨迹的 3 秒指标。（原文表 5，PDF 第 19 页）</p>
+          <div class="table-wrap" tabindex="0" aria-label="无泄漏 PAI-AV 子集上的六轨迹误差，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>700 帧子集；六条轨迹</th><th>平均 ADE，3 秒 ↓</th><th>最小 ADE，3 秒 ↓</th></tr></thead>
+              <tbody>
+                <tr><td>Alpamayo-1.5</td><td>0.36 m</td><td>0.17 m</td></tr>
+                <tr><td>Qwen-Drive SFT，有理由</td><td>0.42 m</td><td>0.39 m</td></tr>
+                <tr><td>Qwen-Drive RL</td><td>0.47 m</td><td>0.43 m</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>平均 ADE 衡量候选的典型误差，minADE 衡量“至少有一条覆盖记录中的运动”能做到多好。Qwen-Drive 的两个分数很接近，支持候选比较集中的判断；相对 Alpamayo-1.5，准确率和覆盖度仍有差距。RL 在这个子集的 3 秒平均误差增加 5 cm，说明其他奖励目标的改善没有同步改善所有预测指标。</p>
+
+          <h3>5. 闭环的核心变化：越界减少，但行驶更保守</h3>
+          <div class="table-wrap" tabindex="0" aria-label="916 个 AlpaSim 场景的闭环指标，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>模型</th><th>全事件近距离率 ↓</th><th>自车有责近距离率 ↓</th><th>越界率 ↓</th><th>进度 ↑</th><th>AlpaSim 全 / 有责 ↑</th></tr></thead>
+              <tbody>
+                <tr><td>Alpamayo-R1</td><td>19%</td><td>6%</td><td>17%</td><td>67%</td><td>0.36 / 0.58</td></tr>
+                <tr><td>Alpamayo-1.5</td><td>37%</td><td>11%</td><td>16%</td><td>59%</td><td>0.23 / 0.45</td></tr>
+                <tr><td>Qwen-Drive SFT，有理由</td><td>38%</td><td>12%</td><td>24%</td><td>54%</td><td>0.16 / 0.27</td></tr>
+                <tr class="evidence-table__emphasis"><td>Qwen-Drive RL</td><td>41%</td><td>11%</td><td>12%</td><td>48%</td><td>0.16 / 0.37</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>这些结果来自 PAI-AV-NuRec 26.02 的 916 个场景，作者在同一设置下复现对比方法。RL 把越界率降低 12 个百分点，即相对减半；自车有责近距离事件也小幅下降。但进度减少 6 点，全事件近距离率增加 3 点，全事件 AlpaSim 分数保持 0.16。相对 Alpamayo-1.5，Qwen-Drive 的越界率更低，进度与两种 AlpaSim 分数仍更低。（原文表 7，PDF 第 20 页）</p>
+          <p class="evidence-note"><strong>近距离事件不等于实际碰撞：</strong>表中统计的是 close encounter，不能直接改称碰撞率。AlpaSim score 衡量与事件间行驶距离相关的表现，也不是任务成功率。作者对极度保守甚至停驶的方法给出了专门讨论，所以应同时看分数、事件率和进度。</p>
+
+          <h3>6. 消融能回答什么：兼容性成立，三维监督的规划因果贡献仍未建立</h3>
+          <div class="table-wrap" tabindex="0" aria-label="阶段二训练配方的控制实验，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th>Stage 2 配方</th><th>驾驶 QA 均分 ↑</th><th>CoC 整体 ↑</th><th>通用 15 项均分 ↑</th><th>WOD 验证 RFS ↑</th></tr></thead>
+              <tbody>
+                <tr><td>原始 Qwen3.5-4B</td><td>63.52</td><td>2.58</td><td>62.60</td><td>7.88</td></tr>
+                <tr><td>增加视觉语言训练</td><td>70.07</td><td>40.97</td><td>63.18</td><td>7.91</td></tr>
+                <tr><td>再增加三维感知监督</td><td>69.43</td><td>41.26</td><td>62.26</td><td>7.96</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>表 8 中，每个变体都在相同 WOD 数据上训练规划专家 15 epochs，因此是在控制规划训练设置后比较共享表示。三维监督带来可检查的感知能力，语言总体成绩变动不到 1 点，规划 RFS 再增加 0.05。作者明确说，这支持训练配方与后续规划的兼容性，还不能确定三维监督是规划增益的来源。</p>
+          <p>这张消融的 RFS 7.96 与主表多源训练的 7.95 来自不同实验设置。其通用均分也是全部 15 项的平均，不能与前面的十项知识组均分 66.41 混为一谈。</p>
+          <p><strong>奖励消融更直接地展示了取舍：</strong>在 WOD 验证集，加入位移锚定项后，RFS 从 8.68 降到 8.45，5 秒 ADE 却从 2.24 m 改善到 1.27 m。这说明作者主动牺牲一部分偏好分，限制轨迹过度偏离记录运动；最高单一分数并不是最终选择配方的唯一依据。（图 11，PDF 第 23 页）</p>
+          <p><strong>数据规模仍有收益：</strong>仅用 PAI-AV 训练规划器，样本从 0.17M 增至 1.38M 时，标准集的 5 秒平均 ADE 从 1.34 m 降到 1.05 m；留出 700 帧子集从 1.41 m 降到 1.22 m。两个子集均呈持续改善趋势。这支持当前范围内更多轨迹监督仍有用，尚不足以外推更大规模的收益规律。（图 12，PDF 第 23 页）</p>
+        </section>
+        <section id="limits" aria-labelledby="limits-title">
+          <p class="paper-kicker">CAUSAL CONSISTENCY, TRANSFER, AND DEPLOYMENT</p>
+          <h2 id="limits-title">还缺的连接：说出的理由，要能约束做出的动作</h2>
+          <div class="claim-grid">
+            <article class="claim-card claim-card--supported"><span>证据较强</span><h3>多种能力可以共存</h3><p>同一 VLM 获得了显式三维输出和更强驾驶问答，同时在通用任务平均分上保持接近原模型。</p></article>
+            <article class="claim-card claim-card--bounded"><span>在给定协议下成立</span><h3>奖励训练改变规划行为</h3><p>NAVSIM 和 WOD 分数提高，AlpaSim 越界下降；其他闭环指标与位移误差呈现取舍。</p></article>
+            <article class="claim-card claim-card--open"><span>尚待验证</span><h3>三维与理由稳定改善行动</h3><p>三维监督的规划消融增益较小，理由与轨迹可能不一致；跨相机精度与车端时延也缺定量验证。</p></article>
+          </div>
+          <h3>理由的时间尺度，还没有稳定对齐到立即行动</h3>
+          <p>作者给了一个很具体的限制：20 m 外的红灯需要提前、渐进减速，5 m 外突然出现的儿童需要立即响应。多个原因并存时，模型未必稳定识别谁主导当前动作；即使理由的大方向合理，接下来 1–2 秒的轨迹也可能没有反映眼前最紧急的原因。（原文 §5，PDF 第 24–25 页）</p>
+          <p>因此，“有 reasoning 的成绩更好”最多说明这段额外条件有用。作者承认，增益可能部分来自自生成文本携带的内部信息，而非轨迹忠实执行了可读的因果理由。一个值得补做的实验是固定场景与初始噪声，分别提供正确、无关和矛盾理由，观察轨迹是否按因素的真实因果角色变化。</p>
+          <h3>跨摄像头布置的迁移，目前主要是“能运行、视觉上合理”</h3>
+          <p>感知头没有绑定特定相机布置的可学习 embedding，并使用真实标定，支持在不同环视系统上运行。图 13 展示了没有参与感知训练的 WOD-E2E 与 PAI-AV 环视布置上的预测，但缺少统一三维真值。框与地图看起来合理还不能给出新平台上的精度保证；需要目标平台的定量标注与评估。</p>
+          <h3>任务共用主干，仍存在不同的输入习惯</h3>
+          <p>感知是单帧环视，规划使用三前向视角加稀疏历史，VQA 的分辨率与序列布局又不同。这种配置便于各任务独立优化，也可能限制表征迁移。作者提出对齐任务间的输入格式、时间上下文和分辨率，并加强联合优化。结合闭环结果，还可进一步研究更密集的短时视觉历史是否改善响应；这是本页延伸出的实验问题。</p>
+          <h3>车端成本和真实驾驶可靠性还没有被这一组实验覆盖</h3>
+          <p>约 4B 的共享 VLM、1.1B 的规划器和 10 步积分给出了模型规模与算法步数，但原文未报告端到端延迟、峰值显存、能耗或量产计算平台上的性能。闭环证据来自仿真，未给出实车道路测试。座舱与驾驶共享模型的工程价值需要把并发请求、时序预算和实际车辆效果一起测量。</p>
+          <h3>开源可用于推理研究，完整训练复现仍有缺项</h3>
+          <p>截至 2026-09-03，官方已公开共享 VLM、感知头和 SFT/RL 规划器权重，并提供推理与评测代码。SFT 支持直接规划和带理由规划；RL 只在带理由的 rollout 上优化，官方要求使用相应推理模式。公开代码定位为推理实现，尚未见完整四阶段训练与 RL 入口；基准场景文件也需要按文档自行构建。依据：<a href="https://github.com/QwenLM/Qwen-Drive-1.0">官方仓库</a>、<a href="https://github.com/QwenLM/Qwen-Drive-1.0/blob/main/docs/cookbook.md">使用文档</a>。</p>
+          <p class="evidence-note"><strong>从系统设计角度看：</strong>这篇工作提供了一个可复用的分工：用可检查的几何任务塑造视觉表示，用通用数据维持语言能力，再把连续行动与奖励优化集中到规划器。继续推进的重点是高质量空间标签、理由与动作的一致性，以及在闭环中同时提高安全表现和通行效率。这是基于论文证据作出的解读判断。</p>
+        </section>
+        <section id="sources" aria-labelledby="sources-title">
+          <p class="paper-kicker">SOURCES AND INTERPRETATION</p>
+          <h2 id="sources-title">原文与开源资料</h2>
+          <ol class="source-list">
+            <li><strong>主要材料：</strong>用户提供的 <em>Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving</em>，共 40 页；PDF 标题页日期为 2026-09-02，元数据标识 arXiv:2609.00111v1。全文机制、公式和数值以这份附件为准。</li>
+            <li><a href="https://arxiv.org/abs/2609.00111v1">arXiv v1 摘要与作者信息</a>、<a href="https://arxiv.org/pdf/2609.00111v1">公开 v1 PDF</a>。arXiv 记录的首次提交日期为 2026-08-31，与附件标题页日期分别保留；页面的出版日期元数据采用提交日期。</li>
+            <li><a href="https://github.com/QwenLM/Qwen-Drive-1.0">QwenLM 官方仓库</a>、<a href="https://huggingface.co/Qwen/Qwen-Drive-1.0-4B/tree/main">官方模型文件目录</a>。用于核对当前权重、外接模块与代码公开状态。</li>
+            <li><a href="https://github.com/QwenLM/Qwen-Drive-1.0/blob/main/docs/model.md">模型结构文档</a>、<a href="https://github.com/QwenLM/Qwen-Drive-1.0/blob/main/docs/evaluation.md">评测协议文档</a>、<a href="https://github.com/QwenLM/Qwen-Drive-1.0/blob/main/docs/cookbook.md">推理与数据准备文档</a>。公开资料核对时间为 2026-09-03；后续开源状态可能更新。</li>
+          </ol>
+          <p class="evidence-note"><strong>事实与推断：</strong>模块连接、四阶段更新范围、数据规模、奖励定义、所有表格成绩及作者明确列出的限制来自原文；“能力共存的证据强于稳定跨任务因果迁移”“应同时读安全代理指标与进度”“需要干预理由的控制实验”等属于本页分析。重绘的 SVG 是对论文机制的解释；本页没有进行模型训练或独立复现实验。附录中的提示词作为模型输入案例阅读。</p>
+        </section>
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>当前没有已写回评论。评论与模型解释分开保存；连接本地服务后可写回这篇解读。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>

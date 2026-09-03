@@ -774,6 +774,19 @@ a {
   height: auto;
 }
 
+.svg-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.svg-scroll svg {
+  min-width: 640px;
+}
+
+.svg-scroll:focus-visible {
+  outline-offset: -3px;
+}
+
 .concept-visual {
   max-width: 640px;
 }
