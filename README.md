@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **Motus2**：用共享策略、动作条件模拟器与价值评估器构成学习闭环，重点区分 84% 主任务成绩、两任务 MBRL 65%→72.5% 及长期自主进化的证据边界。阅读：[ChatGPT Sites（待同步）](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/motus2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/motus2/)
+
 - **Qwen-Drive-1.0**：用共享 VLM、BEV 感知头和流匹配规划器连接三维感知、驾驶问答与连续轨迹，重点核对能力保留、四阶段训练及 RL 的闭环安全与进度取舍。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/qwen-drive-1-0/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/qwen-drive-1-0/)
 - **BrainWAM**：把 VLA 的语义先验与 WAM 的预测动力学分别压成 action tokens，再以 CAB/CIF 协调；重点解释 Tri-MoT 87.8 低于 WAM-only 88.1 的融合负结果，并限定 89.5/89.6 与 475–644 ms 延迟的部署含义。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/brainwam/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/brainwam/)
 - **Zero-WAM**：把人类视频作为部署时任务规范，用 HumanGen、任务均衡采样与 IFP 连接未见任务泛化；并区分仿真完整留出任务、真实 Franka 未见配置和仍未覆盖的开放世界视频。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/zero-wam/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/zero-wam/)
@@ -34,6 +36,7 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [Motus2: A Self-Evolving General World Model for Dexterous Manipulation](papers/motus2/) | 以 action-first 因果遮罩、轨迹监督分流和 DiffusionNFT 连接动作、想象与评价，并核对人类数据、记忆、触觉及有限自进化证据。 |
 | [Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving](papers/qwen-drive-1-0/) | 以显式三维监督与通用数据保留共享 VLM 能力，再用流匹配和轨迹奖励训练规划器；区分基准收益与闭环行为取舍。 |
 | [BrainWAM: Action-Space Coordination of Semantic Priors and Predictive Dynamics for Autonomous Driving](papers/brainwam/) | 让 VLA 与 WAM 先形成专业化动作表征，再用 CAB 和 CIF 在动作空间协调，避免 raw-token 联合注意力中的语义捷径压制预测动力学。 |
 | [Zero-WAM: In-Context World-Action Modeling from Human Videos for Open-Ended Task Generalization](papers/zero-wam/) | 把人类视频变成部署时视觉任务规范，以 HumanGen 扩展人机配对、用 IFP 迫使主干编码远期任务演化。 |
@@ -59,7 +62,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 24 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 26 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 

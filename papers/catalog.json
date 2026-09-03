@@ -44,6 +44,47 @@
       "href": "papers/qwen-drive-1-0/"
     },
     {
+      "slug": "motus2",
+      "title": "Motus2: A Self-Evolving General World Model for Dexterous Manipulation",
+      "authors": [
+        "Hongzhe Bi",
+        "Zihao Zhou",
+        "Yihang Tang",
+        "Jingrui Pang",
+        "Shuhe Huang",
+        "Haitian Liu",
+        "Runqing Wang",
+        "Shuai Huang",
+        "Yichen Wang",
+        "Yiming Cheng",
+        "Ruowen Zhao",
+        "Zhenghua Li",
+        "Hengkai Tan",
+        "Xiaolong Liu",
+        "Jinhui Wan",
+        "Jiabao Liu",
+        "Min Zhao",
+        "Fan Bao",
+        "Jun Zhu"
+      ],
+      "publicationDate": "2026-08-31",
+      "readAt": "2026-09-03",
+      "description": "用共享权重的策略、模拟器与价值评估器连接灵巧操作，拆解 action-first 因果遮罩、人类数据金字塔、DiffusionNFT、记忆与触觉，并区分 84% 主结果、两任务策略改进及持续自进化的证据边界。",
+      "tags": [
+        "Motus2",
+        "general world model",
+        "dexterous manipulation",
+        "action-first",
+        "DiffusionNFT",
+        "model-based RL",
+        "egocentric data",
+        "tactile",
+        "working memory"
+      ],
+      "sourceUrl": "https://motus-robotics.github.io/motus2/",
+      "href": "papers/motus2/"
+    },
+    {
       "slug": "vla-to-world-action-models",
       "title": "从 VLA 到 World-Action Model：六篇论文的横向对比导读",
       "authors": [
