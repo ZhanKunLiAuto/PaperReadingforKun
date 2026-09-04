@@ -10,7 +10,7 @@
 
 ## 最近更新
 
-- **Motus2**：用共享策略、动作条件模拟器与价值评估器构成学习闭环，重点区分 84% 主任务成绩、两任务 MBRL 65%→72.5% 及长期自主进化的证据边界。阅读：[ChatGPT Sites（待同步）](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/motus2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/motus2/)
+- **Motus2**：用共享策略、动作条件模拟器与价值评估器构成学习闭环，重点区分 84% 主任务成绩、两任务 MBRL 65%→72.5% 及长期自主进化的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/motus2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/motus2/)
 
 - **Qwen-Drive-1.0**：用共享 VLM、BEV 感知头和流匹配规划器连接三维感知、驾驶问答与连续轨迹，重点核对能力保留、四阶段训练及 RL 的闭环安全与进度取舍。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/qwen-drive-1-0/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/qwen-drive-1-0/)
 - **BrainWAM**：把 VLA 的语义先验与 WAM 的预测动力学分别压成 action tokens，再以 CAB/CIF 协调；重点解释 Tri-MoT 87.8 低于 WAM-only 88.1 的融合负结果，并限定 89.5/89.6 与 475–644 ms 延迟的部署含义。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/brainwam/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/brainwam/)
