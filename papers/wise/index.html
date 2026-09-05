@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="WISE: World-model-guided Imagination Scheduling for Efficient Post-training of Vision-Language-Action Models">
+    <meta name="citation_author" content="Chenhao Zhang">
+    <meta name="citation_author" content="Hanyu Zhao">
+    <meta name="citation_author" content="Hang Cheng">
+    <meta name="citation_author" content="Tengfei Pan">
+    <meta name="citation_author" content="Long Zeng">
+    <meta name="citation_publication_date" content="2026-09-03">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.03681v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.03681v1">
+    <meta name="description" content="通过关键状态调度、有限时域反事实推演和可靠性筛选改善 VLA 后训练；区分阶段性计算节省、前置训练成本与真实泛化证据。">
+    <meta name="keywords" content="WISE, 世界模型, VLA, 后训练, 想象调度, 机器人操作">
+    <meta name="paper:read_at" content="2026-09-05">
+    <title>WISE：把有限的想象计算用在关键交互状态</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body data-page-kind="paper" data-page-path="/papers/wise/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.03681V1 · 2026-09-03 · 阅读：2026-09-05</span></header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">研究目的与核心判断</a></li><li><a href="#mechanism">关键方法怎样起作用</a></li><li><a href="#evidence">决定性结果与反例</a></li><li><a href="#limits">结论能推广到哪里</a></li><li><a href="#sources">回到原文</a></li>
+      </ol></nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">PAPER NOTES · 2026.09</p>
+          <h1 id="paper-title" class="paper-title">WISE</h1>
+          <p class="paper-subtitle">把有限的想象计算用在关键交互状态</p>
+          <div class="paper-byline"><span>Chenhao Zhang、Hanyu Zhao 等 5 位作者</span><span>清华大学、北京智源人工智能研究院</span><span>预印本 v1 · 26 页</span></div>
+          <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>降低机器人 VLA 后训练对额外物理探索的依赖，让昂贵的世界模型推演集中在最可能改善动作选择的交互阶段。</p></div>
+          <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>WISE 的价值在于管理想象的使用方式：选择状态、限制推演长度、筛选可信排名，最后只更新真实观测起点的动作。结果支持“有选择地想象”比处处想象更有效，但它仍依赖任务示范、世界模型和奖励模型，不是零数据学习。</p></div>
+        </section>
+
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">先明确研究对象</h2>
+<p>反事实想象是从同一个真实观测出发，分别试算多个候选动作会造成什么后果，而不把这些候选都交给机器人执行。VLA 提出候选，世界模型预测未来画面，奖励模型比较结果；三者的职责不同。</p>
+</section>
+
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">原有瓶颈在哪里</h2>
+<p>抓取前的大幅移动往往容易，接触、对齐和放置更容易决定成败。对所有状态都调用世界模型既浪费算力，也把预测误差变成训练噪声；推演越长，后续动作又越依赖已经失真的合成观测。因此准确预测只是前提，还要控制何时使用、推演多远、哪些反馈值得学。</p>
+</section>
+
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">真实起点分叉推演，再把反馈收回第一步</h2>
+<figure class="svg-figure"><svg viewBox="0 0 680 384" role="img" aria-labelledby="wise-fig-title wise-fig-desc"><title id="wise-fig-title">WISE 的状态调度和反事实更新</title><desc id="wise-fig-desc">合成的后续状态负责帮助比较候选，不直接成为策略学习的状态—动作样本。调度控制何时推演；有限长度控制误差累积，两者不是同一件事。</desc><defs><marker id="wise-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs><rect x="24" y="12" width="632" height="105" rx="6" fill="#dfeaf1" stroke="#6a776f"/><text x="340" y="46" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">真实双视角观测 → 交互相关性判断</text><text x="340" y="77" text-anchor="middle" font-size="24" fill="#364a41">只在选中的状态生成多个候选动作块</text><path d="M340 120V134" stroke="#355e7c" stroke-width="2" marker-end="url(#wise-arrow)"/><rect x="24" y="138" width="632" height="105" rx="6" fill="#dcebe5" stroke="#6a776f"/><text x="340" y="172" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">冻结世界模型 → 有限长度未来推演</text><text x="340" y="203" text-anchor="middle" font-size="24" fill="#364a41">奖励评估进展、退步、置信度与完成情况</text><path d="M340 246V260" stroke="#355e7c" stroke-width="2" marker-end="url(#wise-arrow)"/><rect x="24" y="264" width="632" height="105" rx="6" fill="#f1e8c9" stroke="#6a776f"/><text x="340" y="298" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">重复想象核验排名 → 更新动作头</text><text x="340" y="329" text-anchor="middle" font-size="24" fill="#364a41">仅监督真实起点的第一个动作块</text></svg><figcaption class="read-guide">合成的后续状态负责帮助比较候选，不直接成为策略学习的状态—动作样本。调度控制何时推演；有限长度控制误差累积，两者不是同一件事。</figcaption></figure><p><strong>先决定何时想象。</strong>调度器用 DINOv2 编码腕部和第三人称图像，预测当前是否处于抓取或活跃操作阶段。它的弱标签来自离线轨迹中的夹爪与抓取状态，训练后只看图像。这个分数是交互相关性的代理，不是直接测得“这次想象能带来多少收益”。（§3.3、附录 B.1）</p><p><strong>再决定哪些反馈可信。</strong>冻结的 Open-Sora 改造世界模型生成有界、多步、双视角未来；奖励同时鼓励可信进展与任务完成、惩罚倒退。每个候选重复想象两次，只保留候选得分有区分度、两次排名一致且奖励波动较小的组。（§3.2–3.4）</p><p><strong>最后只学真实起点的动作。</strong>候选奖励转成组内相对优势，再用于带参考约束的流匹配更新。主 VLA 骨干和世界模型冻结，只优化动作头。想象中第二步以后的轨迹参与评分，却不直接充当合成训练样本；这降低了虚构状态把策略训练带偏的风险，但奖励仍可能被错误预测误导。</p>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">收益来自选对状态，而非增加推演数量</h2>
+<div class="table-wrap" role="region" aria-label="作者报告的完整任务成功率；增益单位为百分点" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>作者报告的完整任务成功率；增益单位为百分点</caption><thead><tr><th scope="col">设置</th><th scope="col">基础策略 → WISE</th><th scope="col">含义</th></tr></thead><tbody><tr><td>MimicGen 五任务，π₀</td><td>49.7% → 59.5%</td><td>+9.8；DPO 为 53.8%</td></tr><tr><td>MimicGen 五任务，π₀.₅</td><td>52.3% → 60.2%</td><td>+7.9</td></tr><tr><td>真实四任务泛化设置，π₀ / π₀.₅</td><td>42.5% → 68.8% / 50.0% → 71.3%</td><td>受控高度、光照、干扰物、语言变化</td></tr></tbody></table></div><p>仿真每任务每变体评测 96 个 episode，基础与更新后策略使用相同初始种子；真实平台为 Galaxea R1 Lite，协议写明每任务每变体 20 次试验。部分完成计为失败，真实四任务中的 Open 是 Open-and-Close 的子任务，不能当作四个完全独立任务族。（表 1、4，附录 D）</p><p><strong>最关键的消融在三任务子集。</strong>全量想象平均选择 138 个状态，耗时 11.45 GPU-hours，成功率 60.4%；WISE 选择 28 个，耗时 2.61 GPU-hours，成功率 68.3%。按表 3 数值计算，GPU 时间减少 77.2%，选中状态减少 79.7%。同样选 28 个状态的均匀与随机调度只有 61.1% 和 59.1%，支持状态选择本身有效。</p><p>奖励同样不可省：三任务上只用进展或只用完成信号都为 57.3%，完整奖励为 68.3%。这些是子集消融均值，不能与五任务主结果 59.5% 混为同一设置。（表 2）</p>
+</section>
+
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">省下的是后训练计算，前置成本与模型偏差仍在</h2>
+<p><strong>约 80% 不代表全流程成本下降 80%。</strong>世界模型先在完整 DROID 上用 16 张 A800 训练约 7 天；随后每任务用 8 张 A800 适配约 10 小时。世界模型和 VLA 都用任务示范：仿真每任务 300 条、真实每任务 100 条。表 3 的节省不能外推为这些成本也被免除。（附录 A）</p><p><strong>可靠性筛选不能证明预测真实。</strong>两次生成排名一致，只代表内部稳定；若世界模型和奖励模型存在系统偏差，它们仍可能一起偏好错误动作。抓取阶段弱标签也可能漏掉非接触但关键的状态。</p><p><strong>结论仍限于当前任务与协议。</strong>真实试验规模不大，主结果未给误差条；泛化是受控条件变化，非新本体或任意未见任务。正文给出有限时域框架，却缺少充分的时域长度敏感性证据。我的判断是：它提供了值得复用的后训练调度原则，还没有给出通用可靠的想象学习方案。</p>
+</section>
+
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与相关阅读</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2609.03681v1">arXiv 摘要与版本信息</a> — 2026 年 9 月预印本 v1。</li><li><a href="https://arxiv.org/pdf/2609.03681v1">官方 PDF</a> — 主要依据用户提供的 26 页 PDF：§3 方法，表 1–4 结果，附录 A 的数据与训练成本，附录 B、D 的监督与评测协议。GPU 时间降幅按表 3 计算；对可靠性和外推范围的判断为本页分析。</li></ol><p>同批阅读：<a href="../sv-wam/">SV-WAM</a> · <a href="../zeta/">ZETA</a> · <a href="../driving-vla-zero-shot-transfer/">驾驶 VLA 跨本体迁移</a></p>
+</section>
+
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>

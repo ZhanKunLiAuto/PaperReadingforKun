@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="SV-WAM: An Efficient Surround-View World-Action Model for End-to-End Autonomous Driving">
+    <meta name="citation_author" content="Jinyang Wang">
+    <meta name="citation_author" content="Shiwei Li">
+    <meta name="citation_author" content="Junjian Wang">
+    <meta name="citation_author" content="Zhiqiang Deng">
+    <meta name="citation_author" content="Jianbin Gao">
+    <meta name="citation_author" content="Yihang Zhao">
+    <meta name="citation_author" content="Liu Liu">
+    <meta name="citation_author" content="Yongjia Zhao">
+    <meta name="citation_author" content="Jinlong Chen">
+    <meta name="citation_author" content="Huirui Xu">
+    <meta name="citation_author" content="Yifeng Pan">
+    <meta name="citation_author" content="Kangwei Liu">
+    <meta name="citation_author" content="Fan Ren">
+    <meta name="citation_author" content="Ji Tao">
+    <meta name="citation_author" content="Minghao Yang">
+    <meta name="citation_publication_date" content="2026-09-03">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.03602v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.03602v1">
+    <meta name="description" content="用非对称注意力把未来视频监督留在训练期，保留六路环视的动作推理；核对性能消融、延迟口径与零样本评测边界。">
+    <meta name="keywords" content="SV-WAM, 世界动作模型, 自动驾驶, 环视, 因果注意力, NAVSIM">
+    <meta name="paper:read_at" content="2026-09-05">
+    <title>SV-WAM：六路环视保留，未来视频只在训练时提供监督</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body data-page-kind="paper" data-page-path="/papers/sv-wam/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.03602V1 · 2026-09-03 · 阅读：2026-09-05</span></header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">研究目的与核心判断</a></li><li><a href="#mechanism">关键方法怎样起作用</a></li><li><a href="#evidence">决定性结果与反例</a></li><li><a href="#limits">结论能推广到哪里</a></li><li><a href="#sources">回到原文</a></li>
+      </ol></nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">PAPER NOTES · 2026.09</p>
+          <h1 id="paper-title" class="paper-title">SV-WAM</h1>
+          <p class="paper-subtitle">六路环视保留，未来视频只在训练时提供监督</p>
+          <div class="paper-byline"><span>Jinyang Wang、Shiwei Li 等 15 位作者</span><span>中科院自动化所、长安汽车等</span><span>预印本 v1 · 23 页</span></div>
+          <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让世界模型驾驶规划器同时获得侧后方视野和更低推理延迟，避免六相机未来视频生成把部署成本推高。</p></div>
+          <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>核心贡献是切断动作对未来视频的推理依赖，同时保留视频损失对共享参数的训练作用。它证明“预测未来”可以作为学习信号，而不必成为每次出动作前都执行的计算；但约 5B 参数、H20 上 342 ms 仍不能直接等同于车端实时部署。</p></div>
+        </section>
+
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">先明确研究对象</h2>
+<p>世界动作模型（WAM）把未来场景和未来动作放进同一生成模型。这里的“动作”是车辆逐步的位移与航向变化，最终组成轨迹；“未来视频”是压缩后的视觉潜变量。论文主要研究规划与视频联合训练，并未以语言推理为核心。</p>
+</section>
+
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">原有瓶颈在哪里</h2>
+<p>许多视频世界模型规划器只保留前摄以降低开销，但变道、汇入和转弯需要侧后方信息。直接把未来生成扩成六视角会放大视觉 token 和去噪开销。SV-WAM 的选择是保留观测覆盖，减少推理阶段的生成任务。</p>
+</section>
+
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">非对称注意力，让动作能够独立生成</h2>
+<p>四帧历史六路图像与自车状态构成条件。训练时，Wan2.2-5B 的共享 Transformer 同时对未来动作和六视角视频潜变量做流匹配：从加噪样本学习如何还原轨迹和未来画面。（第 3–5 页）</p><figure class="svg-figure"><svg viewBox="0 0 680 384" role="img" aria-labelledby="sv-wam-fig-title sv-wam-fig-desc"><title id="sv-wam-fig-title">SV-WAM 的训练与部署依赖</title><desc id="sv-wam-fig-desc">箭头表示处理流程。视频损失通过共享参数改善动作学习，动作前向计算却不需要未来视频；这一依赖结构在训练和部署时保持一致。</desc><defs><marker id="sv-wam-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs><rect x="24" y="12" width="632" height="105" rx="6" fill="#dfeaf1" stroke="#6a776f"/><text x="340" y="46" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">六路历史画面 + 自车状态</text><text x="340" y="77" text-anchor="middle" font-size="24" fill="#364a41">条件 token 只读取条件，不读取未来</text><path d="M340 120V134" stroke="#355e7c" stroke-width="2" marker-end="url(#sv-wam-arrow)"/><rect x="24" y="138" width="632" height="105" rx="6" fill="#dcebe5" stroke="#6a776f"/><text x="340" y="172" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">共享模型：动作与未来视频联合训练</text><text x="340" y="203" text-anchor="middle" font-size="24" fill="#364a41">动作不看未来视频；未来视频可以看动作</text><path d="M340 246V260" stroke="#355e7c" stroke-width="2" marker-end="url(#sv-wam-arrow)"/><rect x="24" y="264" width="632" height="105" rx="6" fill="#f1e8c9" stroke="#6a776f"/><text x="340" y="298" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">部署：缓存条件，只生成动作</text><text x="340" y="329" text-anchor="middle" font-size="24" fill="#364a41">删除未来视频 token；两步去噪输出轨迹</text></svg><figcaption class="read-guide">箭头表示处理流程。视频损失通过共享参数改善动作学习，动作前向计算却不需要未来视频；这一依赖结构在训练和部署时保持一致。</figcaption></figure><p><strong>最重要的不是训练后删分支，而是训练时就约束依赖。</strong>动作 token 只能读取条件与动作；未来视频 token 可以读取条件、动作和视频；条件本身也不能读取未来。这样既避免直接依赖，也堵住经条件 token 绕行的通路。作者报告有掩码时删除视频分支不改变规划结果。（图 4、表 4）</p><p>另一个设计直接针对出界：把预测轨迹送入可微车辆跟踪器，检查车身四角到可行驶区域边界的有符号距离，对接近或越界的角点加罚，并让较危险的时刻获得更大权重。地图约束只用于训练；附录说明作者把原本基于 NumPy 的跟踪与查询流程重写为 PyTorch，以便梯度传回动作模型。</p>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">视频监督、安全约束与视野各自有贡献</h2>
+<div class="table-wrap" role="region" aria-label="NAVSIMv2 navtest，启用 human penalty；EPDMS 越高越好" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>NAVSIMv2 navtest，启用 human penalty；EPDMS 越高越好</caption><thead><tr><th scope="col">比较</th><th scope="col">EPDMS</th><th scope="col">说明</th></tr></thead><tbody><tr><td>仅动作训练 → 加未来视频监督</td><td>83.1 → 87.7</td><td>相同六相机架构，+4.6 分</td></tr><tr><td>再加可行驶区约束 → 最终微调</td><td>90.1 → 91.0</td><td>安全约束贡献 +2.4 分</td></tr><tr><td>前摄 → 三前摄 → 六路环视</td><td>89.3 → 90.5 → 91.0</td><td>相同架构与训练日程的视野对照</td></tr></tbody></table></div><p>表 1–3 支持训练监督和视野覆盖都有效，不能把相对其他单摄方法的全部增益都归因于新掩码。最终 91.0 高于表内 AutoDrive-P3 的 89.9，但六摄并非每项安全子指标都最好。</p><p><strong>效率：</strong>同为六摄，两步推理，有掩码为 341.6±2.1 ms，无掩码需联合生成，为 848.0±1.8 ms；对应 EPDMS 为 91.0 与 87.3。计时在单张 H20、batch=1 下，从预处理完成的输入到轨迹输出，排除可选视频解码；这是一次受控对照，不是摄像头到执行器的总时延。（表 4–5）</p><p><strong>迁移：</strong>仅在 NAVSIM 训练、直接评测 nuScenes 时，1/2/3 秒平均 L2 为 0.89 m，平均碰撞率 0.16%。这两项优于表 2 中零样本的 DriveVLA-W0 与 PWM；但对方只有前摄，且是跨数据集开环轨迹评测。</p>
+</section>
+
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">基准里的高分距离实车部署还有多远</h2>
+<p><strong>闭环证据有限。</strong>NAVSIMv2 用预生成的合成观测做伪仿真，评估偏离专家轨迹后的恢复；它不同于长期、完整交互的实车闭环。论文明确把实车闭环测试列为未来工作，nuScenes 开环碰撞率也不能解释为真实道路事故率。（附录第 11、14 页）</p><p><strong>训练与车端成本仍高。</strong>模型约 5B，两个训练阶段各约一天、各使用 16 张 H800。消除未来生成让推理显著变快，却没有证明低功耗车载平台上的延迟、吞吐和可靠性。</p><p><strong>道路内行驶不等于所有行为都安全。</strong>软约束专门优化可行驶区边界，不能保证交互决策正确。作者展示了分叉左转选错路径、暴雨看不清信号，以及绿灯后过于保守而被追尾的失败案例。我的判断是：最值得复用的是训练监督与推理依赖的解耦，安全能力仍需更完整验证。</p>
+</section>
+
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与相关阅读</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2609.03602v1">arXiv 摘要与版本信息</a> — 2026 年 9 月预印本 v1。</li><li><a href="https://arxiv.org/pdf/2609.03602v1">官方 PDF</a> — 主要依据用户提供的 23 页 PDF：第 3–5 页方法，表 1–5 结果与消融，第 10–14 页实现、协议与限制。数字为作者报告；部署意义和证据强弱为本页分析。</li></ol><p>同批阅读：<a href="../wise/">WISE</a> · <a href="../zeta/">ZETA</a> · <a href="../driving-vla-zero-shot-transfer/">驾驶 VLA 跨本体迁移</a></p>
+</section>
+
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>

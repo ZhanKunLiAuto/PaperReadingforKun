@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="ZETA: A Controlled Study of Zero-Shot Cross-Embodiment VLA Transfer for Tabletop Manipulation">
+    <meta name="citation_author" content="Mi Yan">
+    <meta name="citation_author" content="Wenhao Zhang">
+    <meta name="citation_author" content="Zhiqi Zhang">
+    <meta name="citation_author" content="Yu Peng">
+    <meta name="citation_author" content="Tangxinyu Wang">
+    <meta name="citation_author" content="Lingfei Zhai">
+    <meta name="citation_author" content="Jiayi Su">
+    <meta name="citation_author" content="Shengliang Deng">
+    <meta name="citation_author" content="Lin Peng">
+    <meta name="citation_author" content="Yaowei Liu">
+    <meta name="citation_author" content="Yuxing Chen">
+    <meta name="citation_author" content="Zhiyuan Wei">
+    <meta name="citation_author" content="Jilong Wang">
+    <meta name="citation_author" content="Jiayi Chen">
+    <meta name="citation_author" content="Jiangran Lyu">
+    <meta name="citation_author" content="Zhizheng Zhang">
+    <meta name="citation_author" content="He Wang">
+    <meta name="citation_publication_date" content="2026-09-02">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.02546v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.02546v1">
+    <meta name="description" content="通过固定任务与场景研究本体变化，区分严格零样本与预训练暴露；核对局部状态动作表示、多样性、辅助监督及进度指标的含义。">
+    <meta name="keywords" content="ZETA, VLA, 跨本体迁移, 零样本, 末端坐标系, 受控实验">
+    <meta name="paper:read_at" content="2026-09-05">
+    <title>ZETA：先分清零样本，再判断换机器人后什么能迁移</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body data-page-kind="paper" data-page-path="/papers/zeta/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.02546V1 · 2026-09-02 · 阅读：2026-09-05</span></header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">研究目的与核心判断</a></li><li><a href="#mechanism">关键方法怎样起作用</a></li><li><a href="#evidence">决定性结果与反例</a></li><li><a href="#limits">结论能推广到哪里</a></li><li><a href="#sources">回到原文</a></li>
+      </ol></nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">PAPER NOTES · 2026.09</p>
+          <h1 id="paper-title" class="paper-title">ZETA</h1>
+          <p class="paper-subtitle">先分清零样本，再判断换机器人后什么能迁移</p>
+          <div class="paper-byline"><span>Mi Yan、Wenhao Zhang 等 17 位作者</span><span>Galbot、北京大学等</span><span>预印本 v1 · 30 页</span></div>
+          <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>把“换一台机器人后策略为什么失效”拆成可控制的因素，为跨本体 VLA 的训练与评测提供可比较的依据。</p></div>
+          <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>它最有价值的是实验设计：目标机器人是否在预训练中出现，足以显著改变迁移难度；严格未见本体时，以当前夹爪为参照表达状态和动作尤其有效。但这些结论建立在相机与场景对齐的静态桌面操作上，不能直接推广到任意机器人。</p></div>
+        </section>
+
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">先明确研究对象</h2>
+<p><strong>严格零样本：</strong>目标本体不出现在任何训练阶段。<strong>预训练暴露的零样本：</strong>预训练见过目标机器人，但下游后训练只用源机器人；目标机器人与下游任务的组合仍未用于训练。两种协议都不做目标下游适配，却不是同一种泛化难度。（§3）</p>
+</section>
+
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">原有瓶颈在哪里</h2>
+<p>以往换机器人时常同时换任务、背景、相机和数据量，难以定位失败原因。ZETA 固定这些条件，分别考察只换外观、只换夹爪、只换机械臂和整机变化。论文所称 14 个目标设置由仿真 7 个与真实 7 个组成，不是 14 类完全不同的机器人形态。</p>
+</section>
+
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">把动作语义从机器人底座移到当前夹爪</h2>
+<figure class="svg-figure"><svg viewBox="0 0 680 384" role="img" aria-labelledby="zeta-fig-title zeta-fig-desc"><title id="zeta-fig-title">ZETA 的受控迁移设计</title><desc id="zeta-fig-desc">局部动作回答“从当前夹爪怎样移动”，局部状态回答“刚才相对现在怎样运动”。它们减少了对不同机器人底座定义的依赖。</desc><defs><marker id="zeta-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs><rect x="24" y="12" width="632" height="105" rx="6" fill="#dfeaf1" stroke="#6a776f"/><text x="340" y="46" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">固定任务、场景、相机与训练协议</text><text x="340" y="77" text-anchor="middle" font-size="24" fill="#364a41">下游后训练只使用源机器人</text><path d="M340 120V134" stroke="#355e7c" stroke-width="2" marker-end="url(#zeta-arrow)"/><rect x="24" y="138" width="632" height="105" rx="6" fill="#dcebe5" stroke="#6a776f"/><text x="340" y="172" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">改变表示 / 源本体多样性 / 辅助监督</text><text x="340" y="203" text-anchor="middle" font-size="24" fill="#364a41">局部状态：过去末端相对当前末端的位置</text><path d="M340 246V260" stroke="#355e7c" stroke-width="2" marker-end="url(#zeta-arrow)"/><rect x="24" y="264" width="632" height="105" rx="6" fill="#f1e8c9" stroke="#6a776f"/><text x="340" y="298" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">评测留出本体，并单独研究预训练暴露</text><text x="340" y="329" text-anchor="middle" font-size="24" fill="#364a41">指标是任务进度；完成子目标也可得部分分</text></svg><figcaption class="read-guide">局部动作回答“从当前夹爪怎样移动”，局部状态回答“刚才相对现在怎样运动”。它们减少了对不同机器人底座定义的依赖。</figcaption></figure><p>沿用 π₀.₅ 思路构造 VLA 骨干，比较两种状态和两种动作的四种组合：绝对末端状态与局部历史状态；底座坐标下的动作增量与夹爪坐标下的动作增量。将状态也局部化很重要，仅改变动作而保留绝对位置，仍会暴露本体特有的坐标分布。（§4.1、表 2）</p><p>数据侧构造 512 个程序化 Franka 家族变体，主对照固定总预训练量 64 万条轨迹，再改变源本体数；下游任务与预训练任务不重叠。另做每本体数据量固定、总量随本体数增加的对照，分辨覆盖面与单本体数据密度的作用。</p><p>辅助任务分别加入动作语义描述、子目标或任务相关物体框，检验几何和任务监督能否超越纯动作模仿。目标暴露实验则用目标本体数据替换部分源数据，维持总量固定；这些目标数据属于预训练任务，不是目标下游任务示范。（§4.2–4.3、§5.5）</p>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">局部表示有强证据，多样性收益受预算影响</h2>
+<div class="table-wrap" role="region" aria-label="严格零样本下的平均任务进度，非完整成功率" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>严格零样本下的平均任务进度，非完整成功率</caption><thead><tr><th scope="col">对照</th><th scope="col">结果</th><th scope="col">原文位置</th></tr></thead><tbody><tr><td>绝对状态 + 底座动作 → 局部状态 + 局部动作</td><td>仿真 60.3% → 75.7%（+15.4）</td><td>表 3</td></tr><tr><td>同一表示对照，真实两任务</td><td>56.0% → 89.9%（+33.9）</td><td>表 4</td></tr><tr><td>局部表示 + 512 源，再加入任务物体框监督</td><td>75.7% → 82.3%（+6.6）</td><td>表 5</td></tr></tbody></table></div><p>仿真每模型合计 6,300 次 rollout，覆盖三任务、七目标本体、三个独立训练运行；真实为两任务、七目标，每组合 10 次，共 140 次。仿真报告跨训练运行标准差。完整本体变化依然更难：最佳局部表示的 FULL 进度为 60.4%，低于仅外观变化的 90.0%。（§5.1、表 3）</p><p>固定 64 万条预算时，512 源相比单源仿真平均约提升 18 个百分点；但真实 ARM/FULL 在 8 源时先跌、到 512 源才恢复。增加本体数会稀释每台机器人的样本，多样性并非单调增益。（图 5–6）</p><p><strong>目标暴露结论明确，幅度存在原文不一致。</strong>§5.5/图 7 报告加入 5% 目标预训练数据后，两个目标分别由 69.3→78.6、51.4→68.9，均值提升 13.4 个百分点；但表 6 的相同局部表示行写为 60.4→71.1，即 +10.7。当前 PDF 未解释差异，因此应保留两处口径，不能把 13.4 当作所有对照一致的精确增益。</p>
+</section>
+
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">受控比较提高解释力，也限定了适用范围</h2>
+<p><strong>相机已经人为对齐。</strong>腕部与第三人称视角在标准姿态下尽量维持相似的夹爪图像分布，任务对象、桌面和光照也与后训练匹配。这有助于隔离本体因素，却不等于相机、环境、本体同时变化时仍能即插即用。（§5.1）</p><p><strong>局部坐标不消除执行差异。</strong>策略仍需将末端目标交给各机器人可用的执行接口，运动学、可达范围和接触差异不会因换坐标而消失。数据多样性主要来自程序化 Franka 家族变体，证据没有覆盖灵巧手、移动底座控制或广泛长时序任务。（§6、附录 J）</p><p>我的判断是：研究跨本体迁移时，优先审计训练暴露、状态动作坐标系和相机匹配，再比较模型大小与平均分。它们既影响能力，也影响“零样本”数字究竟在测什么。</p>
+</section>
+
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与相关阅读</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2609.02546v1">arXiv 摘要与版本信息</a> — 2026 年 9 月预印本 v1。</li><li><a href="https://arxiv.org/pdf/2609.02546v1">官方 PDF</a> — 主要依据用户提供的 30 页 PDF：§3–5 协议与受控实验，表 3–6、图 5–7，§6 与附录 I/J。5% 暴露的数字差异已核对原始图表，未擅自合并或修正。</li></ol><p>同批阅读：<a href="../sv-wam/">SV-WAM</a> · <a href="../wise/">WISE</a> · <a href="../driving-vla-zero-shot-transfer/">驾驶 VLA 跨本体迁移</a></p>
+</section>
+
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>

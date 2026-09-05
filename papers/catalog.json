@@ -1,6 +1,122 @@
 {
-  "updatedAt": "2026-09-03",
+  "updatedAt": "2026-09-05",
   "papers": [
+    {
+      "slug": "zeta",
+      "title": "ZETA: A Controlled Study of Zero-Shot Cross-Embodiment VLA Transfer for Tabletop Manipulation",
+      "authors": [
+        "Mi Yan",
+        "Wenhao Zhang",
+        "Zhiqi Zhang",
+        "Yu Peng",
+        "Tangxinyu Wang",
+        "Lingfei Zhai",
+        "Jiayi Su",
+        "Shengliang Deng",
+        "Lin Peng",
+        "Yaowei Liu",
+        "Yuxing Chen",
+        "Zhiyuan Wei",
+        "Jilong Wang",
+        "Jiayi Chen",
+        "Jiangran Lyu",
+        "Zhizheng Zhang",
+        "He Wang"
+      ],
+      "publicationDate": "2026-09-02",
+      "readAt": "2026-09-05",
+      "description": "通过固定任务与场景研究本体变化，区分严格零样本与预训练暴露；核对局部状态动作表示、多样性、辅助监督及进度指标的含义。",
+      "tags": [
+        "ZETA",
+        "VLA",
+        "跨本体迁移",
+        "零样本",
+        "末端坐标系",
+        "受控实验"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.02546v1",
+      "href": "papers/zeta/"
+    },
+    {
+      "slug": "wise",
+      "title": "WISE: World-model-guided Imagination Scheduling for Efficient Post-training of Vision-Language-Action Models",
+      "authors": [
+        "Chenhao Zhang",
+        "Hanyu Zhao",
+        "Hang Cheng",
+        "Tengfei Pan",
+        "Long Zeng"
+      ],
+      "publicationDate": "2026-09-03",
+      "readAt": "2026-09-05",
+      "description": "通过关键状态调度、有限时域反事实推演和可靠性筛选改善 VLA 后训练；区分阶段性计算节省、前置训练成本与真实泛化证据。",
+      "tags": [
+        "WISE",
+        "世界模型",
+        "VLA",
+        "后训练",
+        "想象调度",
+        "机器人操作"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.03681v1",
+      "href": "papers/wise/"
+    },
+    {
+      "slug": "driving-vla-zero-shot-transfer",
+      "title": "Towards Zero-Shot Transfer Across Embodiments For Driving VLAs",
+      "authors": [
+        "Caio Azevedo",
+        "Stefano Sabatini",
+        "Sascha Hornauer",
+        "Fabien Moutarde"
+      ],
+      "publicationDate": "2026-09-02",
+      "readAt": "2026-09-05",
+      "description": "从低容量 BEV 辅助头和多相机布局训练解释驾驶 VLA 的零样本迁移，并保留多数据集条件下收益减弱甚至反向的关键证据。",
+      "tags": [
+        "驾驶 VLA",
+        "跨本体迁移",
+        "BEV-Forcing",
+        "多数据集训练",
+        "几何泛化"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.02341v1",
+      "href": "papers/driving-vla-zero-shot-transfer/"
+    },
+    {
+      "slug": "sv-wam",
+      "title": "SV-WAM: An Efficient Surround-View World-Action Model for End-to-End Autonomous Driving",
+      "authors": [
+        "Jinyang Wang",
+        "Shiwei Li",
+        "Junjian Wang",
+        "Zhiqiang Deng",
+        "Jianbin Gao",
+        "Yihang Zhao",
+        "Liu Liu",
+        "Yongjia Zhao",
+        "Jinlong Chen",
+        "Huirui Xu",
+        "Yifeng Pan",
+        "Kangwei Liu",
+        "Fan Ren",
+        "Ji Tao",
+        "Minghao Yang"
+      ],
+      "publicationDate": "2026-09-03",
+      "readAt": "2026-09-05",
+      "description": "用非对称注意力把未来视频监督留在训练期，保留六路环视的动作推理；核对性能消融、延迟口径与零样本评测边界。",
+      "tags": [
+        "SV-WAM",
+        "世界动作模型",
+        "自动驾驶",
+        "环视",
+        "因果注意力",
+        "NAVSIM"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.03602v1",
+      "href": "papers/sv-wam/"
+    },
     {
       "slug": "qwen-drive-1-0",
       "title": "Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving",

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Towards Zero-Shot Transfer Across Embodiments For Driving VLAs">
+    <meta name="citation_author" content="Caio Azevedo">
+    <meta name="citation_author" content="Stefano Sabatini">
+    <meta name="citation_author" content="Sascha Hornauer">
+    <meta name="citation_author" content="Fabien Moutarde">
+    <meta name="citation_publication_date" content="2026-09-02">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.02341v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.02341v1">
+    <meta name="description" content="从低容量 BEV 辅助头和多相机布局训练解释驾驶 VLA 的零样本迁移，并保留多数据集条件下收益减弱甚至反向的关键证据。">
+    <meta name="keywords" content="驾驶 VLA, 跨本体迁移, BEV-Forcing, 多数据集训练, 几何泛化">
+    <meta name="paper:read_at" content="2026-09-05">
+    <title>驾驶 VLA 跨本体迁移：用 BEV 辅助监督改善几何迁移，同时检验它会不会被数据多样性替代</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body data-page-kind="paper" data-page-path="/papers/driving-vla-zero-shot-transfer/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.02341V1 · 2026-09-02 · 阅读：2026-09-05</span></header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">研究目的与核心判断</a></li><li><a href="#mechanism">关键方法怎样起作用</a></li><li><a href="#evidence">决定性结果与反例</a></li><li><a href="#limits">结论能推广到哪里</a></li><li><a href="#sources">回到原文</a></li>
+      </ol></nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">PAPER NOTES · 2026.09</p>
+          <h1 id="paper-title" class="paper-title">驾驶 VLA 跨本体迁移</h1>
+          <p class="paper-subtitle">用 BEV 辅助监督改善几何迁移，同时检验它会不会被数据多样性替代</p>
+          <div class="paper-byline"><span>Caio Azevedo、Stefano Sabatini 等 4 位作者</span><span>巴黎矿业大学、Stellantis</span><span>预印本 v1 · 11 页</span></div>
+          <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让驾驶 VLA 在未见数据集与相机布局上仍能输出空间位置正确的轨迹，并检验辅助几何监督在扩大训练多样性后是否仍然必要。</p></div>
+          <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>BEV-Forcing 在相机布局较少时能改善迁移，而且推理时可删除辅助头；更值得记住的是，数据多样性增加后收益会减弱，部分评测甚至变差。这是一项关于“方法收益取决于训练数据条件”的研究，不能概括为加 BEV 就普遍更强。</p></div>
+        </section>
+
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">先明确研究对象</h2>
+<p>语义迁移是认出陌生场景里的车、人和路口；几何迁移是换了相机高度、朝向或标定后，仍知道它们相对自车在哪里。本文的“本体”主要体现为车辆传感器布局，输出是规划路点，并不直接验证不同车辆底盘动力学与执行器控制的迁移。</p>
+</section>
+
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">原有瓶颈在哪里</h2>
+<p>VLM 的大规模预训练提供语义知识，却未必提供可靠的驾驶空间尺度。只在少数相机布局上训练轨迹，容易把像素位置与距离绑定；简单混合更多驾驶数据又可能削弱语言能力。作者同时研究跨数据集训练、VQA 混训和显式几何辅助监督。（§1–3）</p>
+</section>
+
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">让主干自己编码空间，而非把工作留给强辅助头</h2>
+<figure class="svg-figure"><svg viewBox="0 0 680 384" role="img" aria-labelledby="driving-transfer-fig-title driving-transfer-fig-desc"><title id="driving-transfer-fig-title">BEV-Forcing 的监督路径</title><desc id="driving-transfer-fig-desc">SimpleBEV 的输出是训练伪标签，不是真实标注；辅助头只承担足够简单的映射，作者希望空间信息因此进入用于规划的图像表示。</desc><defs><marker id="driving-transfer-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs><rect x="24" y="12" width="632" height="105" rx="6" fill="#dfeaf1" stroke="#6a776f"/><text x="340" y="46" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">训练数据统一接口：图像、历史轨迹、意图</text><text x="340" y="77" text-anchor="middle" font-size="24" fill="#364a41">SimpleBEV 读取图像与标定，</text><text x="340" y="106" text-anchor="middle" font-size="24" fill="#364a41">生成车辆占据图</text><path d="M340 120V134" stroke="#355e7c" stroke-width="2" marker-end="url(#driving-transfer-arrow)"/><rect x="24" y="138" width="632" height="105" rx="6" fill="#dcebe5" stroke="#6a776f"/><text x="340" y="172" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">低容量 BEV 头读取 VLM 图像隐藏状态</text><text x="340" y="203" text-anchor="middle" font-size="24" fill="#364a41">轨迹文本损失 + 占据图监督，共同训练主干</text><path d="M340 246V260" stroke="#355e7c" stroke-width="2" marker-end="url(#driving-transfer-arrow)"/><rect x="24" y="264" width="632" height="105" rx="6" fill="#f1e8c9" stroke="#6a776f"/><text x="340" y="298" text-anchor="middle" font-size="27" font-weight="700" fill="#17201d">部署：删除 BEV 头，直接输出轨迹</text><text x="340" y="329" text-anchor="middle" font-size="24" fill="#364a41">几何监督留下的收益通过主干表示体现</text></svg><figcaption class="read-guide">SimpleBEV 的输出是训练伪标签，不是真实标注；辅助头只承担足够简单的映射，作者希望空间信息因此进入用于规划的图像表示。</figcaption></figure><p>模型基于 Qwen 3.5 2B，用 LoRA 适配。规划输入为三路前向相机、历史轨迹和高层意图；动作以 1 Hz 的二维坐标文本输出，再经样条插值重采样。这里的主要改动在表示监督，并未设计复杂的新动作生成器。（§3.1、§4.1）</p><p>训练时取主干最后一层的图像 token，让可学习 BEV 网格查询通过一次交叉注意力读取它们，再预测车辆占据栅格。SimpleBEV 产生目标图，二值交叉熵与轨迹文本的下一 token 损失联合优化。生成教师图需要相机标定，但不要求每个新驾驶数据集都有人手标注的 BEV 图。（§3.2–3.3、图 1–2）</p><p>作者刻意限制辅助头容量：如果头太强，它可能自己完成空间推理，主干不必学到能用于规划的几何信息。较小训练对照中，仅交叉注意力的头优于完整 Transformer 头；这与作者解释一致，但还不是对主干究竟如何编码几何的直接证明。（表 3）</p>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">同一方法，随着训练配置变化而改变收益</h2>
+<div class="table-wrap" role="region" aria-label="BEV 辅助任务的配对比较；W=Waymo，N=NAVSIM" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>BEV 辅助任务的配对比较；W=Waymo，N=NAVSIM</caption><thead><tr><th scope="col">训练 / 评测条件</th><th scope="col">不加 BEV → 加 BEV</th><th scope="col">判断</th></tr></thead><tbody><tr><td>W；Physical AI 1k 零样本验证</td><td>ADE 相对下降 10.1%</td><td>少布局时有益（图 3）</td></tr><tr><td>W+N；KITScenes LongTail 测试</td><td>MMS 4.62 → 5.15；L2 2.63 → 2.48</td><td>同配置迁移改善（表 1）</td></tr><tr><td>W+N+nuScenes-QA；Waymo 测试</td><td>RFS 7.939 → 7.902；ADE 2.833 → 2.938</td><td>两个指标都变差（表 2）</td></tr></tbody></table></div><p>ADE/FDE 测轨迹偏移，越低越好；MMS/RFS 根据人工赋分的候选轨迹评价规划，越高越好，均不是闭环成功率。KITScenes 表 1 还包含外部零/少样本提交，部分方法信息由提交标题推断；最可信的归因来自作者自身的加/不加 BEV 配对。</p><p>收益反转也出现在迁移端：KITScenes 验证集的内部复现 MMS，在 W 单源训练时从 3.90 升至 4.64，而 W+N+nuScenes-QA 时从 5.13 降至 4.84。不能用多数据集条件下仍有收益的验证指标，盖过测试集和其他迁移指标的反例。（§4.2）</p><p>VQA 混训是另一条独立线索。仅训练驾驶轨迹会明显削弱 nuScenes-QA 答题能力，加入约 10% VQA 样本后恢复。它说明数据组成不仅增加相机覆盖，还改变语义训练信号，因此多数据集收益不能完全归因于本体数量增加。（§4.2）</p>
+</section>
+
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">它支持条件性改进，尚未隔离所有迁移因素</h2>
+<p><strong>没有证明真实闭环更安全。</strong>主要证据来自离线轨迹误差与人工评分关联指标；输入还提供历史自车运动。未见数据集的预测改善，不等同于新车型上长期驾驶稳定，更不直接涵盖车辆控制动力学。（§4.1）</p><p><strong>“增加本体”同时增加了其他变化。</strong>Waymo、NAVSIM 和 nuScenes-QA 在场景、总数据量与监督任务上均不同，且所有实验训练一个 epoch。因此结果提示多样性与辅助监督可能有重叠收益，但不能作为严格隔离相机布局数量的因果证明。</p><p><strong>教师质量限定了监督内容。</strong>SimpleBEV 主要提供车辆占据，可能在未见布局上出错；当前教师图也没有全面覆盖可行驶区等信息。用户提供的 11 页版本多次引用补充材料但未附于其中，本页不补写未取得的提示词、超参数或额外实验。我的判断是：应在计划使用的数据规模上复测 BEV-Forcing 的增益，而不是从单源结果外推。</p>
+</section>
+
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与相关阅读</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2609.02341v1">arXiv 摘要与版本信息</a> — 2026 年 9 月预印本 v1。</li><li><a href="https://arxiv.org/pdf/2609.02341v1">官方 PDF</a> — 主要依据用户提供的 11 页 PDF：§3 方法、图 1–3、§4.2 和表 1–4 的条件性收益。作者代码入口列于原文，未将未核验的代码实现或补充材料当作实验事实。</li><li><a href="https://github.com/caiocj1/ad-vla">作者在论文中提供的代码入口</a> — 供后续复现核查。</li></ol><p>同批阅读：<a href="../sv-wam/">SV-WAM</a> · <a href="../wise/">WISE</a> · <a href="../zeta/">ZETA</a></p>
+</section>
+
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>
