@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="TANGO: Humanoid Navigation in Cluttered Environments with a Whole-Body Vision-Language-Action Model">
+    <meta name="citation_author" content="Anqi Li">
+    <meta name="citation_author" content="Yuxin Chen">
+    <meta name="citation_author" content="Zhaobo Li">
+    <meta name="citation_author" content="Zhuo Cao">
+    <meta name="citation_author" content="Junli Ren">
+    <meta name="citation_author" content="Masayoshi Tomizuka">
+    <meta name="citation_author" content="Dhruv Shah">
+    <meta name="citation_publication_date" content="2026-09-08">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.09158v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.09158v1">
+    <meta name="description" content="解读 TANGO：通过 Plan–Edit–Track 合成全身避障数据，让 VLA 预测 29 自由度动作；核对碰撞率、动作连续性消融，以及小样本、行为明确指令下的真实机器人迁移边界。">
+    <meta name="keywords" content="TANGO,人形机器人,视觉语言导航,VLA,全身控制,Plan Edit Track,sim-to-real,SONIC,RTC">
+    <meta name="paper:read_at" content="2026-09-10">
+    <title>TANGO：让人形机器人用整个身体导航</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body class="paper-page" data-page-kind="paper" data-page-path="/papers/tango/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2609.09158 · V1 2026-09-08 · 阅读于 2026-09-10</span>
+    </header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">身体也要参与导航</a></li>
+          <li><a href="#mechanism">先造动作，再学会执行</a></li>
+          <li><a href="#evidence">碰撞与连续性最关键</a></li>
+          <li><a href="#limits">真实迁移证明到哪里</a></li>
+          <li><a href="#sources">回到原文核对</a></li>
+        </ol>
+      </nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">HUMANOID NAVIGATION · WHOLE-BODY VLA</p>
+          <h1 id="paper-title" class="paper-title">TANGO</h1>
+          <p class="paper-subtitle">让人形机器人用整个身体导航</p>
+          <div class="paper-byline"><span>Anqi Li、Yuxin Chen、Zhaobo Li 等 7 位作者</span><span>arXiv v1 · 2026-09-08</span></div>
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>让机器人听懂目的地后，能在狭窄通道、低矮横梁和地面障碍之间，协调肩膀、躯干与双腿走过去。</p>
+          </div>
+          <div class="core-conclusion">
+            <span class="core-conclusion__label">核心判断</span>
+            <p><strong>TANGO 把“身体怎样通过”纳入导航动作的学习目标。</strong>关键贡献是用仿真规划、动作编辑和物理筛选，造出可执行的全身示范，再让视觉语言动作模型学习。证据最强的部分是碰撞减少和动作衔接的重要性；真实泛化仍有明显条件。<a href="https://arxiv.org/html/2609.09158v1#S3">[§3–4]</a></p>
+          </div>
+        </section>
+        <section id="concepts" aria-labelledby="concepts-title">
+          <h2 id="concepts-title">输出的是全身参考动作</h2>
+          <p>视觉语言导航（VLN）常输出二维路点或移动指令；TANGO 输出未来一段 <strong>29 个关节角与身体基座朝向</strong>。输入包含前向、下视 RGB 历史、语言和本体状态。“纯 RGB”指环境感知不用深度或 LiDAR，不代表只用图像。参考动作仍交给底层跟踪器执行。<a href="https://arxiv.org/html/2609.09158v1#S3.SS1">[§3.1]</a></p>
+        </section>
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <h2 id="problem-title">二维路线漏掉了身体的形状</h2>
+          <p>同一条路线，正面走会卡肩，侧身可能通过；脚底路径空闲，头顶仍可能有横梁。只告诉控制器“往前走”，没有表达这些姿态选择；而采集覆盖不同障碍与指令的全身示范又很昂贵。这是本文同时改动作表示与数据生成的原因。<a href="https://arxiv.org/html/2609.09158v1#S1">[§1]</a></p>
+        </section>
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <h2 id="mechanism-title">先在仿真里造出能走通的示范</h2>
+          <figure class="svg-figure" aria-labelledby="tango-flow-title tango-flow-desc">
+            <svg viewBox="0 0 760 468" role="img" aria-labelledby="tango-flow-title tango-flow-desc">
+              <title id="tango-flow-title">TANGO 的离线示范生成与在线控制</title>
+              <desc id="tango-flow-desc">离线用规划、编辑、跟踪检验得到训练示范，失败轨迹丢弃，合格轨迹保留编辑后的参考动作作为监督；在线视觉语言模型理解观察和指令，动作专家生成连续全身动作块，由 SONIC 闭环执行。</desc>
+              <defs><marker id="tango-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+              <rect width="760" height="468" fill="#fbfaf6"/>
+              <text x="28" y="34" fill="#bd4c32" font-size="15" font-weight="700">离线：已知场景几何，生成训练示范</text>
+              <g stroke="#a9aca3" fill="#fffef9">
+                <rect x="28" y="54" width="216" height="100" rx="5"/>
+                <rect x="272" y="54" width="216" height="100" rx="5"/>
+                <rect x="516" y="54" width="216" height="100" rx="5"/>
+              </g>
+              <g fill="#17201d" font-size="17" font-weight="700"><text x="45" y="84">Plan · 规划</text><text x="289" y="84">Edit · 编辑</text><text x="533" y="84">Track · 物理筛选</text></g>
+              <g fill="#52605b" font-size="14"><text x="45" y="114">路径 → 步态与侧身朝向</text><text x="289" y="114">调整躯干、手臂与落脚</text><text x="533" y="114">能跟踪且无碰撞才保留</text><text x="45" y="138">A* + SONIC</text><text x="289" y="138">避障场 + 逆运动学</text><text x="533" y="138">失败或碰撞 → 丢弃</text></g>
+              <path d="M245 104H267 M489 104H511" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#tango-arrow)"/>
+              <rect x="28" y="174" width="704" height="54" rx="5" fill="#dcebe5"/>
+              <text x="380" y="197" text-anchor="middle" fill="#21483b" font-size="15" font-weight="700">训练标签：通过检验的编辑参考动作</text>
+              <text x="380" y="216" text-anchor="middle" fill="#52605b" font-size="13">配上重新渲染的图像与更新后的语言指令</text>
+              <path d="M624 155V169" stroke="#355e7c" stroke-width="2" marker-end="url(#tango-arrow)"/>
+              <text x="28" y="272" fill="#bd4c32" font-size="15" font-weight="700">在线：观察环境，连续生成全身动作</text>
+              <g stroke="#355e7c" fill="#dfeaf1"><rect x="28" y="292" width="216" height="104" rx="5"/><rect x="272" y="292" width="216" height="104" rx="5"/><rect x="516" y="292" width="216" height="104" rx="5"/></g>
+              <g fill="#17201d" font-size="17" font-weight="700"><text x="45" y="322">视觉语言骨干</text><text x="289" y="322">动作专家 + RTC</text><text x="533" y="322">SONIC 跟踪器</text></g>
+              <g fill="#52605b" font-size="14"><text x="45" y="353">双视角 RGB 历史 + 指令</text><text x="45" y="378">理解路线与场景</text><text x="289" y="353">结合本体状态生成动作</text><text x="289" y="378">保留已承诺前缀，续写</text><text x="533" y="353">参考动作 + 本体反馈</text><text x="533" y="378">高频闭环控制</text></g>
+              <path d="M245 344H267 M489 344H511" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#tango-arrow)"/>
+              <path d="M624 401V435H138V401" fill="none" stroke="#355e7c" stroke-width="1.5" marker-end="url(#tango-arrow)"/>
+              <rect x="250" y="421" width="260" height="27" fill="#fbfaf6"/>
+              <text x="380" y="440" text-anchor="middle" fill="#52605b" font-size="14">移动后重新观察，继续预测</text>
+            </svg>
+            <figcaption class="read-guide">物理跟踪负责验收示范，监督标签取编辑参考动作；部署时仍有底层控制闭环。图据 §3、§8.2 重绘。</figcaption>
+          </figure>
+          <p><strong>Plan–Edit–Track（PET）把几何知识转成可模仿的数据。</strong>作者筛出 578 个源场景，沿路径加入需要侧身、跨越或下蹲的障碍。先规划路线与自然步态；再用障碍排斥方向和逆运动学局部调整身体，并单独修改跨障落脚点、抬脚高度；最后在物理仿真里跟踪，剔除不可执行或碰撞的轨迹。<a href="https://arxiv.org/html/2609.09158v1#S8">[§8]</a></p>
+          <p>一个容易漏读的细节是：<strong>训练标签保留编辑后的参考动作，而非跟踪器实际走出的轨迹</strong>。作者希望借此保留自然动作结构；跟踪成功提供的是执行可行性证据。最终得到 64,633 条轨迹。<a href="https://arxiv.org/html/2609.09158v1#S3.SS2">[§3.2]</a></p>
+          <h3>动作既要避障，也要接得上上一段</h3>
+          <p>骨干基于 Qwen2.5VL-7B，以 InternVLA-N1 权重初始化；流匹配动作专家生成全身动作块。实时分块（RTC）在训练时固定一段已经承诺执行的动作前缀，只补全后续动作，使新预测能衔接正在执行的动作。部署时 VLA 每 0.5 秒更新，SONIC 承担约 200 Hz 的底层控制；“端到端”并未取消跟踪器。<a href="https://arxiv.org/html/2609.09158v1#S3.SS3">[§3.3–3.4]</a></p>
+        </section>
+        <section id="evidence" aria-labelledby="evidence-title">
+          <h2 id="evidence-title">最强证据：少碰撞，且必须连续执行</h2>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="TANGO 决定性实验结果，可横向滚动">
+            <table class="evidence-table">
+              <thead><tr><th scope="col">评测与指标</th><th scope="col">比较对象</th><th scope="col">对照</th><th scope="col">TANGO</th></tr></thead>
+              <tbody>
+                <tr><td>杂乱仿真：碰撞率 CR ↓</td><td>InternVLA-N1 + HumanoidPF</td><td>15.81%</td><td>9.90%</td></tr>
+                <tr><td>同一仿真：成功率 SR ↑</td><td>同上</td><td>41.88%</td><td>43.75%</td></tr>
+                <tr><td>消融：成功率 SR ↑</td><td>去掉 RTC</td><td>10.94%</td><td>43.75%</td></tr>
+                <tr><td>真实杂乱 3D：成功次数 ↑</td><td>InternVLA-N1 + Unitree WBC</td><td>6/15</td><td>10/15</td></tr>
+                <tr><td>同一实测：每次平均碰撞数 ↓</td><td>同上</td><td>1.93</td><td>0.73</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>仿真来自增强版 VLNVerse 的未见场景；最强基线还使用 LiDAR。CR 是至少碰撞一次的任务占比，下降 <strong>5.91 个百分点</strong>；成功率仅提高 1.87 个百分点。SR 按最终距目标小于 3 米计，不要求零碰撞，不能把 SR 当成无碰撞成功率。<a href="https://arxiv.org/html/2609.09158v1#S4.T3.fig1">[表2]</a><a href="https://arxiv.org/html/2609.09158v1#S9">[§9]</a></p>
+          <p>消融支持数据与执行两端都重要：去掉动作编辑，CR 升到 20.60%；去掉 RTC，SR 大幅下降。换成 ScaleBFM 跟踪器后，SR 为 40.94%、CR 为 9.10%，说明可以适配另一种全身控制器，但各项指标并非都由默认配置最好。<a href="https://arxiv.org/html/2609.09158v1#S4.T5">[表5]</a></p>
+          <p>常规导航也没有全面领先：原始 VLNVerse 未见场景中，TANGO 的 SR 为 52.89%，高于 RDP 的 48.60%，路径效率指标 SPL 却是 40.18 对 42.72；且基线按“瞬移”协议评估，只有 TANGO 执行物理控制，不能视为严格同条件的架构消融。<a href="https://arxiv.org/html/2609.09158v1#S4.T1">[表1]</a></p>
+        </section>
+        <section id="limits" aria-labelledby="limits-title">
+          <h2 id="limits-title">真实迁移证明到哪里</h2>
+          <p><strong>小样本、行为明确的指令。</strong>真实实验每种设置只有三个场景、各五次试验；杂乱任务只含一个挑战障碍，指令明确要求跨越、侧身或弯腰。没有受控语言消融证明仅给目的地时也能自主选择动作。约 30 米长路线的成功次数为 8/15，基线为 6/15。<a href="https://arxiv.org/html/2609.09158v1#S4.SS3">[§4.3、表3]</a></p>
+          <p><strong>零样本迁移有数据与系统前提。</strong>没有使用真实导航数据训练，不等于没有预训练知识：骨干继承导航权重，SONIC 依赖动作捕捉先验。VLA 跑在 RTX PRO 6000 服务器，机载 Jetson 执行跟踪，依赖联网；数据生成和渲染的 211 GPU 小时也不包括另计的 896 A100 GPU 小时训练。<a href="https://arxiv.org/html/2609.09158v1#S6">[§6–8]</a></p>
+          <p><strong>本页判断：</strong>这是把全身可通行性写进示范与动作空间的一条有效路线。障碍类别、编辑规则和物理筛选承担了大量先验；面向动态人群、复杂连续障碍或新机器人形态的开放环境可靠性，当前结果还不足以下定论。</p>
+        </section>
+        <section id="sources" aria-labelledby="sources-title">
+          <h2 id="sources-title">回到原文核对</h2>
+          <ol class="source-list">
+            <li><a href="https://arxiv.org/abs/2609.09158v1">arXiv v1 摘要与版本</a> · <a href="https://arxiv.org/pdf/2609.09158v1">原始 PDF</a> · <a href="https://arxiv.org/html/2609.09158v1">全文 HTML</a>。本页依据 2026-09-08 提交的 v1，阅读于 2026-09-10。</li>
+            <li>方法：§3 与 §8.2；实验：表1–5；成功与碰撞定义：§9；训练与生成成本：§6、表6。</li>
+          </ol>
+          <p class="evidence-note">数字为作者报告，本页未复现实验；价值判断与外推限制属于解读。正文有个别表号交叉引用错位，本页按实际表格标题核对。论文表示将开放数据、代码和权重，本页未把这一计划视为已完成开源。</p>
+        </section>
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
