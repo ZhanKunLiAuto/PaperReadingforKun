@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="citation_title" content="Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach"><meta name="citation_author" content="Jonas Geiping">
+<meta name="citation_author" content="Sean McLeish">
+<meta name="citation_author" content="Neel Jain">
+<meta name="citation_author" content="John Kirchenbauer">
+<meta name="citation_author" content="Siddharth Singh">
+<meta name="citation_author" content="Brian R. Bartoldson">
+<meta name="citation_author" content="Bhavya Kailkhura">
+<meta name="citation_author" content="Abhinav Bhatele">
+<meta name="citation_author" content="Tom Goldstein"><meta name="citation_publication_date" content="2025-02-07"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2502.05171v2"><meta name="citation_public_url" content="https://arxiv.org/abs/2502.05171v2"><meta name="description" content="潜空间推理系列 01：Huginn 如何用随机深度训练、输入持续注入与截断反传扩展测试时计算；区分多循环收益、CoT 评测与等 FLOPs 证据。"><meta name="keywords" content="潜空间推理系列, latent reasoning, Recurrent Depth, recurrent depth, 循环 Transformer, 参数共享, 自适应计算"><meta name="paper:read_at" content="2026-09-11"><title>Recurrent Depth：同一组参数，能否靠多循环获得更强推理？ | 潜空间推理系列 01</title><link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/latent-series.css"><script src="../../assets/paper-reading.js" defer></script></head>
+<body class="paper-page latent-series" data-page-kind="paper" data-page-path="/papers/recurrent-depth/" data-bridge-url="http://127.0.0.1:8766"><header class="paper-topbar"><a class="paper-topbar__back" href="../latent-reasoning-series.html">← 潜空间推理系列</a><span class="paper-topbar__meta">阅读于 2026-09-11 · <a href="../../">全部论文</a></span></header>
+        <div class="paper-doc">
+        <div class="paper-sidebar"><nav aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">先抓住核心判断</a></li>
+        <li><a href="#mechanism">关键改动为何有效</a></li>
+        <li><a href="#evidence">对照实验如何读</a></li>
+        <li><a href="#limits">结论边界在哪里</a></li>
+        <li><a href="#sources">原文与系列衔接</a></li></ol></nav><nav class="series-sequence" aria-label="潜空间推理系列"><a href="../recurrent-depth/" aria-current="page">01 · Recurrent Depth</a><a href="../mixture-of-recursions/">02 · Mixture-of-Recursions</a><a href="../loopformer/">03 · LoopFormer</a></nav></div>
+    <main class="paper-main">
+
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">潜空间推理系列 · 01 / 03</p>
+        <h1 class="paper-title" id="paper-title">Recurrent Depth</h1>
+        <p class="paper-subtitle">同一组参数，能否靠多循环获得更强推理？</p>
+        <div class="paper-byline"><span>Jonas Geiping 等 9 位作者</span><span>初稿 2025-02-07</span><span>附件 37 页 · 约 7–8 分钟</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">研究目的</span>
+        <p>把额外推理预算放进模型的隐藏状态计算，检验共享参数反复加工能否提高数学、代码等任务的表现。</p></div>
+        <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span>
+        <p><strong>这篇工作证明了十亿参数级循环语言模型可以有效利用更多推理轮次；它首先是一项能力可行性证据。3.5B 是存储的参数量，反复使用这些参数仍然要付出大量计算，不能读成“用 3.5B 成本获得 50B 模型能力”。</strong></p></div>
+      </section>
+
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">“深度”是计算轮次，不是输出字数</h2>
+        <p><strong>潜空间推理</strong>指在连续的隐藏向量里反复更新信息。每轮不必生成可读的思考文本，但模型最终仍逐 token 输出，也可以与文字思维链（CoT）叠加。论文最主要的检查点叫 <strong>Huginn-0125</strong>。<a href="https://arxiv.org/pdf/2502.05171v2#page=3">[§3、§5]</a></p>
+      </section>
+
+
+      <section id="problem-chain" aria-labelledby="problem-chain-title">
+        <h2 id="problem-chain-title">仅仅共享权重，还不足以让多算有用</h2>
+        <p>一组层反复调用，可能很快不再改变状态，也可能越算越不稳定。固定深度训练还会让模型依赖某一轮数。作者要同时解决“多轮可训练”和“推理时改轮数仍有效”，而不只是压缩参数。</p>
+      </section>
+
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">每轮都回看输入，训练中就经历不同深度</h2>
+        <p>模型用 2 层前奏编码输入，4 层共享核心迭代，2 层尾奏输出。核心每轮接收<strong>上一轮状态与同一份前奏输出</strong>，经拼接和投影后继续计算。输入持续注入提供任务条件；随机初始化状态则鼓励模型不要过分依赖起点。作者用迭代优化作直觉类比，未证明网络真的在做梯度下降。<a href="https://arxiv.org/pdf/2502.05171v2#page=3">[§3.1–3.2]</a></p>
+<figure class="svg-figure">
+        <div class="series-diagram-scroll" role="region" aria-label="Huginn 的循环核心与持续输入注入，窄屏可横向滑动" tabindex="0"><svg viewBox="0 0 740 386" role="img" aria-labelledby="mechanism-visual-title mechanism-visual-desc"><title id="mechanism-visual-title">Huginn 的循环核心与持续输入注入</title><desc id="mechanism-visual-desc">前奏输出 e 在每次循环重新注入。四层共享核心反复更新随机初始化的状态，最后经尾奏预测下一个 token。</desc><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs><rect width="740" height="386" fill="#fbfaf6"/><text x="26" y="32" font-size="19" fill="#86321f" text-anchor="start">8 个独立层 → 2 + 4r + 2 层有效计算</text><rect x="26" y="117" width="170" height="83" rx="5" fill="#dcebe5" stroke="#52605b"/><text x="111.0" y="147" text-anchor="middle" font-size="20" fill="#17201d">前奏 P：2 层</text><text x="111.0" y="174" text-anchor="middle" font-size="15" fill="#52605b">输入 token → e</text><rect x="270" y="117" width="220" height="83" rx="5" fill="#dfeaf1" stroke="#52605b"/><text x="380.0" y="147" text-anchor="middle" font-size="20" fill="#17201d">共享核心 R：4 层</text><text x="380.0" y="174" text-anchor="middle" font-size="15" fill="#52605b">读 e 与上一轮状态</text><rect x="564" y="117" width="150" height="83" rx="5" fill="#dcebe5" stroke="#52605b"/><text x="639.0" y="147" text-anchor="middle" font-size="20" fill="#17201d">尾奏 C：2 层</text><text x="639.0" y="174" text-anchor="middle" font-size="15" fill="#52605b">预测下一个 token</text><path d="M492 157H558" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#arrow)"/><path d="M452 202V238H300V207" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#arrow)"/><text x="380" y="266" font-size="17" fill="#355e7c" text-anchor="middle">状态更新后再循环，共 r 次</text><path d="M111 115V72H380V110" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#arrow)"/><text x="245" y="60" font-size="16" fill="#355e7c" text-anchor="middle">每轮重新注入同一份输入 e</text><rect x="26" y="222" width="170" height="45" rx="5" fill="#eeeae1" stroke="#52605b"/><text x="111" y="251" text-anchor="middle" font-size="18" fill="#17201d">随机初态 s₀</text><path d="M198 244H235V182H264" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#arrow)"/><rect x="26" y="297" width="688" height="65" rx="5" fill="#f4ded5" stroke="#52605b"/><text x="370.0" y="327" text-anchor="middle" font-size="20" fill="#17201d">训练时随机选择 r；仅对最后 8 轮反向传播</text><text x="370.0" y="354" text-anchor="middle" font-size="15" fill="#52605b">推理时调节 r，权重数量保持不变</text></svg></div><figcaption class="read-guide">轮数增加会增加实际计算，却不会增加独立权重。图据 §3；r=32 时有效深度为 132 层。</figcaption></figure>
+<p><strong>随机深度训练</strong>让模型同时接触短循环与偶尔很长的循环，主配置的平均轮数设在约 32。只对最后 8 轮反向传播，控制激活存储与反向计算；前面各轮的前向计算仍要执行。这个截断目标带来有偏的梯度近似，却使大规模训练可行。<a href="https://arxiv.org/pdf/2502.05171v2#page=4">[§3.3]</a></p>
+<p>稳定性也依赖归一化和初始化。两次早期大规模尝试分别出现 token 表征趋同、循环被模型忽略；最终组合才成功。因而“循环自动带来思考”不是结论，<strong>训练必须让循环状态保持有用</strong>。<a href="https://arxiv.org/pdf/2502.05171v2#page=6">[图 5]</a></p>
+      </section>
+
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">最强证据：同一检查点，多循环更好</h2>
+        <p>在作者报告的 3.5B 参数、约 800B tokens 主模型上，只改推理轮数就会改变成绩。下表为零样本归一化准确率（%），来源相同，避免把不同模型或训练阶段混在一起。<a href="https://arxiv.org/pdf/2502.05171v2#page=7">[表 1]</a></p>
+<div class="table-wrap" role="region" aria-label="同一 Huginn 模型随推理轮数变化，窄屏可横向滑动" tabindex="0"><table class="evidence-table"><thead><tr><th scope="col">推理轮数 r</th><th scope="col">ARC-C ↑</th><th scope="col">HellaSwag ↑</th><th scope="col">SciQ ↑</th></tr></thead><tbody><tr><td>4</td><td>27.99</td><td>43.46</td><td>80.00</td></tr><tr><td>8</td><td>35.15</td><td>58.54</td><td>92.10</td></tr><tr><td>16</td><td>37.71</td><td>64.67</td><td>93.90</td></tr><tr><td>32</td><td>38.23</td><td>65.21</td><td>93.50</td></tr></tbody></table></div>
+<p>收益会饱和，也不保证逐项单调：SciQ 在 16 轮后略降。数学与代码往往能使用更多轮次，但图 7 不能证明无限追加计算一直有益。32 轮的 GSM8K CoT 使用 <strong>8 个示例及系统提示</strong>时，严格／宽松答案抽取分别为 34.80%／42.08%；HumanEval pass@1 为 23.17%。潜空间计算并不意味着这些评测完全不用文字 CoT。<a href="https://arxiv.org/pdf/2502.05171v2#page=8">[表 2–3、图 7]</a></p>
+<p>在同为 180B tokens 的早期对照中，循环版 GSM8K CoT 为 9.02%／10.24%，非循环版为 1.82%／2.20%。这控制了数据量与训练设置，<strong>没有对齐训练与推理 FLOPs</strong>，因此支持循环有效，尚不能单独证明计算效率占优。<a href="https://arxiv.org/pdf/2502.05171v2#page=9">[表 4]</a></p>
+      </section>
+
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">参数小，计算仍可能很重</h2>
+        <p><strong>能力证据与成本证据要分开。</strong>作者称主模型预训练计算接近标准 32B 模型，测试时可用到约 50B 标准模型的 FLOPs 量级；这里的数字都是计算口径，不是相应规模的能力等价证书。对后期 OLMo 等模型，语料与预算也不同。<a href="https://arxiv.org/pdf/2502.05171v2#page=7">[§5.1]</a></p>
+<p><strong>“无需专门训练方法”不等于训练数据中没有推理或指令。</strong>预训练混入了指令数据，并偏向代码、数学；主要大规模成功运行只有一次，语料配方未充分消融。模型中间状态轨迹也尚不足以证明具体的人类式推理算法。<a href="https://arxiv.org/pdf/2502.05171v2#page=5">[§4.1]</a><a href="https://arxiv.org/pdf/2502.05171v2#page=12">[§7]</a></p>
+<p><strong>Huginn 已探索 token 级自适应退出。</strong>它用相邻输出分布的 KL 差异作停止条件，并复用过去 token 最深可用的 KV；这是无需再训练的启发式，初步 MT-Bench 结果差异不显著。下一篇 MoR 则把路由与缓存规则放进预训练，系统性研究计算分配。<a href="https://arxiv.org/pdf/2502.05171v2#page=10">[§6.1–6.2]</a><a href="https://arxiv.org/pdf/2502.05171v2#page=24">[表 6]</a></p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">回到原文与系列</h2><ol class="source-list">
+        <li><a href="https://arxiv.org/abs/2502.05171v2">Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach · 摘要与版本</a></li>
+        <li><a href="https://arxiv.org/pdf/2502.05171v2">公开 PDF</a>：本页主要依据用户附件，核对方法、主结果及相关附录；官方仓库仅作为实现入口，未运行复现。</li>
+        <li><a href="https://github.com/seal-rg/recurrent-pretraining">作者官方仓库</a>。</li></ol>
+        <p class="evidence-note">实验数字为作者报告；比较口径、外推边界与系列关系为本页分析。</p><nav class="series-pager" aria-label="上一篇和下一篇"><a href="../latent-reasoning-series.html">← 系列导读</a><a href="../mixture-of-recursions/">下一篇：Mixture-of-Recursions →</a></nav>
+      </section>
+
+    </main>
+
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论独立保存。连接本地写回服务后可写入页面；离线时仅保存在此浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+
+    </aside>
+</div></body></html>

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="三篇潜空间推理论文的系列导读：从 Recurrent Depth 的多循环能力，到 MoR 的 token 级分配，再到 LoopFormer 的预算条件化轨迹。">
+  <meta name="keywords" content="潜空间推理系列, Huginn, Recurrent Depth, Mixture-of-Recursions, MoR, LoopFormer, 循环 Transformer">
+  <title>循环深度与潜空间推理 | 三篇论文系列导读</title>
+  <link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="../assets/latent-series.css">
+</head>
+<body class="paper-page latent-series series-hub" data-page-kind="series">
+  <header class="paper-topbar"><a class="paper-topbar__back" href="../">← 返回论文档案</a><span class="paper-topbar__meta">系列导读 · 3 篇 · 2026-09-11</span></header>
+  <div class="paper-doc">
+    <nav class="paper-sidebar" aria-label="系列阅读地图"><p class="paper-sidebar__label">SERIES MAP</p><ol class="paper-map"><li><a href="#thesis">一个共同问题</a></li><li><a href="#reading-order">按什么顺序读</a></li><li><a href="#comparison">三种计算控制方式</a></li><li><a href="#takeaways">读完应形成什么判断</a></li></ol></nav>
+    <main class="paper-main">
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">LATENT REASONING · A THREE-PAPER SERIES</p>
+        <h1 class="paper-title" id="paper-title">循环深度与<br>潜空间推理</h1>
+        <p class="paper-subtitle">从“多算是否有用”，走向“为谁多算”与“预算变了怎么计算”。</p>
+        <div class="paper-byline"><span>导读约 5 分钟</span><span>每篇约 7–8 分钟</span><span>方法图解 · 证据对照 · 双向导航</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">共同问题</span><p>能否反复使用同一组 Transformer 层，在不增加独立权重的前提下，让额外计算真正改善预测与推理？</p></div>
+        <div class="core-conclusion"><span class="core-conclusion__label">系列判断</span><p><strong>共享权重提供了可调深度的基础，训练目标与执行规则决定这份灵活性是否有用。</strong>三篇分别检验深度带来的能力、token 间的预算分配、不同预算下的路径质量。它们是问题上的递进，不能当作同一实验条件下的三代排行榜。</p></div>
+      </section>
+      <section id="reading-order" aria-labelledby="order-title">
+        <h2 id="order-title">按这条线索读</h2>
+        <ol class="series-articles">
+          <li><span class="series-number">01</span><div><h3><a href="recurrent-depth/">Recurrent Depth：多循环能否变成能力？</a></h3><p>先建立循环模型的基本直觉：输入持续注入、随机深度训练与截断反传。Huginn 展示同一检查点可以使用更多推理计算，但参数少不等于 FLOPs 少。</p><p class="evidence-note">读完能回答：它怎样避免模型忽略循环？哪些实验控制了模型，哪些只控制了训练数据？</p></div></li>
+          <li><span class="series-number">02</span><div><h3><a href="mixture-of-recursions/">Mixture-of-Recursions：计算应该给谁？</a></h3><p>把统一循环拆成逐 token 深度分配。理解路由后还要看 KV：早退出的位置在深层缺什么，注意力能看见哪些历史信息，才是效率能否落地的关键。</p><p class="evidence-note">读完能回答：为什么缓存策略与路由必须一起设计？2.06×吞吐排除了哪些成本？</p></div></li>
+          <li><span class="series-number">03</span><div><h3><a href="loopformer/">LoopFormer：预算变少，怎样仍走到终点？</a></h3><p>从决定谁继续计算，转向训练整段序列的短路径。时间与步长调制，加上短长轨迹一致性，让一套权重服务多档预算，同时也带来训练开销与低预算退化。</p><p class="evidence-note">读完能回答：为什么改变步长不同于提前退出？等训练 FLOPs 后，优势还剩什么？</p></div></li>
+        </ol>
+      </section>
+      <section id="comparison" aria-labelledby="comparison-title">
+        <h2 id="comparison-title">三种“自适应”，控制的对象不同</h2>
+        <div class="table-wrap" role="region" aria-label="三篇论文的方法比较，窄屏可横向滑动" tabindex="0">
+          <table class="evidence-table">
+            <thead><tr><th scope="col">比较维度</th><th scope="col">Recurrent Depth</th><th scope="col">MoR</th><th scope="col">LoopFormer</th></tr></thead>
+            <tbody>
+              <tr><td>主要问题</td><td>多循环能否提高能力</td><td>哪些 token 应继续循环</td><td>少轮数如何完成有效路径</td></tr>
+              <tr><td>预算由谁决定</td><td>外部指定轮数；另探索 KL 收敛退出</td><td>学习路由选择 token 深度；容量受训练配置约束</td><td>外部指定序列预算 M 与步长安排</td></tr>
+              <tr><td>关键训练动作</td><td>随机轮数；持续输入注入；截断反传</td><td>路由与缓存规则共同预训练</td><td>时间／步长调制；完整与短路径共同训练</td></tr>
+              <tr><td>缓存思路</td><td>探索最深可用 KV 与跨轮覆盖复用</td><td>按轮缓存活跃位置；另测共享首轮 KV</td><td>主要研究预算轨迹，未提供同等级 KV 服务系统评测</td></tr>
+              <tr><td>最有说服力的对照</td><td>同一检查点改变推理轮数</td><td>等 FLOPs 与等数据两种训练对照</td><td>同一权重跨预算；另有等训练 FLOPs 对照</td></tr>
+              <tr><td>主要边界</td><td>推理收益饱和；缺少充分等计算架构比较</td><td>路由因果性与负载；速度非完整服务计时</td><td>M≤L；极低预算落后；训练成本增加</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>尤其不要把 Huginn 写成“只会固定轮数”：它已经探索无需再训练的 token 级 KL 退出。MoR 的新着力点是<strong>训练出路由，并为退出设计缓存</strong>；LoopFormer 的着力点则是<strong>让指定预算对应一条训练过的完整轨迹</strong>。<a href="recurrent-depth/#limits">[Huginn 边界]</a> <a href="mixture-of-recursions/#mechanism">[MoR 方法]</a> <a href="loopformer/#mechanism">[LoopFormer 方法]</a></p>
+        <p class="evidence-note">不直接比较三篇任务分数：Huginn 使用数学／代码偏重的混合语料与约 800B tokens；MoR 使用 FineWeb-Edu、多个算力预算；LoopFormer 使用 The Pile 子集且训练量表述有待核对。规模、语料、指标和比较条件都不同。</p>
+      </section>
+      <section id="takeaways" aria-labelledby="takeaways-title">
+        <h2 id="takeaways-title">读完后，保留这三个判断</h2>
+        <h3>① 参数、计算和耗时是三本账</h3>
+        <p>权重共享首先减少独立参数；重复执行仍产生 FLOPs。token 筛选可能少算，但真实速度还受 KV 读写、批处理和硬件利用率影响。Huginn 的“50B 计算量”、MoR 的“2.06×吞吐”、LoopFormer 的“24×预算”不能互换成一个效率指标。</p>
+        <h3>② 潜空间计算不自动等于可验证的推理</h3>
+        <p>隐藏状态发生变化、下一 token 更好预测、复杂问题答对，是不同层次的证据。三篇展示了有用的循环计算；它们尚未给出一个普适判据，证明模型当前多算的一轮就是正确的逻辑推进。文字 CoT 也可以与这些架构共存。</p>
+        <h3>③ 一个值得继续研究的组合</h3>
+        <p><strong>本系列推断：</strong>可以研究“MoR 式 token 分配 + LoopFormer 式短路径训练”，并检验 Huginn 式收敛判据能否帮助停止。但不同深度与步长的 token 如何共享历史 KV、训练和生成时的路由如何一致，都要重新验证。它是待检验的方向，不是三篇已经实现的系统。</p>
+        <p>若接着读仓库中的 <a href="loopmoe/">LoopMoE</a>，可以多看一条轴：每次循环内部如何使用稀疏专家容量。它目前的固定循环结果，不能直接替代本系列关于预算弹性的证据。</p>
+        <nav class="series-pager" aria-label="开始系列阅读"><a href="../">← 全部论文</a><a href="recurrent-depth/">从第 01 篇开始 →</a></nav>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

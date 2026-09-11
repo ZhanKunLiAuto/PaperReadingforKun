@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="citation_title" content="Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation"><meta name="citation_author" content="Sangmin Bae">
+<meta name="citation_author" content="Yujin Kim">
+<meta name="citation_author" content="Reza Bayat">
+<meta name="citation_author" content="Sungnyun Kim">
+<meta name="citation_author" content="Jiyoun Ha">
+<meta name="citation_author" content="Tal Schuster">
+<meta name="citation_author" content="Adam Fisch">
+<meta name="citation_author" content="Hrayr Harutyunyan">
+<meta name="citation_author" content="Ziwei Ji">
+<meta name="citation_author" content="Aaron Courville">
+<meta name="citation_author" content="Se-Young Yun"><meta name="citation_publication_date" content="2025-07-14"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2507.10524v3"><meta name="citation_public_url" content="https://arxiv.org/abs/2507.10524v3"><meta name="description" content="潜空间推理系列 02：MoR 将参数共享、token 级深度路由与 KV 缓存联合设计；核对等数据与等计算实验、因果路由问题和 2.06 倍吞吐的计时边界。"><meta name="keywords" content="潜空间推理系列, latent reasoning, Mixture-of-Recursions, recurrent depth, 循环 Transformer, 参数共享, 自适应计算"><meta name="paper:read_at" content="2026-09-11"><title>Mixture-of-Recursions：哪些 token 值得多算几轮？ | 潜空间推理系列 02</title><link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/latent-series.css"><script src="../../assets/paper-reading.js" defer></script></head>
+<body class="paper-page latent-series" data-page-kind="paper" data-page-path="/papers/mixture-of-recursions/" data-bridge-url="http://127.0.0.1:8766"><header class="paper-topbar"><a class="paper-topbar__back" href="../latent-reasoning-series.html">← 潜空间推理系列</a><span class="paper-topbar__meta">阅读于 2026-09-11 · <a href="../../">全部论文</a></span></header>
+        <div class="paper-doc">
+        <div class="paper-sidebar"><nav aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">先抓住核心判断</a></li>
+        <li><a href="#mechanism">关键改动为何有效</a></li>
+        <li><a href="#evidence">对照实验如何读</a></li>
+        <li><a href="#limits">结论边界在哪里</a></li>
+        <li><a href="#sources">原文与系列衔接</a></li></ol></nav><nav class="series-sequence" aria-label="潜空间推理系列"><a href="../recurrent-depth/">01 · Recurrent Depth</a><a href="../mixture-of-recursions/" aria-current="page">02 · Mixture-of-Recursions</a><a href="../loopformer/">03 · LoopFormer</a></nav></div>
+    <main class="paper-main">
+
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">潜空间推理系列 · 02 / 03</p>
+        <h1 class="paper-title" id="paper-title">Mixture-of-Recursions</h1>
+        <p class="paper-subtitle">哪些 token 值得多算几轮？</p>
+        <div class="paper-byline"><span>Sangmin Bae 等 11 位作者</span><span>初稿 2025-07-14</span><span>附件 38 页 · 约 7–8 分钟</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">研究目的</span>
+        <p>同时减少模型权重、冗余 token 计算和 KV 缓存开销，让有限训练与部署预算得到更好的语言建模质量。</p></div>
+        <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span>
+        <p><strong>MoR 的贡献是把“谁继续循环”和“深层还能看见谁”一起设计。两轮配置在所测预算下兼顾质量与效率，但收益取决于路由、缓存和调度的组合；它尚未证明路由器识别了抽象的推理难度。</strong></p></div>
+      </section>
+
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">“专家”在这里代表不同递归深度</h2>
+        <p><strong>MoR</strong> 不是为 token 选不同的前馈专家网络，而是在共享层上选择做几轮计算。主要配置保留独立的首尾层，中间层循环复用（Middle-Cycle）。<strong>KV 缓存</strong>保存过去 token 的键和值，供后续注意力读取；权重共享本身不会自动让各轮 KV 也相同。<a href="https://arxiv.org/pdf/2507.10524v3#page=3">[§2.1]</a></p>
+      </section>
+
+
+      <section id="problem-chain" aria-labelledby="problem-chain-title">
+        <h2 id="problem-chain-title">让 token 提前退出，会留下深层上下文缺口</h2>
+        <p>如果某个 token 两轮后停止，后来的 token 到第三轮时就找不到它的第三轮 KV。补算会吃掉节省的预算。MoR 的关键选择是：训练时就规定每轮能读取哪些位置，让退出规则与注意力结构相容。</p>
+      </section>
+
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">路由选择深度，缓存定义可见上下文</h2>
+        <p><strong>Expert-choice</strong> 每轮给 token 打分，在当前活跃集合中按容量选取继续计算的位置。三轮时，各轮处理原序列的 3/3、2/3、1/3；比例预设，具体位置由模型学。<strong>Token-choice</strong> 则在开始时一次性为每个 token 选定深度，因果性更直接，却更难平衡不同深度的负载。<a href="https://arxiv.org/pdf/2507.10524v3#page=4">[§2.2.1]</a></p>
+<figure class="svg-figure">
+        <div class="series-diagram-scroll" role="region" aria-label="MoR 的逐轮 token 筛选，窄屏可横向滑动" tabindex="0"><svg viewBox="0 0 740 368" role="img" aria-labelledby="mechanism-visual-title mechanism-visual-desc"><title id="mechanism-visual-title">MoR 的逐轮 token 筛选</title><desc id="mechanism-visual-desc">以六个示意位置展示三轮递归，活跃 token 从六个减至四个再减至两个。计算块权重共享，退出位置停止深层更新。</desc><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs><rect width="740" height="368" fill="#fbfaf6"/><text x="26" y="32" font-size="19" fill="#86321f" text-anchor="start">三轮 expert-choice：共享块相同，活跃集合逐轮缩小</text><text x="164" y="72" font-size="17" fill="#52605b" text-anchor="middle">A</text><text x="226" y="72" font-size="17" fill="#52605b" text-anchor="middle">B</text><text x="288" y="72" font-size="17" fill="#52605b" text-anchor="middle">C</text><text x="350" y="72" font-size="17" fill="#52605b" text-anchor="middle">D</text><text x="412" y="72" font-size="17" fill="#52605b" text-anchor="middle">E</text><text x="474" y="72" font-size="17" fill="#52605b" text-anchor="middle">F</text><text x="26" y="120" font-size="18" fill="#52605b" text-anchor="start">第 1 轮</text><rect x="141" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="164" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="203" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="226" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="265" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="288" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="327" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="350" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="389" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="412" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="451" y="94" width="46" height="42" rx="4" fill="#dcebe5" stroke="#aaa69c"/><text x="474" y="121" font-size="16" fill="#17201d" text-anchor="middle">算</text><text x="557" y="120" font-size="18" fill="#52605b" text-anchor="start">6/6 活跃</text><text x="26" y="185" font-size="18" fill="#52605b" text-anchor="start">第 2 轮</text><rect x="141" y="159" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="164" y="186" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="203" y="159" width="46" height="42" rx="4" fill="#dfeaf1" stroke="#aaa69c"/><text x="226" y="186" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="265" y="159" width="46" height="42" rx="4" fill="#dfeaf1" stroke="#aaa69c"/><text x="288" y="186" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="327" y="159" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="350" y="186" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="389" y="159" width="46" height="42" rx="4" fill="#dfeaf1" stroke="#aaa69c"/><text x="412" y="186" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="451" y="159" width="46" height="42" rx="4" fill="#dfeaf1" stroke="#aaa69c"/><text x="474" y="186" font-size="16" fill="#17201d" text-anchor="middle">算</text><text x="557" y="185" font-size="18" fill="#52605b" text-anchor="start">4/6 活跃</text><text x="26" y="250" font-size="18" fill="#52605b" text-anchor="start">第 3 轮</text><rect x="141" y="224" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="164" y="251" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="203" y="224" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="226" y="251" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="265" y="224" width="46" height="42" rx="4" fill="#f4ded5" stroke="#aaa69c"/><text x="288" y="251" font-size="16" fill="#17201d" text-anchor="middle">算</text><rect x="327" y="224" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="350" y="251" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="389" y="224" width="46" height="42" rx="4" fill="#f2f0e9" stroke="#aaa69c"/><text x="412" y="251" font-size="16" fill="#777" text-anchor="middle">停</text><rect x="451" y="224" width="46" height="42" rx="4" fill="#f4ded5" stroke="#aaa69c"/><text x="474" y="251" font-size="16" fill="#17201d" text-anchor="middle">算</text><text x="557" y="250" font-size="18" fill="#52605b" text-anchor="start">2/6 活跃</text><text x="26" y="315" font-size="17" fill="#355e7c" text-anchor="start">同一轮只缓存活跃 token 的 KV；注意力仍保留因果遮罩。</text><text x="26" y="343" font-size="17" fill="#52605b" text-anchor="start">已退出的位置保留其输出，不在后续轮次重新进入。</text></svg></div><figcaption class="read-guide">A–F 是示意位置，不是真实路由结果。容量比例来自 §2.2；筛选依据当前位置状态，用来预测下一个 token。</figcaption></figure>
+<p><strong>主方案：按轮缓存。</strong>只有该轮活跃 token 才产生 KV，深层注意力只读取同轮已激活的历史位置。这同时减少查询数和键值数；训练／预填充的该层注意力项可随保留比例近似平方缩小，但不能把这个比例当成整个模型或逐 token 解码的加速比。已退出 token 的信息仍可能经浅层混入活跃状态。<a href="https://arxiv.org/pdf/2507.10524v3#page=5">[§2.2.2]</a></p>
+<p><strong>另一方案：跨轮共享首轮 KV。</strong>首轮包含所有 token，后面继续读取这份完整历史，因此更省缓存容量，但每轮仍需读较长的 KV。它与主方案是两种取舍；“缓存更小”不保证“读缓存更少”，也不能把各自最佳收益相加。</p>
+<p><strong>因果性是必要补丁。</strong>训练时在整段序列上做 top-k，会让选择依赖未来位置的分数。表现较好的方案用辅助二分类损失，把入选与未入选分数推向 1 与 0，以便生成时只凭当前可用信息决策。作者报告了良好的分离，但这不是任意分布下的因果等价保证。<a href="https://arxiv.org/pdf/2507.10524v3#page=23">[附录 A.2]</a><a href="https://arxiv.org/pdf/2507.10524v3#page=10">[图 5b]</a></p>
+      </section>
+
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">把等算力和等数据两张账一起看</h2>
+        <p>表 3 基于 360M 级基础配置，参数列<strong>不含 embedding</strong>；使用 FineWeb-Edu 与六项 few-shot 基准，准确率为混合任务均分（%）。下列 MoR 均为两轮、expert-choice、按轮缓存。<a href="https://arxiv.org/pdf/2507.10524v3#page=6">[表 3]</a></p>
+<div class="table-wrap" role="region" aria-label="MoR 两轮配置的训练预算与表现，窄屏可横向滑动" tabindex="0"><table class="evidence-table"><thead><tr><th scope="col">配置</th><th scope="col">参数</th><th scope="col">tokens</th><th scope="col">FLOPs ×10¹⁸</th><th scope="col">NLL ↓ / 均分 ↑</th></tr></thead><tbody><tr><td>Vanilla</td><td>315M</td><td>20B</td><td>16.5</td><td>2.7824 / 42.3</td></tr><tr><td>固定两轮 Recursive</td><td>167M</td><td>20B</td><td>16.5</td><td>2.8079 / 42.6</td></tr><tr><td>MoR：等 FLOPs</td><td>167M</td><td>27B</td><td>16.5</td><td>2.7511 / 43.1</td></tr><tr><td>MoR：等数据</td><td>167M</td><td>20B</td><td>12.3</td><td>2.7749 / 42.9</td></tr></tbody></table></div>
+<p>等算力下，MoR 通过少算部分 token 换来了更多数据；等数据下，仍用约少 25% 的训练 FLOPs 获得略高均分。这是联合效率设计的证据。相反，三轮 token-choice 的均分只有 40.0%，低于 expert-choice 的 42.6%，说明路由方式不是无关紧要的实现选择。</p>
+<p><strong>最高 2.06× 吞吐有严格条件：</strong>H100 显存预算推导的最大批量、平均生成 256 tokens、无输入前缀，并结合按深度持续组批。MoR-4 用 51 的批量，对照为 32，且对照补到 34 层；计时<strong>排除 KV 缓存写入与更新</strong>。因此它是特定系统实验，不能直接外推为长上下文或单请求服务的两倍加速。<a href="https://arxiv.org/pdf/2507.10524v3#page=7">[§3.3]</a><a href="https://arxiv.org/pdf/2507.10524v3#page=28">[附录 E]</a></p>
+      </section>
+
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">自适应 token，不等于任意预算弹性</h2>
+        <p><strong>更大尺度并非全面胜出。</strong>附录 1.7B 级、68.5×10¹⁸ FLOPs 对照中，Vanilla 均分 48.9%，两轮 MoR 48.4%，三轮 MoR 46.7%。省参数仍有价值，但不支持“所有规模同算力更强”。<a href="https://arxiv.org/pdf/2507.10524v3#page=25">[表 7]</a></p>
+<p><strong>预算主要受训练配置约束。</strong>辅助损失让路由分数接近二值，训练后改变容量反而困难；图 5c 展示训练深度范围内多计算的收益，附录表 8 是分别训练的不同深度模型。两者都不证明一个模型可以无限增深。<a href="https://arxiv.org/pdf/2507.10524v3#page=10">[§5.3]</a><a href="https://arxiv.org/pdf/2507.10524v3#page=12">[§7.1]</a></p>
+<p><strong>“难 token”首先是难预测。</strong>位置上的递归服务于下一个 token 预测；标点、词片段和上下文都会影响分配。将它升级成数学推理难度识别仍需专门实验。下一篇 LoopFormer 转向另一问题：预算由用户给定后，怎样把短路径也训练好。<a href="https://arxiv.org/pdf/2507.10524v3#page=9">[§5.2]</a><a href="https://arxiv.org/pdf/2507.10524v3#page=12">[§7.1]</a></p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">回到原文与系列</h2><ol class="source-list">
+        <li><a href="https://arxiv.org/abs/2507.10524v3">Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation · 摘要与版本</a></li>
+        <li><a href="https://arxiv.org/pdf/2507.10524v3">公开 PDF</a>：本页主要依据用户附件，核对方法、主结果及相关附录；官方仓库仅作为实现入口，未运行复现。</li>
+        <li><a href="https://github.com/raymin0223/mixture_of_recursions">作者官方仓库</a>。</li></ol>
+        <p class="evidence-note">实验数字为作者报告；比较口径、外推边界与系列关系为本页分析。</p><nav class="series-pager" aria-label="上一篇和下一篇"><a href="../recurrent-depth/">← 上一篇：Recurrent Depth</a><a href="../loopformer/">下一篇：LoopFormer →</a></nav>
+      </section>
+
+    </main>
+
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论独立保存。连接本地写回服务后可写入页面；离线时仅保存在此浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+
+    </aside>
+</div></body></html>

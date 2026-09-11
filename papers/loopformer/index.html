@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="citation_title" content="LoopFormer: Elastic-Depth Looped Transformers for Latent Reasoning via Shortcut Modulation"><meta name="citation_author" content="Ahmadreza Jeddi">
+<meta name="citation_author" content="Marco Ciccone">
+<meta name="citation_author" content="Babak Taati"><meta name="citation_publication_date" content="2026-02-11"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2602.11451v1"><meta name="citation_public_url" content="https://arxiv.org/abs/2602.11451v1"><meta name="description" content="潜空间推理系列 03：LoopFormer 用时间／步长调制与短长轨迹一致性实现预算条件化推理；保留低预算反例、额外训练成本和等训练 FLOPs 对照。"><meta name="keywords" content="潜空间推理系列, latent reasoning, LoopFormer, recurrent depth, 循环 Transformer, 参数共享, 自适应计算"><meta name="paper:read_at" content="2026-09-11"><title>LoopFormer：预算减少时，如何仍走完一条有效的推理路径？ | 潜空间推理系列 03</title><link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/latent-series.css"><script src="../../assets/paper-reading.js" defer></script></head>
+<body class="paper-page latent-series" data-page-kind="paper" data-page-path="/papers/loopformer/" data-bridge-url="http://127.0.0.1:8766"><header class="paper-topbar"><a class="paper-topbar__back" href="../latent-reasoning-series.html">← 潜空间推理系列</a><span class="paper-topbar__meta">阅读于 2026-09-11 · <a href="../../">全部论文</a></span></header>
+        <div class="paper-doc">
+        <div class="paper-sidebar"><nav aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">先抓住核心判断</a></li>
+        <li><a href="#mechanism">关键改动为何有效</a></li>
+        <li><a href="#evidence">对照实验如何读</a></li>
+        <li><a href="#limits">结论边界在哪里</a></li>
+        <li><a href="#sources">原文与系列衔接</a></li></ol></nav><nav class="series-sequence" aria-label="潜空间推理系列"><a href="../recurrent-depth/">01 · Recurrent Depth</a><a href="../mixture-of-recursions/">02 · Mixture-of-Recursions</a><a href="../loopformer/" aria-current="page">03 · LoopFormer</a></nav></div>
+    <main class="paper-main">
+
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">潜空间推理系列 · 03 / 03</p>
+        <h1 class="paper-title" id="paper-title">LoopFormer</h1>
+        <p class="paper-subtitle">预算减少时，如何仍走完一条有效的推理路径？</p>
+        <div class="paper-byline"><span>Ahmadreza Jeddi 等 3 位作者</span><span>初稿 2026-02-11</span><span>附件 18 页 · 约 7–8 分钟</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">研究目的</span>
+        <p>让同一个循环模型在用户指定的多种推理预算下都能工作，减少提前结束循环时的性能损失。</p></div>
+        <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span>
+        <p><strong>关键不是“少做几次同样的循环”，而是让短路径用更大的步长学习到达完整路径的终点。LoopFormer 在中高预算下表现有竞争力，但最紧预算下仍明显退化，且这种弹性需要额外训练计算。</strong></p></div>
+      </section>
+
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">预算 M 与步长 Δt 各控制一件事</h2>
+        <p>记 <strong>k⊗L</strong> 为 k 个共享层最多循环 L 次。用户选 M≤L 次，并给一组正步长，它们加起来为 1；t 是累计进度，Δt 是本轮要前进多远。整段序列使用同一条轨迹，模型不会像 MoR 那样为不同 token 学习退出决策。<a href="https://arxiv.org/pdf/2602.11451v1#page=4">[§3.1]</a></p>
+      </section>
+
+
+      <section id="problem-chain" aria-labelledby="problem-chain-title">
+        <h2 id="problem-chain-title">提前停在半途，与少走几步到终点不同</h2>
+        <p>普通截断把原来长路径的中间状态直接拿去预测，但它未必包含足够信息；仅让每一轮都能输出，又可能让网络过早不再更新。LoopFormer 同时训练完整路径与更粗的短路径，使少轮数也朝同一个最终状态靠近。</p>
+      </section>
+
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">告诉共享层“走到哪了，这步走多远”</h2>
+        <p>每轮将 t 与 Δt 编码成条件向量，控制 RMSNorm 的缩放和注意力／前馈残差的门控。同一组权重因此能按进度和步长改变更新方式。与 Huginn 的持续输入注入、随机初态不同，这里从 token 与位置 embedding 开始循环，并显式依赖时间条件。<a href="https://arxiv.org/pdf/2602.11451v1#page=4">[§3.1–3.2]</a></p>
+<figure class="svg-figure">
+        <div class="series-diagram-scroll" role="region" aria-label="LoopFormer 的完整轨迹与短路径，窄屏可横向滑动" tabindex="0"><svg viewBox="0 0 740 370" role="img" aria-labelledby="mechanism-visual-title mechanism-visual-desc"><title id="mechanism-visual-title">LoopFormer 的完整轨迹与短路径</title><desc id="mechanism-visual-desc">八轮均匀轨迹和四轮较粗轨迹都覆盖零到一的完整时间范围，训练时将短路径终点对齐到完整轨迹终点。</desc><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs><rect width="740" height="370" fill="#fbfaf6"/><text x="26" y="32" font-size="19" fill="#86321f" text-anchor="start">同一个终点，两种计算预算</text><text x="26" y="78" font-size="18" fill="#355e7c" text-anchor="start">8 轮：均匀细步长</text><path d="M65 105H675" stroke="#355e7c" stroke-width="2"/><circle cx="65.0" cy="105" r="7" fill="#355e7c"/><circle cx="141.25" cy="105" r="7" fill="#355e7c"/><circle cx="217.5" cy="105" r="7" fill="#355e7c"/><circle cx="293.75" cy="105" r="7" fill="#355e7c"/><circle cx="370.0" cy="105" r="7" fill="#355e7c"/><circle cx="446.25" cy="105" r="7" fill="#355e7c"/><circle cx="522.5" cy="105" r="7" fill="#355e7c"/><circle cx="598.75" cy="105" r="7" fill="#355e7c"/><circle cx="675.0" cy="105" r="7" fill="#355e7c"/><text x="65" y="134" font-size="15" fill="#355e7c" text-anchor="middle">t=0</text><text x="675" y="134" font-size="15" fill="#355e7c" text-anchor="middle">t=1</text><text x="26" y="194" font-size="18" fill="#a64d32" text-anchor="start">4 轮：较粗的短路径</text><path d="M65 221H675" stroke="#a64d32" stroke-width="2"/><circle cx="65" cy="221" r="7" fill="#a64d32"/><circle cx="370.0" cy="221" r="7" fill="#a64d32"/><circle cx="522.5" cy="221" r="7" fill="#a64d32"/><circle cx="598.75" cy="221" r="7" fill="#a64d32"/><circle cx="675" cy="221" r="7" fill="#a64d32"/><text x="65" y="250" font-size="15" fill="#a64d32" text-anchor="middle">t=0</text><text x="675" y="250" font-size="15" fill="#a64d32" text-anchor="middle">t=1</text><path d="M696 112V211" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#arrow)"/><text x="363" y="162" font-size="16" fill="#52605b" text-anchor="middle">短路径终点向完整路径终点对齐（停止目标梯度）</text><rect x="26" y="279" width="688" height="65" rx="5" fill="#dcebe5" stroke="#52605b"/><text x="370.0" y="309" text-anchor="middle" font-size="20" fill="#17201d">每轮条件：当前位置 t + 本次步长 Δt</text><text x="370.0" y="336" text-anchor="middle" font-size="15" fill="#52605b">少轮次意味着改变步长；不是在原来第 4 轮直接停下</text></svg></div><figcaption class="read-guide">四轮步长 1/2、1/4、1/8、1/8 仅作机制示意，不宣称是最佳配置。归一化时间是计算进度，不是文本位置或物理时间。</figcaption></figure>
+<p><strong>训练同时做两条路径。</strong>完整 L 轮计算下一 token 损失；再随机抽取更短的轮数与步长安排，计算短路径的预测损失，并让短路径终点接近完整路径终点。后两项权重都为 0.1，完整路径作为一致性目标时停止梯度，所以它充当模型自己的老师，无需外部教师。<a href="https://arxiv.org/pdf/2602.11451v1#page=5">[§3.3、算法 1]</a></p>
+<p class="evidence-note">原文 §3.3 写“对齐 logits”，但算法 1 写的是隐藏状态平方误差；官方 <a href="https://github.com/armenjeddi/loopformer/blob/master/train.py">train.py</a> 对<a href="https://github.com/armenjeddi/loopformer/blob/master/models/loopformer.py">模型返回的表征</a>使用 MSE，并停止长路径目标的梯度，与算法 1 一致。本页按这个实现解释；核对日期 2026-09-11，未运行训练。</p>
+      </section>
+
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">中间预算有价值，最低预算仍有反例</h2>
+        <p>主实验采用 The Pile 子集。下表是一套 3⊗8 LoopFormer 权重，分别用 8／4／2 轮；对照 Base 是各自单独训练的 24／12／6 层模型。指标为 Pile 困惑度（越低越好）及十项零样本任务平均准确率（%）。<a href="https://arxiv.org/pdf/2602.11451v1#page=6">[表 1]</a></p>
+<div class="table-wrap" role="region" aria-label="LoopFormer 不同预算下的表现，窄屏可横向滑动" tabindex="0"><table class="evidence-table"><thead><tr><th scope="col">有效层数 kM</th><th scope="col">LoopFormer PPL ↓</th><th scope="col">Base PPL ↓</th><th scope="col">LoopFormer 均分 ↑</th><th scope="col">Base 均分 ↑</th></tr></thead><tbody><tr><td>24（8 轮）</td><td>10.28</td><td>9.49</td><td>44.81</td><td>45.27</td></tr><tr><td>12（4 轮）</td><td>11.12</td><td>9.98</td><td>43.73</td><td>44.93</td></tr><tr><td>6（2 轮）</td><td>14.30</td><td>11.13</td><td>40.36</td><td>42.73</td></tr></tbody></table></div>
+<p>一套权重能在多档预算下工作，是主要收益；它没有超过各档 Base。最低预算下，简单 Naive-Loop-EE 的 PPL 12.61、均分 40.97%，反而都好于 LoopFormer；满预算下相对 TMLT 的均分优势也只有 0.12 个百分点。不能据此声称所有预算都最优。</p>
+<p><strong>训练成本必须补回。</strong>主表对齐的“FLOPs”主要以执行层数近似推理成本；双路径训练约多用 50% FLOPs，作者在 4×H100 上报告约 1.3×训练时间。附录把 LoopFormer 缩短至 34k 步，对齐基线 50k 步的训练 FLOPs：满预算 PPL 10.71、均分 44.21%，低于 TMLT 的 10.38／44.69%，但保留预算弹性。<a href="https://arxiv.org/pdf/2602.11451v1#page=16">[附录 B.1]</a><a href="https://arxiv.org/pdf/2602.11451v1#page=17">[表 3]</a></p>
+<p>同为四轮，步长安排还会造成约 1.4 的 PPL 差和约 1.3 个准确率百分点差。较好的安排倾向前期大步、后期细化，但这是穷举分析；PPL 最优与任务分数最优并非同一条轨迹，不能当成可免费获得的通用策略。<a href="https://arxiv.org/pdf/2602.11451v1#page=9">[图 6]</a></p>
+      </section>
+
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">学会调预算，还不等于学会判断难度</h2>
+        <p><strong>预算来自外部，范围限于训练最大轮数。</strong>M≤L 的弹性不等于自动给困难 token 多算，也不等于超过 L 后继续提升。与 MoR 的路由、Huginn 的收敛退出组合是研究设想，三篇没有验证该组合。</p>
+<p><strong>表征变化只是诊断证据。</strong>CKA 等指标显示 LoopFormer 的状态随深度持续变化，而若干早退基线停滞；这些相关性不能证明变化就是正确推理。十项任务也包含常识、阅读与词预测，不能等同于复杂数学／代码推理能力。<a href="https://arxiv.org/pdf/2602.11451v1#page=8">[§4.3]</a><a href="https://arxiv.org/pdf/2602.11451v1#page=10">[§5]</a></p>
+<p><strong>训练数据口径仍需核对。</strong>正文报告约 25B tokens；附录写 50k 步、全局 batch 48、长度 1024，直接相乘仅约 2.46B。官方脚本支持梯度累积，可能解释差额，但仅凭这些文字不能还原实际实验配置。本页保留“作者报告”口径，不据此推导精确数据效率。<a href="https://arxiv.org/pdf/2602.11451v1#page=15">[附录 A]</a> <a href="https://github.com/armenjeddi/loopformer/blob/master/train.py">[官方训练脚本]</a></p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">回到原文与系列</h2><ol class="source-list">
+        <li><a href="https://arxiv.org/abs/2602.11451v1">LoopFormer: Elastic-Depth Looped Transformers for Latent Reasoning via Shortcut Modulation · 摘要与版本</a></li>
+        <li><a href="https://arxiv.org/pdf/2602.11451v1">公开 PDF</a>：本页依据用户提供的 ICLR 2026 版 18 页附件，并核对官方训练脚本及模型返回值；代码事实与论文表述分开呈现，未运行复现。</li>
+        <li><a href="https://github.com/armenjeddi/loopformer">作者官方仓库</a>。</li></ol>
+        <p class="evidence-note">实验数字为作者报告；比较口径、外推边界与系列关系为本页分析。</p><nav class="series-pager" aria-label="上一篇和下一篇"><a href="../mixture-of-recursions/">← 上一篇：Mixture-of-Recursions</a><a href="../latent-reasoning-series.html#comparison">回到三篇对照 →</a></nav>
+      </section>
+
+    </main>
+
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论独立保存。连接本地写回服务后可写入页面；离线时仅保存在此浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+
+    </aside>
+</div></body></html>
