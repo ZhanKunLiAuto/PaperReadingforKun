@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="citation_title" content="Infinite Worlds with Versatile Interactions">
+  <meta name="citation_author" content="Zelin Gao">
+  <meta name="citation_author" content="Qiuyu Wang">
+  <meta name="citation_author" content="Jiapeng Zhu">
+  <meta name="citation_author" content="Hao Ouyang">
+  <meta name="citation_publication_date" content="2026-07-08">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2607.07534v1">
+  <meta name="citation_public_url" content="https://technology.robbyant.com/lingbot-world-v2">
+  <meta name="description" content="解读 LingBot-World 2.0：MoBA 与自滚动蒸馏如何维持长时生成，VLM 如何组织交互，以及小时级演示、720p/60 fps 和长期世界记忆之间的证据边界。">
+  <meta name="keywords" content="LingBot-World 2.0, LingBot-World-Infinity, Infinite Worlds with Versatile Interactions, world model, MoBA, causal video generation, DMD, agentic harness, long-term memory">
+  <meta name="paper:read_at" content="2026-09-11">
+  <title>LingBot-World 2.0：长时可交互生成，离持久世界还有多远？</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/lingbot-world-infinity/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar">
+  <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+  <span class="paper-topbar__meta">ARXIV:2607.07534V1 · 2026-07-08 · 阅读于 2026-09-11</span>
+</header>
+<div class="paper-doc">
+  <nav class="paper-sidebar" aria-label="内容阅读地图">
+    <p class="paper-sidebar__label">READING MAP</p>
+    <ol class="paper-map">
+      <li><a href="#thesis">长时稳定意味着什么</a></li>
+      <li><a href="#mechanism">两步训练与交互闭环</a></li>
+      <li><a href="#evidence">演示究竟证明了什么</a></li>
+      <li><a href="#limits">记忆、物理与复现边界</a></li>
+      <li><a href="#sources">回到原文与官方代码</a></li>
+    </ol>
+  </nav>
+  <main class="paper-main">
+    <section id="thesis" aria-labelledby="paper-title">
+      <p class="paper-kicker">INTERACTIVE WORLD MODEL · CAUSAL VIDEO · LONG-HORIZON GENERATION</p>
+      <h1 id="paper-title" class="paper-title">LingBot-World 2.0</h1>
+      <p class="paper-subtitle">Infinite Worlds with Versatile Interactions<br>从训练、交互到“无限世界”的证据边界</p>
+      <div class="paper-byline"><span>Zelin Gao 等 20 位作者 · Robbyant</span><span>又名 LingBot-World-Infinity</span><span>附件：arXiv v1 · 19 页</span></div>
+      <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让视频世界模型在持续接受用户动作时，长时间维持可用画质，并把操作扩展到开门、战斗和改变天气。</p></div>
+      <div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p><strong>贡献在于把抗退化训练、少步生成和语义交互组成可持续运行的系统。</strong>一小时演示支持长时视觉稳定，但尚未证明持久世界记忆；“无限”应理解为可继续生成的交互时域。[§3–6]</p></div>
+    </section>
+
+    <section id="concepts">
+      <h2>它生成的是动作条件视频</h2>
+      <p>输入首帧、背景描述及不断到来的相机位姿和文字指令，模型按时间块生成后续画面。这里的“因果”首先是<strong>只看历史和当前输入，不能偷看未来指令</strong>；它不自动意味着模型学会了真实物理因果规律。[§3.1–3.2]</p>
+    </section>
+
+    <section id="problem-chain">
+      <h2>为什么越生成越容易坏？</h2>
+      <p>训练时依赖干净的真实历史，运行时却接着自己生成的画面往下画：一次纹理或几何错误就可能变成下一步的条件。与此同时，多步去噪太慢，整段视频的单一描述也难以教会模型响应中途变化的指令。[§1–3]</p>
+    </section>
+
+    <section id="mechanism">
+      <h2>先保住生成能力，再适应自己的误差</h2>
+      <h3>1. MoBA：让因果训练保留双向生成能力</h3>
+      <p>作者观察到，纯 teacher forcing（用真实历史预测下一块）在长上下文下容易过度依赖历史，画质反而下降。MoBA 在训练注意力中并列加入双向分支：因果分支练逐块预测，双向分支保留整段去噪能力，作为正则约束。[§3.2、图 4]</p>
+      <p><strong>两条分支的文本权限也分开。</strong>因果分支只读背景及截至当前块的描述；独立双向分支可读全局描述，不能把未来语义传给因果分支。数据端配套逐块标注，并去掉预告未来的措辞，使训练条件与在线交互对齐。[§2.3、§3.2]</p>
+
+      <h3>2. 少步蒸馏：既要快，也要练习接着自己的结果生成</h3>
+      <p>一致性蒸馏把教师多步去噪压缩成少步预测；随后用分布匹配蒸馏（DMD），将学生生成的分布推向教师估计的目标分布。关键是<strong>在学生自己的长轨迹上优化</strong>，让训练看到部署时会遇到的历史误差。这个机制针对误差累积，但本文没有用消融量化各部分贡献。[§3.3]</p>
+
+      <figure class="svg-figure svg-scroll" tabindex="0" aria-label="训练与在线交互机制图，可横向滚动">
+        <svg viewBox="0 0 760 412" role="img" aria-labelledby="pipeline-title pipeline-desc">
+          <title id="pipeline-title">从抗退化训练到可交互视频的两条链</title>
+          <desc id="pipeline-desc">训练由逐块标注、MoBA 教师和少步学生组成；DMD 在学生自己生成的历史上优化。运行时，用户输入与 VLM 事件提议控制视频生成，画面再反馈给 VLM，并经超分和插帧输出。</desc>
+          <defs><marker id="pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#86321f"/></marker></defs>
+          <rect x="1" y="1" width="758" height="410" fill="#fbfaf6"/>
+          <g font-family="system-ui, sans-serif" fill="#17201d">
+            <text x="26" y="32" font-size="16" font-weight="700">训练：干净历史 → 自己生成的历史</text>
+            <rect x="26" y="52" width="202" height="78" rx="5" fill="#eee8dc"/>
+            <rect x="276" y="52" width="208" height="78" rx="5" fill="#dcebe5"/>
+            <rect x="532" y="52" width="202" height="78" rx="5" fill="#dfeaf1"/>
+            <text x="127" y="82" text-anchor="middle" font-size="18" font-weight="700">逐块数据</text>
+            <text x="127" y="110" text-anchor="middle" font-size="14">视觉 + 对齐的控制与描述</text>
+            <text x="380" y="82" text-anchor="middle" font-size="18" font-weight="700">MoBA 教师</text>
+            <text x="380" y="110" text-anchor="middle" font-size="14">因果分支 + 双向分支</text>
+            <text x="633" y="82" text-anchor="middle" font-size="18" font-weight="700">少步学生</text>
+            <text x="633" y="110" text-anchor="middle" font-size="14">一致性蒸馏 → DMD</text>
+            <path d="M232 91 H268 M488 91 H524" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+            <path d="M683 133 V159 H580 V135" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+            <text x="382" y="163" font-size="14" fill="#86321f">DMD 用自滚动历史</text>
+            <path d="M26 188 H734" stroke="#c8c4b8"/>
+            <text x="26" y="222" font-size="16" font-weight="700">运行：语义提议 → 视频变化 → 再观察</text>
+            <rect x="26" y="242" width="202" height="78" rx="5" fill="#eee8dc"/>
+            <rect x="276" y="242" width="208" height="78" rx="5" fill="#dcebe5"/>
+            <rect x="532" y="242" width="202" height="78" rx="5" fill="#dfeaf1"/>
+            <text x="127" y="272" text-anchor="middle" font-size="18" font-weight="700">VLM 导演 + 用户</text>
+            <text x="127" y="300" text-anchor="middle" font-size="14">事件文字 / 相机控制</text>
+            <text x="380" y="272" text-anchor="middle" font-size="18" font-weight="700">视频生成器</text>
+            <text x="380" y="300" text-anchor="middle" font-size="14">依赖有限历史，逐块推进</text>
+            <text x="633" y="272" text-anchor="middle" font-size="18" font-weight="700">解码与画质增强</text>
+            <text x="633" y="300" text-anchor="middle" font-size="14">超分 + 插帧 → 串流</text>
+            <path d="M232 281 H268 M488 281 H524" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+            <path d="M380 324 V352 H127 V325" fill="none" stroke="#86321f" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+            <text x="390" y="357" font-size="14" fill="#86321f">当前画面反馈给导演</text>
+            <text x="26" y="390" font-size="14" fill="#52605b">图中反馈维持交互；未包含能永久保存地图与对象状态的外部记忆。</text>
+          </g>
+        </svg>
+        <figcaption class="read-guide">上半部分解释模型怎样学习应对自己的误差，下半部分解释新事件怎样进入生成过程。两者都不直接解决旧场景的长期召回。[§3–4]</figcaption>
+      </figure>
+
+      <h3>交互的扩展，来自模型外的语义组织</h3>
+      <p>VLM 看当前画面，提出“开门”等事件，用户触发后将条件交给视频生成器；精细对象交互增加 SAM 跟踪。比如开门的文字后果可由 VLM 提议，门的运动仍由视频模型画出。<strong>语义上合理的提议，不保证碰撞与几何正确。</strong>[§4.2]</p>
+      <p class="evidence-note">术语有一处不一致：摘要和引言将 pilot 称为规划角色行为的 agent，§4.2 与图 5 则把视频生成器叫作 Pilot。本页按后者的具体流程解读，不据此认定已有两个独立规划代理的完整实现。</p>
+    </section>
+
+    <section id="evidence">
+      <h2>最强证据是系统演示，定量归因仍不足</h2>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="关键证据及其适用范围">
+        <table class="evidence-table">
+          <caption>附件 v1 的三项关键证据</caption>
+          <thead><tr><th scope="col">问题</th><th scope="col">原文给出的证据</th><th scope="col">能支持到哪里</th></tr></thead>
+          <tbody>
+            <tr><td>能持续多久？</td><td>图 10：单条 60 分钟会话<br>抽取覆盖 20 个场景的画面</td><td>展示小时级持续生成；<br>不是 20 次独立长程测试，<br>也未给多种子退化统计。</td></tr>
+            <tr><td>是否优于已有方法？</td><td>图 11：2 个场景、8 种系统<br>图 12：3 个场景、3 种教师<br>均展示 5–60 秒选帧</td><td>支持所示样例的视觉优势；<br>没有汇总数值评测、盲评<br>或 MoBA / DMD 独立消融。</td></tr>
+            <tr><td>720p、60 fps 是什么？</td><td>系统输出规格；§4 描述<br>多 GPU、异步解码、超分、插帧</td><td>不能当作主干原生帧率，<br>也不能推出同规格单卡运行；<br>论文未给完整硬件及延迟表。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>因此，论文展示了方案可行，但“稳定性是结构性保证”“任意时长无漂移”“全面超过闭源模型”都强于现有证据。画面选帧也不能代替连续视频中的动作响应与物理一致性测量。[§5、图 10–12]</p>
+    </section>
+
+    <section id="limits">
+      <h2>三个边界决定它能用来做什么</h2>
+      <p><strong>第一，持续生成还缺持久状态。</strong>作者承认，离开上下文的区域在重访时往往被重新生成，角色身份和风格也会漂移。动态 KV 缓存选择相关历史，缓解成本与干扰；它并未解决永久地图或对象记忆。[§4.3.2、§6]</p>
+      <p><strong>第二，可见动作还缺可靠物理。</strong>模型从像素学习，没有显式几何和碰撞约束，会出现穿透。我的判断：它适合探索生成式交互，但要用于机器人训练或规划，还需验证动作后果、状态一致性及下游收益；本文未报告这些实验。[§6]</p>
+      <p><strong>第三，模型开放与完整系统复现有距离。</strong>截至 2026-09-11，官方 README 已列出 14B 的三种变体和 1.3B fast，但明确不计划公开部署代码。480P 示例使用 14B/8 卡、1.3B/4 卡；这是示例配置，不是最低需求。摘要的“1.3B 单卡可部署”也未附同等输出规格的实测。[<a href="https://github.com/robbyant/lingbot-world-v2#inference">官方推理说明</a>、<a href="https://github.com/robbyant/lingbot-world-v2#deployment">部署说明</a>]</p>
+    </section>
+
+    <section id="sources">
+      <h2>回到原文时，优先看这三处</h2>
+      <ol>
+        <li><strong>图 4 + §3.3：</strong>训练如何同时保住画质、因果条件与自滚动稳定性？</li>
+        <li><strong>图 10–12 + §6：</strong>长时演示与作者承认的长期记忆缺口如何并存？</li>
+        <li><strong>§4 + 官方 README：</strong>论文系统和当前可运行代码之间还缺什么？</li>
+      </ol>
+      <ol class="source-list">
+        <li><a href="https://arxiv.org/pdf/2607.07534v1">原论文 v1 PDF</a> — 以用户附件为主，核对正文方法、系统与结果；目视检查图 4、10、11、12。</li>
+        <li><a href="https://arxiv.org/abs/2607.07534">arXiv 版本记录</a> — 2026-07-08 提交，与附件 v1 一致。</li>
+        <li><a href="https://github.com/robbyant/lingbot-world-v2">官方代码与模型说明</a> — 2026-09-11 核对发布、推理及部署说明；未运行模型复现。</li>
+        <li><a href="https://technology.robbyant.com/lingbot-world-v2">官方项目页</a> — 演示入口与系统主张，不能替代独立评测。</li>
+      </ol>
+      <p class="evidence-note">方法与演示范围来自论文，发布状态来自官方仓库；证据强度、因果概念区分和适用性判断属于本页分析。约 5–8 分钟核心版。</p>
+    </section>
+  </main>
+  <aside class="paper-rail" aria-label="阅读协作">
+    <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+      <p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2>
+      <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+      <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+    </section>
+    <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+      <p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+      <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p><button class="paper-comment-new" type="button">写一条章节评论</button>
+    </section>
+  </aside>
+</div>
+</body>
+</html>

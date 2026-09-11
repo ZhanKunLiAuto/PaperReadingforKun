@@ -1,6 +1,32 @@
 {
-  "updatedAt": "2026-09-10",
+  "updatedAt": "2026-09-11",
   "papers": [
+    {
+      "slug": "lingbot-world-infinity",
+      "title": "Infinite Worlds with Versatile Interactions",
+      "authors": [
+        "Zelin Gao",
+        "Qiuyu Wang",
+        "Jiapeng Zhu",
+        "Hao Ouyang"
+      ],
+      "publicationDate": "2026-07-08",
+      "readAt": "2026-09-11",
+      "description": "解读 LingBot-World 2.0：MoBA 与自滚动蒸馏如何维持长时生成，VLM 如何组织交互，以及小时级演示、720p/60 fps 和长期世界记忆之间的证据边界。",
+      "tags": [
+        "LingBot-World 2.0",
+        "LingBot-World-Infinity",
+        "Infinite Worlds with Versatile Interactions",
+        "world model",
+        "MoBA",
+        "causal video generation",
+        "DMD",
+        "agentic harness",
+        "long-term memory"
+      ],
+      "sourceUrl": "https://technology.robbyant.com/lingbot-world-v2",
+      "href": "papers/lingbot-world-infinity/"
+    },
     {
       "slug": "tango",
       "title": "TANGO: Humanoid Navigation in Cluttered Environments with a Whole-Body Vision-Language-Action Model",
