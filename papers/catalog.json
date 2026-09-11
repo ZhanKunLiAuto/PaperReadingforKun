@@ -2,6 +2,34 @@
   "updatedAt": "2026-09-11",
   "papers": [
     {
+      "slug": "loopmoe",
+      "title": "LoopMoE: Unifying Iterative Computation with Mixture-of-Experts for Language Modeling",
+      "authors": [
+        "Wenkai Chen",
+        "Tianshu Li",
+        "Wenyong Huang",
+        "Yichun Yin",
+        "Lifeng Shang",
+        "Chengwei Qin"
+      ],
+      "publicationDate": "2026-06-03",
+      "readAt": "2026-09-11",
+      "description": "LoopMoE 精炼解读：共享 MoE 层如何通过逐轮逐 token 调制与容量平衡改善语言建模；拆清相同有效深度、物理激活参数、3B/9B 对照与训练快但解码慢的取舍。",
+      "tags": [
+        "LoopMoE",
+        "Mixture-of-Experts",
+        "MoE",
+        "IterAdaLN",
+        "循环语言模型",
+        "权重共享",
+        "稀疏计算",
+        "MLA",
+        "latent reasoning"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2606.04438v2",
+      "href": "papers/loopmoe/"
+    },
+    {
       "slug": "lingbot-world-infinity",
       "title": "Infinite Worlds with Versatile Interactions",
       "authors": [

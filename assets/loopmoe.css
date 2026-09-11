@@ -1,0 +1,17 @@
+.loopmoe-diagram-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.loopmoe-diagram-scroll svg {
+  min-width: 640px;
+}
+
+.loopmoe-diagram-scroll:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+@media print {
+  .loopmoe-diagram-scroll svg { min-width: 0; }
+}

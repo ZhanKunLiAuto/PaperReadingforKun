@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="LoopMoE: Unifying Iterative Computation with Mixture-of-Experts for Language Modeling">
+  <meta name="citation_author" content="Wenkai Chen">
+  <meta name="citation_author" content="Tianshu Li">
+  <meta name="citation_author" content="Wenyong Huang">
+  <meta name="citation_author" content="Yichun Yin">
+  <meta name="citation_author" content="Lifeng Shang">
+  <meta name="citation_author" content="Chengwei Qin">
+  <meta name="citation_publication_date" content="2026-06-03">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2606.04438v2">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2606.04438v2">
+  <meta name="description" content="LoopMoE 精炼解读：共享 MoE 层如何通过逐轮逐 token 调制与容量平衡改善语言建模；拆清相同有效深度、物理激活参数、3B/9B 对照与训练快但解码慢的取舍。">
+  <meta name="keywords" content="LoopMoE, Mixture-of-Experts, MoE, IterAdaLN, 循环语言模型, 权重共享, 稀疏计算, MLA, latent reasoning">
+  <meta name="paper:read_at" content="2026-09-11">
+  <title>LoopMoE：让稀疏专家在循环中反复加工</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/loopmoe.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/loopmoe/" data-bridge-url="http://127.0.0.1:8766">
+  <header class="paper-topbar">
+    <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+    <span class="paper-topbar__meta">ARXIV:2606.04438V2 · 更新于 2026-08-27 · 阅读于 2026-09-11</span>
+  </header>
+  <div class="paper-doc">
+    <nav class="paper-sidebar" aria-label="内容阅读地图">
+      <p class="paper-sidebar__label">READING MAP</p>
+      <ol class="paper-map">
+        <li><a href="#thesis">先抓住核心判断</a></li>
+        <li><a href="#mechanism">复用怎样变成有效加工</a></li>
+        <li><a href="#evidence">收益与成本一起看</a></li>
+        <li><a href="#limits">结论能走多远</a></li>
+        <li><a href="#sources">回到原文</a></li>
+      </ol>
+    </nav>
+    <main class="paper-main">
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">SPARSE EXPERTS · SHARED WEIGHTS · ITERATIVE COMPUTATION</p>
+        <h1 id="paper-title" class="paper-title">LoopMoE</h1>
+        <p class="paper-subtitle">让稀疏专家在循环中反复加工</p>
+        <div class="paper-byline">
+          <span>Wenkai Chen 等 6 位作者</span>
+          <span>香港科技大学（广州） · 华为</span>
+          <span>v2 · 16 页 · 约 7 分钟</span>
+        </div>
+        <div class="research-purpose">
+          <span class="research-purpose__label">研究目的</span>
+          <p>在参数与计算预算对齐时，检验“反复使用同一组稀疏专家”能否比普通逐层堆叠更有效地学习语言。</p>
+        </div>
+        <div class="core-conclusion">
+          <span class="core-conclusion__label">核心判断</span>
+          <p><strong>论文支持：把循环复用、逐 token 调制和容量平衡结合起来，可以在所测预算下改善 MoE 的平均表现。</strong>价值在于较受控的架构比较；实际取舍是训练吞吐上升、单请求解码变慢。<a href="https://arxiv.org/pdf/2606.04438v2#page=6">[表 1–2、5–6]</a></p>
+        </div>
+      </section>
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">先分清“存了多少”与“算了多少”</h2>
+        <p><strong>MoE（混合专家）</strong>存放很多前馈网络，由路由器给每个 token 选其中一小部分；<strong>循环架构</strong>则把中间结果送回同一组层继续加工。重复使用同一权重仍要重新计算，所以论文 3B 模型的“物理激活参数约 0.6B”与“按计算量对齐的激活参数 0.8B”是两种口径，不能据此前者宣称节省了 25% FLOPs。<a href="https://arxiv.org/pdf/2606.04438v2#page=6">[表 1 脚注]</a></p>
+      </section>
+
+      <section id="problem-chain" aria-labelledby="problem-title">
+        <h2 id="problem-title">直接把 MoE 套进循环，还缺什么</h2>
+        <p>作者指出两个瓶颈：共享层缺少明确的轮次条件，难以按阶段调整加工方式；注意力反复用同一套参数，路由却可能选到新专家，使一轮完整前向中<strong>去重后的注意力／前馈激活参数比</strong>失衡。这里衡量的是参数容量分配，并非注意力／前馈的 FLOPs 比。<a href="https://arxiv.org/pdf/2606.04438v2#page=4">[§3.3–3.4]</a></p>
+      </section>
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">两处改动，让复用有分工</h2>
+        <p>3B 模型由前缀 2 层、中间共享 2 层、后缀 2 层组成；中间块执行 4 次。<strong>它和基线的有效深度都为 12 层</strong>，但独立层数从 12 变为 6。循环传递不断更新的隐藏状态，前缀输出只用作初始输入，不在每轮重新相加；最后才经后缀预测下一个 token。<a href="https://arxiv.org/pdf/2606.04438v2#page=3">[§3.2、表 7]</a></p>
+        <figure class="svg-figure" aria-labelledby="loop-diagram-title">
+          <div class="loopmoe-diagram-scroll" role="region" aria-label="LoopMoE 机制图，窄屏可横向滑动" tabindex="0">
+          <svg viewBox="0 0 720 440" role="img" aria-labelledby="loop-diagram-title loop-diagram-desc">
+            <title id="loop-diagram-title">同为 12 层计算，LoopMoE 改变中间层的复用方式</title>
+            <desc id="loop-diagram-desc">普通 MoE 使用十二个独立层。LoopMoE 使用两层前缀、执行四次的两层共享块、两层后缀，共六个独立层。当前隐藏状态与轮次共同决定 IterAdaLN 调制；共享块内部重新选择专家，并将新隐藏状态传给下一轮。</desc>
+            <defs><marker id="loop-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs>
+            <rect width="720" height="440" fill="#fbfaf6"/>
+            <text x="28" y="34" fill="#52605b" font-size="17">普通 MoE：12 个独立层，各执行一次</text>
+            <rect x="28" y="52" width="664" height="45" rx="5" fill="#eeeae1" stroke="#aaa69c"/>
+            <text x="360" y="81" text-anchor="middle" fill="#17201d" font-size="18">第 1 层 → 第 2 层 → …… → 第 12 层</text>
+            <text x="28" y="136" fill="#86321f" font-size="17" font-weight="700">LoopMoE：6 个独立层，展开后仍是 12 层</text>
+            <rect x="28" y="175" width="130" height="83" rx="5" fill="#dcebe5" stroke="#24624e"/>
+            <text x="93" y="209" text-anchor="middle" fill="#17201d" font-size="19">前缀 2 层</text>
+            <text x="93" y="237" text-anchor="middle" fill="#52605b" font-size="15">建立初始状态</text>
+            <path d="M160 216H213" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+            <rect x="220" y="163" width="280" height="112" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+            <text x="360" y="195" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">共享的 2 层 × 4 轮</text>
+            <text x="360" y="225" text-anchor="middle" fill="#355e7c" font-size="16">调制 → 注意力 → 调制 → MoE</text>
+            <text x="360" y="252" text-anchor="middle" fill="#52605b" font-size="15">每轮可重新选择专家</text>
+            <path d="M470 277V304H250V281" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+            <text x="360" y="331" text-anchor="middle" fill="#355e7c" font-size="16">更新后的隐藏状态送入下一轮</text>
+            <path d="M502 216H556" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#loop-arrow)"/>
+            <rect x="563" y="175" width="130" height="83" rx="5" fill="#dcebe5" stroke="#24624e"/>
+            <text x="628" y="209" text-anchor="middle" fill="#17201d" font-size="19">后缀 2 层</text>
+            <text x="628" y="237" text-anchor="middle" fill="#52605b" font-size="15">接输出预测头</text>
+            <rect x="28" y="357" width="665" height="56" rx="5" fill="#f4ded5" stroke="#bd4c32"/>
+            <text x="360" y="382" text-anchor="middle" fill="#86321f" font-size="17" font-weight="700">IterAdaLN：当前 token 状态 + 当前轮次</text>
+            <text x="360" y="403" text-anchor="middle" fill="#52605b" font-size="15">共同决定缩放、偏移，以及注意力残差的更新强度</text>
+          </svg>
+          </div>
+          <figcaption class="read-guide">每轮传递的是隐藏状态，权重保持共享。这是单次前向内部的迭代，不需要逐轮生成文字思维链；示意依据图 1 与表 7。窄屏可横向滑动查看。</figcaption>
+        </figure>
+        <h3>① IterAdaLN：同一套权重，按轮次和 token 调整</h3>
+        <p>它将“第几轮”的编码与“当前 token 状态”的投影相加，生成归一化后的缩放与偏移。注意力和 MoE 分支分别生成条件，后者读取注意力更新后的状态；另有一个只作用于注意力残差的门控，决定更新强度。直觉上，同一层既知道现在处于哪个阶段，也知道这个 token 已被加工成什么样。<a href="https://arxiv.org/pdf/2606.04438v2#page=4">[§3.3]</a></p>
+        <h3>② 容量平衡：补注意力容量，再补专家总量</h3>
+        <p>先扩大 MLA（潜在注意力）的低秩投影，缩小单个专家，把容量分配调回基线附近；再增加专家池，恢复总参数预算。3B 配置的路由专家由基线的 64 个变为 136 个，仍每次选 6 个，另有 2 个共享专家。因此收益应归于这套结构组合，而不能全部算成“循环本身”的功劳。<a href="https://arxiv.org/pdf/2606.04438v2#page=13">[§3.4、表 7；末句为解读判断]</a></p>
+      </section>
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">平均分更好，但速度要分开看</h2>
+        <p>最有价值的对照是作者训练的 Vanilla MoE：同规模下使用相同语料与训练预算，作者报告总参数、每 token FLOPs 和活跃容量比例对齐。3B 使用 200B tokens，9B 使用 300B；九项基准按表 8 的零样本／少样本协议评估，平均分混合 Accuracy 与 Exact Match。<a href="https://arxiv.org/pdf/2606.04438v2#page=5">[§4、附录 A.1–A.2]</a></p>
+        <div class="table-wrap" role="region" aria-label="LoopMoE 的主要收益与成本" tabindex="0">
+          <table class="evidence-table evidence-table--compact">
+            <thead><tr><th>指标与条件</th><th>Vanilla MoE</th><th>LoopMoE</th><th>如何理解</th></tr></thead>
+            <tbody>
+              <tr><td>3B · 九项平均 ↑</td><td>34.84</td><td>35.89</td><td>+1.05 点；8 项提升</td></tr>
+              <tr><td>9B · 九项平均 ↑</td><td>41.22</td><td>44.03</td><td>+2.81 点；9 项提升</td></tr>
+              <tr><td>训练吞吐 ↑<br>TFLOP/s/GPU</td><td>66.0</td><td>81.8</td><td>约 +24%</td></tr>
+              <tr><td>解码时延 ↓<br>batch=1，2048 上下文</td><td>64.919 ms/token</td><td>71.042 ms/token</td><td>约慢 9.4%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="evidence-note">来源：v2 表 1–2、5–6；百分比由表值计算。256／1024 上下文也显示完整模型解码更慢。效率实验报告同硬件、并行与软件配置，但未给出足以复现实测的完整硬件配置。</p>
+        <p><strong>消融提示，容量平衡的作用比只加轮次信号更明确。</strong>表 3 的五项均分中，Loop Base 为 42.26；加 iteration-only AdaLN 降到 41.47，加 IterAdaLN 为 42.38，单加容量平衡为 42.86，完整模型为 43.02。逐 token 条件优于纯轮次条件，但相对裸循环的单独增益很小；这些差值不支持把全部收益归给 IterAdaLN。</p>
+        <p>反例同样重要：3B 的 MMLU 从 27.86 降至 26.81，BBH 五物体逻辑推理从 22.50 降至 16.25。迭代并未全面改善推理；作者提出“反复加工与单步信息访问广度存在取舍”，但任务分数与路由相似度主要提供间接支持。<a href="https://arxiv.org/pdf/2606.04438v2#page=8">[表 4、§6.1–6.2]</a></p>
+      </section>
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">可以相信方向，暂不能外推的三件事</h2>
+        <p><strong>规模趋势还不等于缩放规律。</strong>每个配置只有一次训练、采用相同随机种子；仅比较 3B 和 9B，且训练量随规模增加。各规模内部对照有价值，但没有多种子与更多规模，无法把增益变大完全归于模型尺寸。英语基准也不代表中文或其他领域。<a href="https://arxiv.org/pdf/2606.04438v2#page=12">[附录 A.1、Limitations]</a></p>
+        <p><strong>固定四轮的结果不证明可随意追加或提前结束。</strong>附录发现后几轮注意力更新更强，作者明确指出截去后几轮不能直接带来可靠加速。本论文尚未验证按题目难度动态分配轮数，也未证明推理时增加轮数就会更好。<a href="https://arxiv.org/pdf/2606.04438v2#page=16">[附录 A.8]</a></p>
+        <p><strong>受控架构收益不等于成熟模型竞争力。</strong>3B 的 GSM8K 仅 5.26、MATH 仅 1.88；对训练数万亿 tokens 的模型不能据此宣称优势。“严格匹配”也是作者口径，公开表格主要给近似参数量，缺少逐项精确 FLOPs 与最终容量比例，仍需要更完整的复现证据。<a href="https://arxiv.org/pdf/2606.04438v2#page=6">[表 1、7；复现边界为本页判断]</a></p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">来源与阅读范围</h2>
+        <ol class="source-list">
+          <li><a href="https://arxiv.org/abs/2606.04438v2">arXiv 摘要与版本记录</a>：初稿 2026-06-03，v2 更新于 2026-08-27。</li>
+          <li><a href="https://arxiv.org/pdf/2606.04438v2">LoopMoE v2 完整 PDF</a>：本页依据用户提供的 16 页同版本附件，核对方法、主表、效率实验与相关附录。未把 v1 的 9B 训练预算混入 v2。</li>
+        </ol>
+        <p class="evidence-note">数字与架构配置属于作者报告，因果归因、外推与复现边界是本页分析。本次未使用或验证官方实现；不将 PDF 中的说明当作已运行代码的证据。</p>
+      </section>
+    </main>
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论独立保存。连接本地写回服务后可写入页面；离线时仅保存在此浏览器。</p>
+        <button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+    </aside>
+  </div>
+</body>
+</html>
