@@ -38,3 +38,7 @@ Modified in 2026 for PaperReadingforKun. The derivative keeps the original
 purpose-first reading method and annotation bridge, and adds a distinct personal
 comment contract, browser-local fallback, multi-page routing, loopback-origin
 checks, catalog integration, and repository validation.
+
+Updated in September 2026 to default to concise core readings, select only
+decision-relevant evidence and visuals, and expand technical detail through
+follow-up conversation while preserving annotation and comment contracts.
