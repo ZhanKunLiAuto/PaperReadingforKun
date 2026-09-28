@@ -10,6 +10,7 @@
 
 ## 最近更新
 
+- **EmbodiedSWE**：让编程 Agent 在仿真中调试控制程序，再通过五层变化生成 VLA 示范；重点区分 23/28 任务求解、六任务同分布数据扩展、保留配置泛化与真实机器人 2/10 的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/embodiedswe/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/embodiedswe/)
 - **Motus2**：用共享策略、动作条件模拟器与价值评估器构成学习闭环，重点区分 84% 主任务成绩、两任务 MBRL 65%→72.5% 及长期自主进化的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/motus2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/motus2/)
 
 - **Qwen-Drive-1.0**：用共享 VLM、BEV 感知头和流匹配规划器连接三维感知、驾驶问答与连续轨迹，重点核对能力保留、四阶段训练及 RL 的闭环安全与进度取舍。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/qwen-drive-1-0/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/qwen-drive-1-0/)
@@ -36,6 +37,18 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics](papers/embodiedswe/) | 解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。 |
+| [Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach](papers/recurrent-depth/) | 潜空间推理系列 01：Huginn 如何用随机深度训练、输入持续注入与截断反传扩展测试时计算；区分多循环收益、CoT 评测与等 FLOPs 证据。 |
+| [Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation](papers/mixture-of-recursions/) | 潜空间推理系列 02：MoR 将参数共享、token 级深度路由与 KV 缓存联合设计；核对等数据与等计算实验、因果路由问题和 2.06 倍吞吐的计时边界。 |
+| [LoopMoE: Unifying Iterative Computation with Mixture-of-Experts for Language Modeling](papers/loopmoe/) | LoopMoE 精炼解读：共享 MoE 层如何通过逐轮逐 token 调制与容量平衡改善语言建模；拆清相同有效深度、物理激活参数、3B/9B 对照与训练快但解码慢的取舍。 |
+| [LoopFormer: Elastic-Depth Looped Transformers for Latent Reasoning via Shortcut Modulation](papers/loopformer/) | 潜空间推理系列 03：LoopFormer 用时间／步长调制与短长轨迹一致性实现预算条件化推理；保留低预算反例、额外训练成本和等训练 FLOPs 对照。 |
+| [Infinite Worlds with Versatile Interactions](papers/lingbot-world-infinity/) | 解读 LingBot-World 2.0：MoBA 与自滚动蒸馏如何维持长时生成，VLM 如何组织交互，以及小时级演示、720p/60 fps 和长期世界记忆之间的证据边界。 |
+| [TANGO: Humanoid Navigation in Cluttered Environments with a Whole-Body Vision-Language-Action Model](papers/tango/) | 解读 TANGO：通过 Plan–Edit–Track 合成全身避障数据，让 VLA 预测 29 自由度动作；核对碰撞率、动作连续性消融，以及小样本、行为明确指令下的真实机器人迁移边界。 |
+| [ZETA: A Controlled Study of Zero-Shot Cross-Embodiment VLA Transfer for Tabletop Manipulation](papers/zeta/) | 通过固定任务与场景研究本体变化，区分严格零样本与预训练暴露；核对局部状态动作表示、多样性、辅助监督及进度指标的含义。 |
+| [WISE: World-model-guided Imagination Scheduling for Efficient Post-training of Vision-Language-Action Models](papers/wise/) | 通过关键状态调度、有限时域反事实推演和可靠性筛选改善 VLA 后训练；区分阶段性计算节省、前置训练成本与真实泛化证据。 |
+| [Towards Zero-Shot Transfer Across Embodiments For Driving VLAs](papers/driving-vla-zero-shot-transfer/) | 从低容量 BEV 辅助头和多相机布局训练解释驾驶 VLA 的零样本迁移，并保留多数据集条件下收益减弱甚至反向的关键证据。 |
+| [SV-WAM: An Efficient Surround-View World-Action Model for End-to-End Autonomous Driving](papers/sv-wam/) | 用非对称注意力把未来视频监督留在训练期，保留六路环视的动作推理；核对性能消融、延迟口径与零样本评测边界。 |
+| [从 VLA 到 World-Action Model：六篇论文的横向对比导读](papers/vla-to-world-action-models/) | 横向比较 FlashVLA、CLAP、Riemann-1.0、BrainWAM、Zero-WAM 与 Code as Worlds 的任务、动作表示、世界模型、训练数据、实时性和证据边界，梳理从 VLA 到 world-action model 的研究脉络。 |
 | [Motus2: A Self-Evolving General World Model for Dexterous Manipulation](papers/motus2/) | 以 action-first 因果遮罩、轨迹监督分流和 DiffusionNFT 连接动作、想象与评价，并核对人类数据、记忆、触觉及有限自进化证据。 |
 | [Qwen-Drive-1.0: An Initial Step towards a Vision-Language Foundation Model for Autonomous Driving](papers/qwen-drive-1-0/) | 以显式三维监督与通用数据保留共享 VLM 能力，再用流匹配和轨迹奖励训练规划器；区分基准收益与闭环行为取舍。 |
 | [BrainWAM: Action-Space Coordination of Semantic Priors and Predictive Dynamics for Autonomous Driving](papers/brainwam/) | 让 VLA 与 WAM 先形成专业化动作表征，再用 CAB 和 CIF 在动作空间协调，避免 raw-token 联合注意力中的语义捷径压制预测动力学。 |
@@ -62,7 +75,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 26 篇论文解读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 37 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
