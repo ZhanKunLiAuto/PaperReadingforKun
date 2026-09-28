@@ -1,6 +1,46 @@
 {
-  "updatedAt": "2026-09-11",
+  "updatedAt": "2026-09-28",
   "papers": [
+    {
+      "slug": "embodiedswe",
+      "title": "EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics",
+      "authors": [
+        "Zeyu Shen",
+        "Haoxiang You",
+        "Yilang Liu",
+        "Zhicheng Zheng",
+        "Lihan Zha",
+        "Kashu Yamazaki",
+        "Mingtong Zhang",
+        "Suning Huang",
+        "Jiankai Sun",
+        "Qianzhong Chen",
+        "Lucy He",
+        "Kaiyuan Liu",
+        "Haoran Chang",
+        "Katerina Fragkiadaki",
+        "Dhruv Shah",
+        "Mac Schwager",
+        "Peter Henderson",
+        "Ian Abraham",
+        "Canwen Xu"
+      ],
+      "publicationDate": "2026-09-25",
+      "readAt": "2026-09-28",
+      "description": "解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。",
+      "tags": [
+        "EmbodiedSWE",
+        "coding agents",
+        "robotics",
+        "VLA",
+        "仿真数据",
+        "长程操作",
+        "sim-to-real",
+        "SmolVLA"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.27308v2",
+      "href": "papers/embodiedswe/"
+    },
     {
       "slug": "recurrent-depth",
       "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",

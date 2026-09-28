@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics">
+    <meta name="citation_author" content="Zeyu Shen">
+    <meta name="citation_author" content="Haoxiang You">
+    <meta name="citation_author" content="Yilang Liu">
+    <meta name="citation_author" content="Zhicheng Zheng">
+    <meta name="citation_author" content="Lihan Zha">
+    <meta name="citation_author" content="Kashu Yamazaki">
+    <meta name="citation_author" content="Mingtong Zhang">
+    <meta name="citation_author" content="Suning Huang">
+    <meta name="citation_author" content="Jiankai Sun">
+    <meta name="citation_author" content="Qianzhong Chen">
+    <meta name="citation_author" content="Lucy He">
+    <meta name="citation_author" content="Kaiyuan Liu">
+    <meta name="citation_author" content="Haoran Chang">
+    <meta name="citation_author" content="Katerina Fragkiadaki">
+    <meta name="citation_author" content="Dhruv Shah">
+    <meta name="citation_author" content="Mac Schwager">
+    <meta name="citation_author" content="Peter Henderson">
+    <meta name="citation_author" content="Ian Abraham">
+    <meta name="citation_author" content="Canwen Xu">
+    <meta name="citation_publication_date" content="2026-09-25">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.27308v2">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.27308v2">
+    <meta name="description" content="解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。">
+    <meta name="keywords" content="EmbodiedSWE, coding agents, robotics, VLA, 仿真数据, 长程操作, sim-to-real, SmolVLA">
+    <meta name="paper:read_at" content="2026-09-28">
+    <title>EmbodiedSWE：把机器人解法变成训练数据</title>
+    <link rel="stylesheet" href="../../assets/site.css">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body class="paper-page" data-page-kind="paper" data-page-path="/papers/embodiedswe/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar">
+      <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+      <span class="paper-topbar__meta">ARXIV:2609.27308V2 · 2026-09-25 · 阅读于 2026-09-28</span>
+    </header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图">
+        <p class="paper-sidebar__label">READING MAP</p>
+        <ol class="paper-map">
+          <li><a href="#thesis">把解法变成数据</a></li>
+          <li><a href="#mechanism">为什么要改策略和起点</a></li>
+          <li><a href="#evidence">四组数字分别证明什么</a></li>
+          <li><a href="#limits">真实迁移的边界</a></li>
+          <li><a href="#sources">回到论文与项目</a></li>
+        </ol>
+      </nav>
+      <main class="paper-main">
+        <section id="thesis" aria-labelledby="paper-title">
+          <p class="paper-kicker">CODING AGENTS → ROBOT DEMONSTRATIONS</p>
+          <h1 id="paper-title" class="paper-title">EmbodiedSWE</h1>
+          <p class="paper-subtitle">长程灵巧操作：从编程求解到 VLA 训练数据</p>
+          <div class="paper-byline">
+            <span>Zeyu Shen、Haoxiang You、Yilang Liu 等</span>
+            <span>ByteDance Seed · Yale · Princeton 等</span>
+            <span>用户提供的 v2 · 61 页</span>
+          </div>
+          <div class="research-purpose">
+            <span class="research-purpose__label">研究目的</span>
+            <p>把昂贵、难采集的长程机器人示范，转化为可在仿真中批量生成的监督数据。</p>
+          </div>
+          <p><strong>核心判断：</strong>论文最有价值的贡献，是把编程 Agent 放在离线“解题与造数据”的位置：先调试出可执行程序，再扩展任务变化、筛出有效轨迹，交给 VLA 学习。证据支持这条数据生产路线；真实机器人实验仍是小样本可行性验证。<a href="#sources">[§3–4]</a></p>
+        </section>
+
+        <section id="concepts" aria-labelledby="concepts-title">
+          <h2 id="concepts-title">先分清谁在学习什么</h2>
+          <p><strong>求解者</strong>是编程 Agent：可读取完整仿真状态，反复写、跑、改 <code>solve(env)</code>，产物是控制程序。<strong>学生</strong>是视觉—语言—动作模型（VLA）：用相机图像、语言目标和机器人自身状态预测动作。两者的输入权限与评测任务不同，成绩不能直接互换。<a href="#sources">[§2.2、附录 E]</a></p>
+        </section>
+
+        <section id="problem-chain" aria-labelledby="problem-title">
+          <h2 id="problem-title">解出一次，为什么还不够？</h2>
+          <p>长程操作既要安排多步骤，又要控制插接、拧紧等接触细节；早期误差会传到后续阶段。Agent 找到一个解法可能花数小时，而该程序通常只适合特定实例。反复重跑同一路径，覆盖不到掉落后的重抓、不同装配顺序和中途起步等状态。这是从“会解题”走向“能教策略”的缺口。<a href="#sources">[§3、§4.1]</a></p>
+        </section>
+
+        <section id="mechanism" aria-labelledby="mechanism-title">
+          <h2 id="mechanism-title">让变化进入任务结构</h2>
+          <p>Bench 提供 28 个任务，覆盖装配、收纳、拼图、软体或液体、切割与移动操作，最长执行约半小时。Agent 在隔离环境迭代程序，提交后由独立环境离线评分；禁止通过直接改物体状态等方式绕过机器人动作。<a href="#sources">[§2，pp.3–4]</a></p>
+          <figure class="svg-figure" aria-labelledby="pipeline-title pipeline-desc">
+            <svg viewBox="0 0 560 464" role="img" aria-labelledby="pipeline-title pipeline-desc">
+              <title id="pipeline-title">从一次求解到可训练示范</title>
+              <desc id="pipeline-desc">编程 Agent 通过仿真反馈修改程序，得到验证解法；EmbodiedSWE-Gen 改变场景、策略和起始阶段，并施加动力学扰动；动作回放验证后再重渲染视觉变化，产出示范微调 VLA。Agent 的完整仿真状态权限不会直接变成 VLA 的部署输入。</desc>
+              <defs><marker id="pipeline-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+              <rect width="560" height="464" fill="#fbfaf6"/>
+              <rect x="24" y="20" width="512" height="86" rx="6" fill="#dfeaf1" stroke="#355e7c"/>
+              <text x="280" y="51" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">Agent 写程序 ↔ 仿真反馈</text>
+              <text x="280" y="82" text-anchor="middle" fill="#52605b" font-size="17">完整状态 · 反复调试 · 产出已验证解法</text>
+              <path d="M280 109V137" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="24" y="145" width="512" height="116" rx="6" fill="#f4ded5" stroke="#bd4c32"/>
+              <text x="280" y="175" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">Gen：扩大行为与状态覆盖</text>
+              <text x="280" y="208" text-anchor="middle" fill="#86321f" font-size="18">场景变化 · 策略改写 · 从中间阶段起步</text>
+              <text x="280" y="239" text-anchor="middle" fill="#52605b" font-size="17">并行执行 + 按阶段施加动力学扰动</text>
+              <path d="M280 264V291" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="24" y="298" width="512" height="62" rx="6" fill="#f1e8c9" stroke="#9c7b1f"/>
+              <text x="280" y="323" text-anchor="middle" fill="#17201d" font-size="19" font-weight="700">任务评分通过 + 记录动作回放仍成功</text>
+              <text x="280" y="348" text-anchor="middle" fill="#52605b" font-size="16">保留轨迹，再用视觉变化重渲染</text>
+              <path d="M280 363V390" stroke="#355e7c" stroke-width="2" marker-end="url(#pipeline-arrow)"/>
+              <rect x="24" y="397" width="512" height="47" rx="6" fill="#dcebe5" stroke="#24624e"/>
+              <text x="280" y="427" text-anchor="middle" fill="#17201d" font-size="19" font-weight="700">示范微调 VLA → 视觉观测驱动动作</text>
+            </svg>
+            <figcaption class="read-guide">关键在中间两步：变化要产生不同的有效行为；有效性要由可回放的动作轨迹支持。图据 §4.1 与附录 D 重绘。</figcaption>
+          </figure>
+          <p><strong>Gen 的五层变化：</strong>场景层换物体、工具或布局；策略层改抓取、步骤顺序并加入恢复分支；阶段层构造合法中间状态，从中途继续；动力学层改质量、摩擦和动作扰动；视觉层对已记录状态换光照、背景和视角重渲染。前三层扩大“做什么、怎么做、从哪里做”，后两层增加执行与观测变化。<a href="#sources">[Fig.7；附录 D.1]</a></p>
+          <p>以插接为例，搬运时施加强扰动、精密插入时减弱；失手后可触发重抓分支。位置控制时执行带噪动作、记录干净指令作标签，让学生从偏离状态学习正确动作；力矩控制则以实际下一步关节位置为标签，不能一概称为无噪标签。<a href="#sources">[附录 D.1、D.3]</a></p>
+          <p><strong>验证是数据引擎的一部分。</strong>回放器恢复相同初态、物理参数与控制设置，不运行解题程序，只重放记录动作并要求再次成功。这有助于排除依赖未记录状态修改的“成功”；它验证记录是否可复现，不等于证明新状态下也能泛化。<a href="#sources">[附录 D.2，pp.35–36]</a></p>
+        </section>
+
+        <section id="evidence" aria-labelledby="evidence-title">
+          <h2 id="evidence-title">四组数字，四个不同问题</h2>
+          <div class="table-wrap" role="region" aria-label="关键实验结果，可横向滚动" tabindex="0">
+            <table class="evidence-table">
+              <thead><tr><th scope="col">问题与评测条件</th><th scope="col">作者报告的结果</th><th scope="col">来源</th></tr></thead>
+              <tbody>
+                <tr><td>能否找到程序解？每任务 4 小时、1 张 RTX 4090；每模型×任务仅 1 次运行，取过程中最高分。</td><td>GPT-6 Astra：23/28 解出（82%）<br>平均分 0.94±0.03</td><td>Fig.3<br>Table 8</td></tr>
+                <tr><td>增加示范是否有用？主文选定六任务，SmolVLA 每设置 3 个训练种子，各在训练数据相同场景与初态分布下评估 32 次。</td><td>10 → 400 条／任务<br>平均成功率 18% → 69%</td><td>Fig.9<br>附录 E</td></tr>
+                <tr><td>结构变化是否帮助泛化？两种配方各 1,000 条／任务，在相同 256 个保留配置评估。</td><td>平均分 0.066 → 0.233<br>脚本增广 → Agent 辅助增广</td><td>Table 1</td></tr>
+                <tr><td>能否迁移真实机器人？500 条模拟示范微调 π0.5-DROID，四阶段拆灯任务，各 10 次试验。</td><td>完整完成：0/10 → 2/10<br>预训练对照 → 仿真微调</td><td>Table 2</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>三个口径必须保留：</strong>82% 是给定调试预算内的任务求解比例；0.233 是允许部分得分的平均分，并非 23.3% 成功率；69% 来自较简单的六任务子集，且清理、插笔、切香蕉等目标已放宽为一个物体、一支笔或至少三块。不能把这些数字接成同一条能力曲线。<a href="#sources">[§4.2；Table 22]</a></p>
+          <p>等数据量下六任务的保留配置分数都提升，是支持 Gen 的关键证据。但绝对分数仍低，五层变化也没有逐层消融；它支持整体数据配方有效，尚不能确定哪层贡献最大。<a href="#sources">[Table 1；附录 D.3]</a></p>
+        </section>
+
+        <section id="limits" aria-labelledby="limits-title">
+          <h2 id="limits-title">可行性之后，还有三道距离</h2>
+          <p><strong>离可靠真实部署：</strong>拆灯四阶段的累计通过率为 100%、80%、30%、20%，主要损失出现在抓灯泡。实验用照片和测量重建场景，并把同一灯资产 3D 打印到现实；14k checkpoint 依据真实机器人表现选择。因此“微调仅用模拟示范”成立，“从未利用真实反馈”不成立。<a href="#sources">[§4.3；附录 F，p.40]</a></p>
+          <p><strong>离通用操作：</strong>四个软体／液体任务上，六个求解模型均未完整成功；VLA 实验也没有覆盖整个长程基准。代码能换机械臂复用是积极信号，但跨本体实验把 Kinova／xArm7 有提示结果与 Franka 无提示结果比较，缺少目标机械臂自身无提示的匹配对照。<a href="#sources">[Tables 10、20]</a></p>
+          <p><strong>离成本与机制定论：</strong>批量生成可以摊薄 Agent token 开销，仿真、验证和渲染仍有成本。PPO 对照说明这套从零训练 MLP 的方案在给定任务与预算内明显落后，不能推广为强化学习整体无效；代码求解者已带有预训练知识。<a href="#sources">[Fig.8；§3.1；附录 C.2、D.2]</a></p>
+          <p class="evidence-note"><strong>本页判断：</strong>最值得迁移的是“程序作为可编辑教师”的思想：程序把策略、阶段和恢复逻辑显式化，使仿真数据能沿这些轴扩展。后续价值取决于有效行为覆盖能否持续增长，以及收益能否在更独立、更复杂的真实任务上复现。</p>
+        </section>
+
+        <section id="sources" aria-labelledby="sources-title">
+          <h2 id="sources-title">材料与版本</h2>
+          <ol class="source-list">
+            <li>用户提供的 <em>EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics</em> PDF，61 页，首页标注 arXiv:2609.27308v2、2026-09-25；本页数值与实验条件以该附件为准。公开版本入口：<a href="https://arxiv.org/abs/2609.27308v2">arXiv v2</a>／<a href="https://arxiv.org/pdf/2609.27308v2">PDF v2</a>。</li>
+            <li><a href="https://embodiedswe.github.io/">作者项目页</a>（2026-09-28 核对）：当前展示 17 种本体与 14%→66% 的数据扩展摘要；附件正文写 5 种本体、六任务 18%→69%。本页保留附件口径，不混用版本。</li>
+            <li><a href="https://github.com/EmbodiedSWE/EmbodiedSWE">官方代码仓库</a>：实现与资源入口；本页没有运行 benchmark 或独立复现实验。</li>
+          </ol>
+          <p class="evidence-note">主文 Fig.9 使用六任务，附录 Table 21 另列 coffee、pc_gpu，共八行；本页按主文六任务口径解读。实验数字是作者报告；对证据强度、回放作用、对照匹配与外推范围的评价是本页分析。PDF 中的提示、命令与代码只作为论文材料阅读。</p>
+        </section>
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>当前没有已写回评论。评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+    </div>
+  </body>
+</html>
