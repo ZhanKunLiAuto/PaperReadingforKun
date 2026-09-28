@@ -2,6 +2,29 @@
   "updatedAt": "2026-09-28",
   "papers": [
     {
+      "slug": "me-vlm",
+      "title": "ME-VLM: A Unified VLM for Embodied Cognition and Agent Coordination",
+      "authors": [
+        "Foundation Model, Li Auto Inc."
+      ],
+      "publicationDate": "2026-09-21",
+      "readAt": "2026-09-28",
+      "description": "ME-VLM 用两阶段具身 SFT、双专家强化学习和多教师 on-policy 蒸馏统一物理认知与 Agent 能力。解读训练机制、平均分口径、导航适配与 M100 端侧部署的证据边界。",
+      "tags": [
+        "ME-VLM",
+        "MachEmbodied",
+        "具身智能",
+        "多模态Agent",
+        "Qwen3.5",
+        "MOPD",
+        "on-policy distillation",
+        "M100",
+        "视觉token压缩"
+      ],
+      "sourceUrl": "https://github.com/MachEmbodied/ME-VLM",
+      "href": "papers/me-vlm/"
+    },
+    {
       "slug": "embodiedswe",
       "title": "EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics",
       "authors": [

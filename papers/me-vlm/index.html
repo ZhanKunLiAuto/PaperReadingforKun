@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="ME-VLM: A Unified VLM for Embodied Cognition and Agent Coordination">
+  <meta name="citation_author" content="Foundation Model, Li Auto Inc.">
+  <meta name="citation_publication_date" content="2026-09-21">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.24526v2">
+  <meta name="citation_public_url" content="https://github.com/MachEmbodied/ME-VLM">
+  <meta name="description" content="ME-VLM 用两阶段具身 SFT、双专家强化学习和多教师 on-policy 蒸馏统一物理认知与 Agent 能力。解读训练机制、平均分口径、导航适配与 M100 端侧部署的证据边界。">
+  <meta name="keywords" content="ME-VLM, MachEmbodied, 具身智能, 多模态Agent, Qwen3.5, MOPD, on-policy distillation, M100, 视觉token压缩">
+  <meta name="paper:read_at" content="2026-09-28">
+  <title>ME-VLM：先分开练专家，再统一物理认知与 Agent 能力</title>
+  <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+  <script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/me-vlm/" data-bridge-url="http://127.0.0.1:8766">
+  <header class="paper-topbar">
+    <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+    <span class="paper-topbar__meta">LI AUTO · ARXIV:2609.24526V2 · 阅读于 2026-09-28</span>
+  </header>
+  <div class="paper-doc">
+    <nav class="paper-sidebar" aria-label="内容阅读地图">
+      <p class="paper-sidebar__label">READING MAP</p>
+      <ol class="paper-map">
+        <li><a href="#thesis">核心判断：统一了什么</a></li>
+        <li><a href="#mechanism">双专家如何合成一个模型</a></li>
+        <li><a href="#evidence">成绩与平均分口径</a></li>
+        <li><a href="#limits">部署收益与证据边界</a></li>
+        <li><a href="#sources">回到论文与官方仓库</a></li>
+      </ol>
+    </nav>
+    <main class="paper-main">
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">EMBODIED COGNITION · AGENT CAPABILITY · EDGE DEPLOYMENT</p>
+        <h1 id="paper-title" class="paper-title">ME-VLM</h1>
+        <p class="paper-subtitle">先分开练专家，再统一物理认知与 Agent 能力</p>
+        <div class="paper-byline"><span>理想汽车 Foundation Model 团队</span><span>技术报告 · v2：2026-09-22 · 30 页</span><span>4B / 35B-A3B</span></div>
+        <div class="research-purpose">
+          <span class="research-purpose__label">研究目的</span>
+          <p>让模型既看懂物理状态，又能安排任务、调用技能，并根据执行结果修正下一步。</p>
+        </div>
+        <div class="core-conclusion">
+          <span class="core-conclusion__label">核心判断</span>
+          <p><strong>最值得借鉴的是“先专门训练，再统一能力”的后训练路线。</strong>ME-VLM 在 Qwen3.5 底座上分别强化具身认知和 Agent 能力，再蒸馏成单一部署模型。综合评测有竞争力，但现有证据还不足以证明双能力训练产生了协同增益，或已经带来稳定的真实机器人长任务能力。</p>
+        </div>
+      </section>
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">“统一”落实到决策层</h2>
+        <p>具身认知负责空间关系、动作可行性和状态变化；Agent 能力负责目标分解、工具调用、验证与恢复。部署时一个模型输出决策，底层运动、抓取等由技能接口执行。两位教师只参与训练；标题中的协调不应读成两个专家在推理时互相对话。<small>［§3.1、§4.3］</small></p>
+      </section>
+
+      <section id="problem-chain" aria-labelledby="problem-title">
+        <h2 id="problem-title">会规划，仍可能做不成</h2>
+        <p>“把碗放进篮子”在语言上很简单，却需要确认碗的位置、抓取条件和放置结果。作者针对的缺口是：通用 Agent 的工具使用经验不能替代物理状态判断，而具身问答能力也不自动带来多步执行与失败恢复。直接混合两类强化学习目标可能相互干扰，这是分支训练的动机，尚不是本文消融证实的结论。</p>
+      </section>
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <p class="paper-kicker">METHOD</p>
+        <h2 id="mechanism-title">先学物理，再分开强化，最后合流</h2>
+        <p><strong>第一步：两阶段监督微调（SFT）。</strong>先把图像与空间关系、可供性、动作前提对齐，再训练“选动作—预期变化—如何验证”的推理。数据还包含仿真中主动注入扰动后得到的成功与失败恢复轨迹，让错误状态也进入学习范围。<small>［§3.2.1、§4.1］</small></p>
+        <p><strong>第二步：从不同起点训练两位专家。</strong>Agent 专家直接从原始底座出发，具身专家从 SFT 后模型出发。两支都训练可验证的单步能力，以及能实际执行工具或技能的多轮环境闭环；失败反馈被保留。RL 使用组内相对奖励和 GSPO 的序列级更新，不同任务采用相应的正确性、几何或环境状态奖励。<small>［§4.2］</small></p>
+
+        <figure class="svg-figure" aria-labelledby="training-title training-desc">
+          <div class="svg-scroll" role="region" aria-label="训练路线图，可横向滚动" tabindex="0">
+            <svg viewBox="0 0 700 450" role="img" aria-labelledby="training-title training-desc">
+              <title id="training-title">ME-VLM 的非对称双专家训练与单模型部署</title>
+              <desc id="training-desc">Qwen3.5 底座直接训练 Agent 专家，同时经过两阶段具身 SFT 后训练具身专家。学生从具身专家初始化，在自己访问的状态上接受两位教师指导，最终只部署学生。下半部为部署时模型、技能执行与观测反馈的闭环。</desc>
+              <defs><marker id="me-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#52605b"/></marker></defs>
+              <rect width="700" height="450" fill="#fbfaf6"/>
+              <g font-family="sans-serif" fill="#17201d">
+                <text x="28" y="32" font-size="13" font-weight="700" fill="#86321f">训练：专家分工，学生在自己的轨迹上学习</text>
+                <rect x="28" y="123" width="118" height="70" rx="6" fill="#eeeae0" stroke="#d8d4ca"/>
+                <text x="87" y="151" text-anchor="middle" font-size="16" font-weight="700">Qwen3.5</text>
+                <text x="87" y="175" text-anchor="middle" font-size="13">原始底座</text>
+                <path d="M146 148H173V85H205" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <path d="M146 169H205" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <rect x="209" y="55" width="198" height="60" rx="6" fill="#dfeaf1" stroke="#355e7c"/>
+                <text x="308" y="80" text-anchor="middle" font-size="16" font-weight="700">Agent 专家 RL</text>
+                <text x="308" y="102" text-anchor="middle" font-size="13">工具、规划、环境反馈</text>
+                <rect x="209" y="146" width="198" height="45" rx="6" fill="#eeeae0" stroke="#d8d4ca"/>
+                <text x="308" y="174" text-anchor="middle" font-size="14">具身基础 SFT → 推理 SFT</text>
+                <path d="M308 191V205" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <rect x="209" y="210" width="198" height="62" rx="6" fill="#e2ebe3" stroke="#24624e"/>
+                <text x="308" y="236" text-anchor="middle" font-size="16" font-weight="700">具身专家 RL</text>
+                <text x="308" y="258" text-anchor="middle" font-size="13">物理状态、可行性、恢复</text>
+                <path d="M407 85H442V138H478" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <path d="M407 241H442V181H478" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <rect x="482" y="108" width="190" height="105" rx="6" fill="#f4ded5" stroke="#bd4c32"/>
+                <text x="577" y="135" text-anchor="middle" font-size="16" font-weight="700">多教师 on-policy 蒸馏</text>
+                <text x="577" y="160" text-anchor="middle" font-size="13">学生从具身专家初始化</text>
+                <text x="577" y="186" text-anchor="middle" font-size="13">自己尝试 → 教师指导 → 更新</text>
+                <text x="478" y="250" font-size="13" fill="#52605b">教师权重只用于训练</text>
+                <line x1="28" y1="298" x2="672" y2="298" stroke="#d8d4ca"/>
+                <text x="28" y="327" font-size="13" font-weight="700" fill="#86321f">部署：单一策略调用技能，并观察执行结果</text>
+                <rect x="28" y="349" width="152" height="47" rx="5" fill="#17201d"/>
+                <text x="104" y="379" text-anchor="middle" font-size="15" fill="#fffef9">统一 ME-VLM</text>
+                <rect x="262" y="349" width="152" height="47" rx="5" fill="#eeeae0"/>
+                <text x="338" y="379" text-anchor="middle" font-size="15">工具 / 机器人技能</text>
+                <rect x="496" y="349" width="176" height="47" rx="5" fill="#eeeae0"/>
+                <text x="584" y="379" text-anchor="middle" font-size="15">环境观测 / 执行反馈</text>
+                <path d="M180 373H252M414 373H486" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+                <path d="M584 396V425H104V405" fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#me-arrow)"/>
+              </g>
+            </svg>
+          </div>
+          <figcaption class="read-guide">关键是训练起点不对称，以及教师指导发生在学生自己走到的状态上。图中两位专家与 35B-A3B 底座内部的 MoE 专家是不同概念。</figcaption>
+        </figure>
+
+        <p><strong>第三步：让教师纠正学生实际会犯的错。</strong>多教师 on-policy 蒸馏（MOPD）先让学生自行生成轨迹，再请适用的教师对同一上下文给出分布，按任务加权缩小学生与教师的差异。这样训练覆盖的是学生实际访问的状态，而不只是教师的示范路径。学生从具身专家初始化，以保留物理表征，再吸收 Agent 能力。论文明确沿用已有 MOPD 范式，创新重点应放在整体训练配方与应用整合。<small>［§4.3，式 4］</small></p>
+      </section>
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <p class="paper-kicker">EVIDENCE</p>
+        <h2 id="evidence-title">综合能力强，交互能力仍有短板</h2>
+        <p>以下均为作者报告的结果；除端侧数据外，主看 35B-A3B。比较对象是论文选取的具身模型，不能外推为所有通用 Agent 的排名。</p>
+        <div class="table-wrap" role="region" aria-label="ME-VLM 关键评测结果" tabindex="0">
+          <table class="evidence-table">
+            <thead><tr><th>评测与方向</th><th>ME-VLM</th><th>对照</th><th>读法</th></tr></thead>
+            <tbody>
+              <tr><td>具身 Average ↑<br>表 1，p16</td><td>70.9</td><td>PhysBrain 1.5-8B：62.7</td><td>按作者聚合分高 8.2 分</td></tr>
+              <tr><td>TAU2-Bench ↑<br>表 2，p17</td><td>63.9</td><td>RynnBrain 1.1-9B：75.6</td><td>交互式工具任务落后 11.7 分</td></tr>
+              <tr><td>ClawEval avg³ / pass³ ↑<br>表 2，p17</td><td>58.0 / 31.8</td><td>RynnBrain：62.4 / 37.2</td><td>两种长程评测设置均未领先</td></tr>
+              <tr><td>R2R / RxR 成功率 SR（%）↑<br>Val-Unseen，表 4，p18</td><td>45.8 / 42.6</td><td>各列最强对照：5.3 / 8.3</td><td>有领域数据适配的导航结果</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>平均分要拆开读。</strong>表 2 的 Agent Average 为 72.5；本页按表中数值复算，全部 16 项简单均值约 67.94，而排除 BFCL、TAU2 与两项 ClawEval 后，余下 12 项均值约 72.51。这个吻合提示报告分数主要反映多模态理解、推理和指令遵循；原文未明确聚合公式，不能把 72.5 当成覆盖全部工具与长程任务的平均成绩。</p>
+        <p>4B 的具身报告均分为 63.4，但 MindCube、RoboBench-Error 标为异常结果；其 ClawEval 也没有有效分数。导航虽使用未见环境验证集，训练已包含 R2R / RxR 轨迹，因此它支持任务适配后的环境泛化，不能证明零样本学会导航。<small>［§3.2.1、表 1–4］</small></p>
+      </section>
+
+      <section id="limits" aria-labelledby="limits-title">
+        <p class="paper-kicker">DEPLOYMENT &amp; BOUNDARIES</p>
+        <h2 id="limits-title">端侧可行性明确，协同增益尚待拆解</h2>
+        <p><strong>端侧优化有可量化收益。</strong>视觉 token 经贪心 Max–Min 选择，尽量保留互不重复的特征，再配合 W4A8 量化与 M100 软硬件优化。4B 输入 token 从 4,096 减到 3,328，prefill 从 400 ms 降至 188 ms（约 2.13 倍）；这是联合优化结果，不能全归因于 token 裁剪，也不是完整机器人动作的响应时间。<small>［§5，p12–15］</small></p>
+        <p>作者另报压缩后的 4B / 35B 分数保留率为 96.7% / 98.2%，但没有展开逐任务明细；特征多样性也不保证保留每个任务关键细节。缺少完整解码、功耗与闭环耗时数据，仍难直接判断实际控制频率。</p>
+        <p><strong>训练因果证据不足。</strong>报告没有原始 Qwen3.5 对照、混合 RL 与分支 RL 对照，也没有蒸馏前后消融；训练样本规模、配比和关键超参数披露有限。因此“能力组合有效”有最终模型结果支持，“MOPD 解决干扰、产生协同增益”仍主要是方法动机。</p>
+        <p><strong>真实执行证据以案例为主。</strong>机器人展示包括依次收纳物体，以及等绿色碗出现后再放勺子；没有重复试验成功率。驾驶主要测场景理解与问答，也不能等同于闭环驾驶可靠性。截至 2026-09-28，官方仓库的推理代码、训练代码、权重与端侧工具包仍列在待办中，独立复现尚受限制。<small>［§6.3、§7.3；官方 README］</small></p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <p class="paper-kicker">SOURCES</p>
+        <h2 id="sources-title">材料与判断边界</h2>
+        <ol class="source-list">
+          <li><a href="https://arxiv.org/pdf/2609.24526v2">ME-VLM 原文 PDF（v2）</a>：以用户提供的同版 30 页附件为主要阅读材料；方法见 p7–15，评测见 p16–19，真实机器人案例见 p23。</li>
+          <li><a href="https://arxiv.org/abs/2609.24526v2">arXiv 摘要与版本记录</a>：首次提交于 2026-09-21，v2 更新于 09-22。</li>
+          <li><a href="https://github.com/MachEmbodied/ME-VLM">官方 GitHub 仓库</a>：核对公开内容及发布待办，核对日期 2026-09-28。</li>
+        </ol>
+        <p class="evidence-note">实验数字是作者报告，未作独立复现；表 2 均值复算和对消融、迁移、闭环证据的评价是本页分析。附件里的工具调用案例只作为论文材料阅读。</p>
+      </section>
+    </main>
+
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+        <button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+    </aside>
+  </div>
+</body>
+</html>
