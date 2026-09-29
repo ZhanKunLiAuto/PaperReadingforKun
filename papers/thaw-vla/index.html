@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies">
+  <meta name="citation_author" content="Trung Dao">
+  <meta name="citation_author" content="Sankalp Yamsani">
+  <meta name="citation_author" content="Jaden Park">
+  <meta name="citation_author" content="Joohyung Kim">
+  <meta name="citation_author" content="Yong Jae Lee">
+  <meta name="citation_publication_date" content="2026-09-22">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.24682v2">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2609.24682v2">
+  <meta name="description" content="THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；核对同架构对照、真实机器人小样本、教师消融及因果知识迁移的证据边界。">
+  <meta name="keywords" content="THAW-VLA, 世界模型, VLA, 表征蒸馏, Cosmos3, QwenGR00T, LIBERO, RoboCasa">
+  <meta name="paper:read_at" content="2026-09-29">
+  <title>THAW-VLA：把世界模型的表征留在小策略里</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/thaw-vla/" data-bridge-url="http://127.0.0.1:8766">
+  <header class="paper-topbar">
+    <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+    <span class="paper-topbar__meta">ARXIV:2609.24682V2 · 2026-09-22 · 阅读于 2026-09-29</span>
+  </header>
+  <div class="paper-doc">
+    <nav class="paper-sidebar" aria-label="内容阅读地图">
+      <p class="paper-sidebar__label">READING MAP</p>
+      <ol class="paper-map">
+        <li><a href="#thesis">先留下什么判断</a></li>
+        <li><a href="#mechanism">特征怎样进入小策略</a></li>
+        <li><a href="#evidence">收益有多大</a></li>
+        <li><a href="#limits">尚未证明什么</a></li>
+        <li><a href="#sources">材料与版本</a></li>
+      </ol>
+    </nav>
+    <main class="paper-main">
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">WORLD-MODEL FEATURES → COMPACT ROBOT POLICY</p>
+        <h1 id="paper-title" class="paper-title">THAW-VLA</h1>
+        <p class="paper-subtitle">把世界模型的表征留在小策略里</p>
+        <div class="paper-byline"><span>Trung Dao、Sankalp Yamsani、Jaden Park 等</span><span>UW–Madison · UIUC</span><span>用户提供的 v2 · 8 页</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让紧凑 VLA 利用世界模型的视觉表征，同时保持直接预测动作的部署成本。</p></div>
+        <p><strong>核心判断：</strong>这是一种改动很小的特征蒸馏：离线缓存教师特征，在动作训练中加入对齐损失，部署时仍是原来的学生网络。同架构对照支持它能提高任务成功率；“学生继承了世界模型特有的因果知识”仍是作者解释，尚未被实验单独证实。<a href="#sources">[§III；Tables I–VI]</a></p>
+      </section>
+
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">蒸馏的是表征，不是动作答案</h2>
+        <p><strong>表征</strong>是网络对当前观测形成的内部特征。THAW-VLA 要学生的视觉特征经投影后接近教师；动作标签始终来自示范真值，没有复制教师动作，也没有要求学生生成未来视频。标题中的“像世界模型思考”，在实现上对应这项训练约束。<a href="#sources">[§III-A/B，p.3]</a></p>
+      </section>
+
+      <section id="problem-chain" aria-labelledby="problem-title">
+        <h2 id="problem-title">把未来生成和控制成本拆开</h2>
+        <p>仅靠动作监督，策略可能学到训练分布里的捷径；把未来预测放进控制环，又会增加计算。作者的假设是：预测训练塑造的有用信息已存在于内部特征，学生可以学这些特征，无须在线运行教师。论文检验的是这条低成本迁移路径，并未证明所有 VLA 都缺少物理理解。<a href="#sources">[§I、III]</a></p>
+      </section>
+
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">离线做一次教师，训练多一项约束</h2>
+        <p>主教师实际使用 Cosmos3-Nano 16B 检查点中的 <strong>8B 理解塔</strong>：取第 24 层图像 token，按相机视角平均池化，得到每视角 4096 维向量。这里提取的是确定性特征，不运行视频扩散采样。它们按轨迹与帧索引缓存，学生训练期间不加载教师权重。<a href="#sources">[§III-B/C]</a></p>
+        <figure class="svg-figure" aria-labelledby="distill-title distill-desc">
+          <svg viewBox="0 0 560 554" role="img" aria-labelledby="distill-title distill-desc">
+            <title id="distill-title">教师预计算、学生对齐与部署的分工</title>
+            <desc id="distill-desc">同一批训练图像先经冻结教师，逐相机平均池化后缓存。学生从图像、指令和自身状态产生隐藏特征；图像部分池化并投影后与缓存做余弦对齐，全部隐藏状态同时供动作头学习示范动作。部署仅保留学生骨干和动作头。</desc>
+            <defs><marker id="distill-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+            <rect width="560" height="554" fill="#fbfaf6"/>
+            <rect x="24" y="18" width="512" height="106" rx="7" fill="#dfeaf1" stroke="#355e7c"/>
+            <text x="280" y="48" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">① 离线预计算 · 冻结教师</text>
+            <text x="280" y="80" text-anchor="middle" fill="#52605b" font-size="18">训练图像 → 理解塔 → 逐视角池化</text>
+            <text x="280" y="108" text-anchor="middle" fill="#355e7c" font-size="18">缓存每视角 4096 维特征</text>
+            <path d="M280 127V156" stroke="#355e7c" stroke-width="2" marker-end="url(#distill-arrow)"/>
+            <rect x="24" y="164" width="512" height="235" rx="7" fill="#f4ede0" stroke="#9c7b1f"/>
+            <text x="280" y="195" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">② 训练学生 · 两条监督一起学</text>
+            <text x="280" y="228" text-anchor="middle" fill="#52605b" font-size="18">图像 + 指令 + 自身状态 → VLA 骨干</text>
+            <path d="M280 240V260M280 260H153V276M280 260H411V276" fill="none" stroke="#9c7b1f" stroke-width="2"/>
+            <rect x="42" y="281" width="230" height="94" rx="5" fill="#e4edf2" stroke="#355e7c"/>
+            <text x="157" y="307" text-anchor="middle" fill="#17201d" font-size="18" font-weight="700">视觉特征池化 + MLP</text>
+            <text x="157" y="336" text-anchor="middle" fill="#355e7c" font-size="18">对齐教师缓存</text>
+            <text x="157" y="361" text-anchor="middle" fill="#52605b" font-size="16">余弦损失 × 0.5</text>
+            <rect x="288" y="281" width="230" height="94" rx="5" fill="#e1ece5" stroke="#24624e"/>
+            <text x="403" y="307" text-anchor="middle" fill="#17201d" font-size="18" font-weight="700">全部隐藏状态 → 动作头</text>
+            <text x="403" y="336" text-anchor="middle" fill="#24624e" font-size="18">学习示范真值动作</text>
+            <text x="403" y="361" text-anchor="middle" fill="#52605b" font-size="16">流匹配动作损失</text>
+            <path d="M280 402V433" stroke="#355e7c" stroke-width="2" marker-end="url(#distill-arrow)"/>
+            <rect x="24" y="441" width="512" height="92" rx="7" fill="#dcebe5" stroke="#24624e"/>
+            <text x="280" y="472" text-anchor="middle" fill="#17201d" font-size="20" font-weight="700">③ 部署 · 只保留学生骨干与动作头</text>
+            <text x="280" y="505" text-anchor="middle" fill="#24624e" font-size="18">一次骨干前向 + 4 步流匹配 · 移除投影头</text>
+          </svg>
+          <figcaption class="read-guide">教师提供额外视觉监督，示范决定动作；缓存把两套模型的运行分开。图据 §III、Fig.2 重绘。</figcaption>
+        </figure>
+        <p>0.8B 学生采用 Qwen3.5-VL 骨干与 GR00T 式流匹配动作头。它把每视角的图像 token 池化，经两层 MLP 映射到教师维度；总目标是<strong>动作损失 + 0.5 × 余弦对齐损失</strong>。对齐投影后向量的方向，而非强迫两种网络的原始特征完全相同；动作目标仍可塑造适合控制的信息。<a href="#sources">[Eqs.1–3]</a></p>
+        <p><strong>“零额外开销”限于部署。</strong>去掉投影头后，学生结构与不蒸馏版本相同。作者报告 RTX 5090 上单次推理 32 ms、显存 1.86 GB；这是模型推理口径，不是完整机器人闭环周期。教师预计算仍有成本：LIBERO 缓存约需四张 GPU 运行一小时，训练也多了投影和对齐计算。<a href="#sources">[Fig.1；§III]</a></p>
+      </section>
+
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">同一个小学生，增加监督后怎样？</h2>
+        <div class="table-wrap" role="region" aria-label="同架构对照与真实机器人结果，可横向滚动" tabindex="0">
+          <table class="evidence-table">
+            <thead><tr><th scope="col">任务与条件</th><th scope="col">0.8B 不蒸馏 → 蒸馏</th><th scope="col">怎样理解</th></tr></thead>
+            <tbody>
+              <tr><td>LIBERO 四套平均；每套 500 次试验</td><td>95.3±0.7% → 97.9±0.5%</td><td>+2.6 个百分点；Long 子集仅 +1.2 点<br>Table I</td></tr>
+              <tr><td>RoboCasa-GR1，24 环境；每环境 20 次</td><td>48.2±2.1% → 50.5±2.3%</td><td>+2.3 个百分点；仍低于 4B 对照的 54.8%<br>Table II</td></tr>
+              <tr><td>真实单臂水果；每策略 30 次</td><td>25/30 → 28/30</td><td>与 4B π-style 对照持平<br>Table III</td></tr>
+              <tr><td>真实单臂鸡蛋；每策略 30 次</td><td>14/30 → 18/30</td><td>4B 对照为 21/30<br>Table III</td></tr>
+              <tr><td>真实双臂水果；每策略 30 次</td><td>12/30 → 14/30</td><td>4B 对照为 16/30<br>Table III</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>仿真数字是<strong>两评估种子 × 两种 GPU</strong>的四次评估均值与标准差，不是四次独立训练，也不是置信区间。RoboCasa 的提升与评估波动同量级，论文未报告显著性检验。真实实验每个平台都经过遥操作示范微调：单臂约 30 分钟、双臂约一小时；所有物体均进入容器才成功，不能读成零样本跨本体迁移。<a href="#sources">[§IV-A/D]</a></p>
+        <p><strong>换教师仍有收益。</strong>在相同学生上，V-JEPA2-AC、Fast-WAM、Cosmos3 的 LIBERO 成绩依次为 96.5%、96.9%、97.9%，都高于 95.3% 基线。它支持配方不只适用于一个教师；但 V-JEPA2-AC 还在目标数据集后训练，教师规模与预算并未严格匹配。<a href="#sources">[Table VI；§IV-E]</a></p>
+      </section>
+
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">三条边界，决定怎样使用这篇论文</h2>
+        <p><strong>机制归因仍缺一组对照。</strong>没有普通 VLM 或视觉编码器的匹配蒸馏实验，就无法排除通用特征监督带来的收益；也没有直接测试因果推断或系统性的分布外扰动。“世界模型表征有用”比“已获得物理因果模型”更贴合证据。这是本页对实验设计的判断。</p>
+        <p><strong>更小，不等于全面胜过更大模型。</strong>§IV-B 称其他小于 4B 的策略均不超过 95.3%，但 p.5 Table I 列出 2B S²-VLA 为 98.2%、2B Light-WAM 为 97.2%，与该概括矛盾。跨论文排行榜还混有不同训练与评估条件，最可靠的比较仍是作者自己的同架构对照。</p>
+        <p><strong>接触控制与长期可靠性仍未解决。</strong>真实机器人每项仅多成功 2–4 次；掉落、夹到容器边缘和鸡蛋滑脱仍存在。学生与层位置消融仅做一次 A100 评估，层消融还只训练四分之一周期；它们是适用性线索，不能证明任意骨干、层位或任务都同样有效。<a href="#sources">[Fig.4；Tables IV–V]</a></p>
+        <p class="evidence-note"><strong>值得带走的做法：</strong>先用缓存特征对齐测试现有小策略是否受益，再决定是否承担在线世界预测的成本。要验证收益确实来自世界建模，下一步应补普通视觉教师对照和更独立的扰动、接触任务评测。</p>
+      </section>
+
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">材料与版本</h2>
+        <ol class="source-list">
+          <li>用户提供的 <em>Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies</em> PDF，共 8 页；首页标注 arXiv:2609.24682v2、2026-09-22。本页方法、数值与评测条件以附件为准。<a href="https://arxiv.org/abs/2609.24682v2">arXiv v2</a> · <a href="https://arxiv.org/pdf/2609.24682v2">PDF v2</a>。</li>
+          <li><a href="https://thaw-vla.trung-dt.com/">作者项目页</a>（2026-09-29 核对）：使用 THAW-VLA 名称，展示方法与机器人演示；真实机器人对照称作 π0.5，本页沿用附件 Table III 的 π-style policy。</li>
+          <li><a href="https://github.com/trungdt880/THAW-VLA">官方代码仓库</a>（2026-09-29 核对 README）：包含教师缓存、成对训练配置与评估入口；README 的 RoboCasa 评估写每环境 50 次，附件为 20 次，本页保留附件口径。未运行训练或独立复现实验。</li>
+        </ol>
+        <p class="evidence-note">实验数字为作者报告；对统计强度、教师归因与外推范围的评价为本页分析。附件中的指令和代码仅作为研究材料，不作为执行授权。</p>
+      </section>
+    </main>
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>个人评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+        <button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+    </aside>
+  </div>
+</body>
+</html>

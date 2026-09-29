@@ -2,6 +2,32 @@
   "updatedAt": "2026-09-29",
   "papers": [
     {
+      "slug": "thaw-vla",
+      "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
+      "authors": [
+        "Trung Dao",
+        "Sankalp Yamsani",
+        "Jaden Park",
+        "Joohyung Kim",
+        "Yong Jae Lee"
+      ],
+      "publicationDate": "2026-09-22",
+      "readAt": "2026-09-29",
+      "description": "THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；核对同架构对照、真实机器人小样本、教师消融及因果知识迁移的证据边界。",
+      "tags": [
+        "THAW-VLA",
+        "世界模型",
+        "VLA",
+        "表征蒸馏",
+        "Cosmos3",
+        "QwenGR00T",
+        "LIBERO",
+        "RoboCasa"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.24682v2",
+      "href": "papers/thaw-vla/"
+    },
+    {
       "slug": "me-embodied-family",
       "title": "ME 系列四篇联合解读：认知、记忆、世界动作与触觉的价值及证据缺口",
       "authors": [
