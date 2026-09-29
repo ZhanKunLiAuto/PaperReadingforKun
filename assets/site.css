@@ -663,6 +663,25 @@ a {
   min-width: 820px;
 }
 
+.evidence-table--prose {
+  min-width: 600px;
+  table-layout: fixed;
+}
+
+.evidence-table--prose th,
+.evidence-table--prose td:not(:first-child) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.evidence-table--prose th:first-child {
+  width: 22%;
+}
+
+.evidence-table--prose th:nth-child(2) {
+  width: 44%;
+}
+
 .evidence-note {
   margin: 22px 0 30px !important;
   padding: 15px 18px;

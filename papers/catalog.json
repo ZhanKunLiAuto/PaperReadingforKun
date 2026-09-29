@@ -1,6 +1,30 @@
 {
-  "updatedAt": "2026-09-28",
+  "updatedAt": "2026-09-29",
   "papers": [
+    {
+      "slug": "me-embodied-family",
+      "title": "ME 系列四篇联合解读：认知、记忆、世界动作与触觉的价值及证据缺口",
+      "authors": [
+        "Foundation Model, Li Auto Inc."
+      ],
+      "publicationDate": "2026-09",
+      "readAt": "2026-09-29",
+      "description": "联合审读 ME-VLM、ME-Brain-1.0、MachEmbodied-U0 与 ME-Dex1.0：解释四者关系，区分系统工程价值与机制证据，重点核查自进化、统一建模、实时触觉、泛化和复现的不足。",
+      "tags": [
+        "ME-VLM",
+        "ME-Brain-1.0",
+        "MachEmbodied-U0",
+        "ME-Dex1.0",
+        "具身智能",
+        "世界动作模型",
+        "触觉",
+        "记忆",
+        "联合解读",
+        "批判性分析"
+      ],
+      "sourceUrl": "https://github.com/MachEmbodied",
+      "href": "papers/me-embodied-family/"
+    },
     {
       "slug": "me-vlm",
       "title": "ME-VLM: A Unified VLM for Embodied Cognition and Agent Coordination",
