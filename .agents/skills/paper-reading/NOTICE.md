@@ -42,3 +42,7 @@ checks, catalog integration, and repository validation.
 Updated in September 2026 to default to concise core readings, select only
 decision-relevant evidence and visuals, and expand technical detail through
 follow-up conversation while preserving annotation and comment contracts.
+
+Updated in September 2026 with optional interactive explainers for difficult
+mechanisms, preserving static explanations, source boundaries, accessibility,
+and compatibility with the existing annotation and comment workflow.
