@@ -39,6 +39,32 @@
       "href": "papers/world-action-agent/"
     },
     {
+      "slug": "thaw-vla",
+      "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
+      "authors": [
+        "Trung Dao",
+        "Sankalp Yamsani",
+        "Jaden Park",
+        "Joohyung Kim",
+        "Yong Jae Lee"
+      ],
+      "publicationDate": "2026-09-22",
+      "readAt": "2026-10-09",
+      "description": "THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；通过阶段切换与余弦向量实验解释蒸馏机制，核对同架构证据与因果知识迁移边界。",
+      "tags": [
+        "THAW-VLA",
+        "世界模型",
+        "VLA",
+        "表征蒸馏",
+        "Cosmos3",
+        "QwenGR00T",
+        "LIBERO",
+        "RoboCasa"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.24682v2",
+      "href": "papers/thaw-vla/"
+    },
+    {
       "slug": "less-language-more-latents",
       "title": "Less Language, More Latents: Annotation-Efficient VLAs for Driving",
       "authors": [
@@ -160,32 +186,6 @@
       ],
       "sourceUrl": "https://arxiv.org/pdf/2609.30264v2",
       "href": "papers/ad-wm/"
-    },
-    {
-      "slug": "thaw-vla",
-      "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
-      "authors": [
-        "Trung Dao",
-        "Sankalp Yamsani",
-        "Jaden Park",
-        "Joohyung Kim",
-        "Yong Jae Lee"
-      ],
-      "publicationDate": "2026-09-22",
-      "readAt": "2026-09-29",
-      "description": "THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；核对同架构对照、真实机器人小样本、教师消融及因果知识迁移的证据边界。",
-      "tags": [
-        "THAW-VLA",
-        "世界模型",
-        "VLA",
-        "表征蒸馏",
-        "Cosmos3",
-        "QwenGR00T",
-        "LIBERO",
-        "RoboCasa"
-      ],
-      "sourceUrl": "https://arxiv.org/abs/2609.24682v2",
-      "href": "papers/thaw-vla/"
     },
     {
       "slug": "me-embodied-family",

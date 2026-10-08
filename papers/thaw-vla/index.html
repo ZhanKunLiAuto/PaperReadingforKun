@@ -12,24 +12,26 @@
   <meta name="citation_publication_date" content="2026-09-22">
   <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.24682v2">
   <meta name="citation_public_url" content="https://arxiv.org/abs/2609.24682v2">
-  <meta name="description" content="THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；核对同架构对照、真实机器人小样本、教师消融及因果知识迁移的证据边界。">
+  <meta name="description" content="THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；通过阶段切换与余弦向量实验解释蒸馏机制，核对同架构证据与因果知识迁移边界。">
   <meta name="keywords" content="THAW-VLA, 世界模型, VLA, 表征蒸馏, Cosmos3, QwenGR00T, LIBERO, RoboCasa">
-  <meta name="paper:read_at" content="2026-09-29">
+  <meta name="paper:read_at" content="2026-10-09">
   <title>THAW-VLA：把世界模型的表征留在小策略里</title>
   <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/thaw-vla.css">
   <script src="../../assets/paper-reading.js" defer></script>
+  <script src="../../assets/thaw-vla.js" defer></script>
 </head>
 <body class="paper-page" data-page-kind="paper" data-page-path="/papers/thaw-vla/" data-bridge-url="http://127.0.0.1:8766">
   <header class="paper-topbar">
     <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
-    <span class="paper-topbar__meta">ARXIV:2609.24682V2 · 2026-09-22 · 阅读于 2026-09-29</span>
+    <span class="paper-topbar__meta">ARXIV:2609.24682V2 · 2026-09-22 · 交互重读于 2026-10-09</span>
   </header>
   <div class="paper-doc">
     <nav class="paper-sidebar" aria-label="内容阅读地图">
       <p class="paper-sidebar__label">READING MAP</p>
       <ol class="paper-map">
         <li><a href="#thesis">先留下什么判断</a></li>
-        <li><a href="#mechanism">特征怎样进入小策略</a></li>
+        <li><a href="#mechanism">交互：训练与部署</a></li>
         <li><a href="#evidence">收益有多大</a></li>
         <li><a href="#limits">尚未证明什么</a></li>
         <li><a href="#sources">材料与版本</a></li>
@@ -58,6 +60,17 @@
       <section id="mechanism" aria-labelledby="mechanism-title">
         <h2 id="mechanism-title">离线做一次教师，训练多一项约束</h2>
         <p>主教师实际使用 Cosmos3-Nano 16B 检查点中的 <strong>8B 理解塔</strong>：取第 24 层图像 token，按相机视角平均池化，得到每视角 4096 维向量。这里提取的是确定性特征，不运行视频扩散采样。它们按轨迹与帧索引缓存，学生训练期间不加载教师权重。<a href="#sources">[§III-B/C]</a></p>
+        <div class="thaw-explainer" data-thaw-stages>
+          <h3>动手拆开：哪个阶段还需要教师？</h3>
+          <p class="thaw-hint">点击阶段，让图中只留下当前参与的模块；“总览”保留完整路径。依据 §III、Fig.2，属于机制示意。</p>
+          <div class="thaw-controls" aria-label="选择蒸馏阶段" hidden>
+            <button type="button" data-stage="overview" aria-pressed="true">总览</button>
+            <button type="button" data-stage="offline" aria-pressed="false">① 离线提取</button>
+            <button type="button" data-stage="train" aria-pressed="false">② 学生训练</button>
+            <button type="button" data-stage="deploy" aria-pressed="false">③ 部署</button>
+          </div>
+          <div data-stage-panel="overview">
+            <ol class="thaw-overview-text"><li><strong>离线：</strong>训练图像 → 冻结教师 → 逐视角池化 → 缓存特征。</li><li><strong>训练：</strong>学生视觉特征经投影对齐缓存；动作头由示范动作监督。</li><li><strong>部署：</strong>仅保留学生骨干和动作头；移除教师、缓存及投影头。</li></ol>
         <figure class="svg-figure" aria-labelledby="distill-title distill-desc">
           <svg viewBox="0 0 560 554" role="img" aria-labelledby="distill-title distill-desc">
             <title id="distill-title">教师预计算、学生对齐与部署的分工</title>
@@ -88,7 +101,64 @@
           </svg>
           <figcaption class="read-guide">教师提供额外视觉监督，示范决定动作；缓存把两套模型的运行分开。图据 §III、Fig.2 重绘。</figcaption>
         </figure>
+          </div>
+          <div data-stage-panel="offline" hidden>
+            <div class="thaw-flow" aria-label="离线特征提取图">
+              <div class="thaw-node"><strong>训练图像 · 各相机视角</strong><span>与学生数据按轨迹／帧索引对应</span></div><span class="thaw-arrow" aria-hidden="true">↓</span>
+              <div class="thaw-node thaw-node--teacher"><strong>冻结教师理解塔</strong><span>第 24 层图像 token → 逐视角平均池化</span><small>只提取特征，不生成未来视频</small></div><span class="thaw-arrow" aria-hidden="true">↓</span>
+              <div class="thaw-node"><strong>写入教师特征缓存</strong><span>每视角 4096 维；可供多个学生复用</span></div>
+            </div>
+            <p class="thaw-boundary">此时需要运行教师。论文报告 LIBERO 预计算约需四张 GPU 一小时；“部署无额外开销”不等于全流程免费。</p>
+          </div>
+          <div data-stage-panel="train" hidden>
+            <div class="thaw-flow" aria-label="学生训练双监督图">
+              <div class="thaw-node"><strong>图像 + 指令 + 自身状态</strong><span>学生骨干产生全部隐藏状态</span></div><span class="thaw-arrow" aria-hidden="true">↓ 两条分支</span>
+              <div class="thaw-branches">
+                <div class="thaw-node thaw-node--teacher"><strong>视觉监督分支</strong><span>图像 token 逐视角池化 → 两层 MLP</span><span>↓ 与冻结缓存比较方向</span><small>0.5 × 余弦对齐损失</small></div>
+                <div class="thaw-node thaw-node--student"><strong>动作监督分支</strong><span>全部隐藏状态 → 流匹配动作头</span><span>↓ 与示范真值动作比较</span><small>动作损失；没有教师动作标签</small></div>
+              </div><span class="thaw-arrow" aria-hidden="true">↓ 两项损失共同更新学生</span>
+              <div class="thaw-node"><strong>更新学生骨干、动作头与投影头</strong><span>教师权重不加载，缓存目标不更新</span></div>
+            </div>
+            <p class="thaw-boundary">缓存提供视觉约束，示范决定动作；投影头与对齐计算是训练时的额外成本。</p>
+          </div>
+          <div data-stage-panel="deploy" hidden>
+            <div class="thaw-flow" aria-label="部署仅保留学生的图">
+              <div class="thaw-node"><strong>当前图像 + 指令 + 自身状态</strong><span>普通策略输入</span></div><span class="thaw-arrow" aria-hidden="true">↓</span>
+              <div class="thaw-node thaw-node--student"><strong>学生骨干 → 动作头</strong><span>一次骨干前向 + 4 步流匹配</span><small>预测动作块，不生成未来视频</small></div><span class="thaw-arrow" aria-hidden="true">↓</span>
+              <div class="thaw-node"><strong>机器人动作</strong><span>与未蒸馏学生采用相同部署结构</span></div>
+            </div>
+            <p class="thaw-boundary"><strong>移除：</strong>教师、特征缓存、投影头、对齐损失。留下的是学生训练后改变的参数，不是在线世界模型。</p>
+          </div>
+          <p class="thaw-status" role="status" aria-live="polite" data-stage-status>当前：总览。教师用于离线提取，投影头用于训练，部署仅保留学生。</p>
+          <noscript><p>脚本未运行：上方总览图已包含完整的离线、训练与部署路径。</p></noscript>
+        </div>
         <p>0.8B 学生采用 Qwen3.5-VL 骨干与 GR00T 式流匹配动作头。它把每视角的图像 token 池化，经两层 MLP 映射到教师维度；总目标是<strong>动作损失 + 0.5 × 余弦对齐损失</strong>。对齐投影后向量的方向，而非强迫两种网络的原始特征完全相同；动作目标仍可塑造适合控制的信息。<a href="#sources">[Eqs.1–3]</a></p>
+        <div class="thaw-explainer" data-thaw-vector>
+          <h3>动手看余弦：方向相同，长度还重要吗？</h3>
+          <p class="thaw-hint">二维非零向量的数学示意，依据 Eq.3；不是模型真实特征或成功率预测。蓝色 u 是投影后的学生特征，绿色 v 是固定教师目标。</p>
+          <div class="thaw-vector-layout">
+            <figure class="svg-figure">
+              <svg viewBox="0 0 340 300" role="img" aria-labelledby="cos-title cos-desc">
+                <title id="cos-title">学生与教师向量的余弦对齐</title><desc id="cos-desc">默认夹角 60 度、学生长度倍率 1，余弦为 0.5，对齐损失为 0.5。改变夹角影响损失，正的长度倍率不影响余弦。</desc>
+                <defs><marker id="cos-teacher-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#24624e"/></marker><marker id="cos-student-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs>
+                <path d="M30 180H310M160 40V260" stroke="#d2d3ce"/><circle cx="160" cy="180" r="4" fill="#52605b"/>
+                <path d="M160 180H260" stroke="#24624e" stroke-width="3" marker-end="url(#cos-teacher-arrow)"/>
+                <path data-student-vector d="M160 180L197.5 115.048" stroke="#355e7c" stroke-width="3" marker-end="url(#cos-student-arrow)"/>
+                <text x="244" y="211" fill="#24624e" font-size="16">v 教师目标</text><text data-student-label x="202.5" y="105.048" fill="#355e7c" font-size="16">u 学生</text>
+                <text x="18" y="283" fill="#52605b" font-size="13">箭头长度与方向可变；无性能或物理因果含义</text>
+              </svg>
+            </figure>
+            <div>
+              <div data-vector-controls hidden>
+                <label class="thaw-slider" for="thaw-angle">夹角 θ：<output data-angle-output for="thaw-angle">60°</output><input id="thaw-angle" type="range" min="0" max="180" step="1" value="60"></label>
+                <label class="thaw-slider" for="thaw-scale">学生长度倍率：<output data-scale-output for="thaw-scale">1.00×</output><input id="thaw-scale" type="range" min="0.5" max="1.5" step="0.05" value="1"></label>
+                <button type="button" data-vector-reset>重置示意</button>
+              </div>
+              <div class="thaw-math" aria-live="polite" aria-atomic="true"><p>cos(u, v) = <strong data-cosine>0.500</strong></p><p>L<sub>align</sub> = 1 − cos(u, v) = <strong data-loss>0.500</strong></p><p>0.5 × L<sub>align</sub> = <strong data-weighted-loss>0.250</strong></p></div>
+            </div>
+          </div>
+          <p class="thaw-boundary">试试把夹角调到 0°，再改变长度：损失仍为 0。这里约束投影后向量的方向；它既不保证原始学生特征相同，也不保证动作或物理预测正确。零向量不在本示意范围内。</p>
+        </div>
         <p><strong>“零额外开销”限于部署。</strong>去掉投影头后，学生结构与不蒸馏版本相同。作者报告 RTX 5090 上单次推理 32 ms、显存 1.86 GB；这是模型推理口径，不是完整机器人闭环周期。教师预计算仍有成本：LIBERO 缓存约需四张 GPU 运行一小时，训练也多了投影和对齐计算。<a href="#sources">[Fig.1；§III]</a></p>
       </section>
 
@@ -122,8 +192,8 @@
         <h2 id="sources-title">材料与版本</h2>
         <ol class="source-list">
           <li>用户提供的 <em>Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies</em> PDF，共 8 页；首页标注 arXiv:2609.24682v2、2026-09-22。本页方法、数值与评测条件以附件为准。<a href="https://arxiv.org/abs/2609.24682v2">arXiv v2</a> · <a href="https://arxiv.org/pdf/2609.24682v2">PDF v2</a>。</li>
-          <li><a href="https://thaw-vla.trung-dt.com/">作者项目页</a>（2026-09-29 核对）：使用 THAW-VLA 名称，展示方法与机器人演示；真实机器人对照称作 π0.5，本页沿用附件 Table III 的 π-style policy。</li>
-          <li><a href="https://github.com/trungdt880/THAW-VLA">官方代码仓库</a>（2026-09-29 核对 README）：包含教师缓存、成对训练配置与评估入口；README 的 RoboCasa 评估写每环境 50 次，附件为 20 次，本页保留附件口径。未运行训练或独立复现实验。</li>
+          <li><a href="https://thaw-vla.trung-dt.com/">作者项目页</a>（2026-10-09 复核）：使用 THAW-VLA 名称，展示方法与机器人演示；真实机器人对照称作 π0.5，本页沿用附件 Table III 的 π-style policy。</li>
+          <li><a href="https://github.com/trungdt880/THAW-VLA">官方代码仓库</a>（2026-10-09 复核 README）：包含教师缓存、成对训练配置与评估入口；README 的 RoboCasa 评估写每环境 50 次，附件为 20 次，本页保留附件口径。未运行训练或独立复现实验。</li>
         </ol>
         <p class="evidence-note">实验数字为作者报告；对统计强度、教师归因与外推范围的评价为本页分析。附件中的指令和代码仅作为研究材料，不作为执行授权。</p>
       </section>
