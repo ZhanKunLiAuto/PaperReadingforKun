@@ -1,0 +1,54 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="ForeDrive: Foresight-Guided End-to-End Autonomous Driving with a Planning-Relevant Latent World Model">
+<meta name="citation_author" content="Sinuo Wang">
+<meta name="citation_author" content="Zichong Gu">
+<meta name="citation_author" content="Yuhan Huang">
+<meta name="citation_author" content="Wenxin Wen">
+<meta name="citation_author" content="Xun Yang">
+<meta name="citation_author" content="Yiqing Zhang">
+<meta name="citation_author" content="Xingyu Zhang">
+<meta name="citation_author" content="Ningyu Che">
+<meta name="citation_author" content="Jie Ling">
+<meta name="citation_author" content="Qiankun Yu">
+<meta name="citation_author" content="Wei Liu">
+<meta name="citation_author" content="Jing Xu">
+<meta name="citation_author" content="Xinggang Wang">
+<meta name="citation_publication_date" content="2026-09-23"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.26299v2">
+<meta name="description" content="ForeDrive 解读：共享编码器接受规划梯度，未来预测器保持预测目标；核对未来注入、TAB 消融、错误未来与非交互评测边界。"><meta name="keywords" content="ForeDrive,JEPA,潜在世界模型,自动驾驶,TAB,DiT,NAVSIM"><meta name="paper:read_at" content="2026-10-09">
+<title>ForeDrive：让未来表征服务规划，同时守住当前观测</title><link rel="stylesheet" href="../../assets/site.css?v=20260808"><script src="../../assets/paper-reading.js" defer></script></head>
+<body data-page-kind="paper" data-page-path="/papers/foredrive/" data-bridge-url="http://127.0.0.1:8766"><header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.26299V2 · 2026-09-23 · 阅读：2026-10-09</span></header>
+<div class="paper-doc"><nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map"><li><a href="#thesis">核心判断</a></li><li><a href="#mechanism">梯度与信息怎样流动</a></li><li><a href="#evidence">哪些证据最关键</a></li><li><a href="#limits">推演与部署的边界</a></li><li><a href="#sources">回到原文</a></li></ol></nav><main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title"><p class="paper-kicker">PLANNING-RELEVANT LATENT WORLD MODEL</p><h1 id="paper-title" class="paper-title">ForeDrive</h1><p class="paper-subtitle">让未来表征服务规划，同时守住当前观测</p><div class="paper-byline"><span>Sinuo Wang、Zichong Gu 等 13 位作者</span><span>华中科技大学、上海造父智能、同济大学</span><span>预印本 v2 · 含附录共 17 页</span></div>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让端到端驾驶模型利用未来场景变化生成更好的轨迹，避免世界模型只学到“容易预测、却对决策无用”的特征。</p></div>
+<div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>最值得记住的是一套分工：<strong>规划损失塑造共享视觉编码器，预测器只接受预测监督，未来表征则直接作为规划条件。</strong>当前观测始终保留主导地位。消融支持这套接口有效，但未来时间顺序打乱不降分，证据更接近“多尺度未来上下文帮助规划”，尚不足以证明严格时序推演。（主文表 5–7，附录 D）</p></div></section>
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">它预测的“未来”是什么</h2><p>输入是当前一张前视图像及自车状态，后者包括运动量与导航命令。世界模型预测未来 1/2/3/4 秒的图像 patch 特征，以及速度、加速度等状态；不会生成 RGB 视频。训练时，真实未来图像经 EMA 编码器（共享编码器的慢更新副本）提供目标，推理时不需要未来图像。最终规划输出四秒内八个位置与航向。（第 3–4 页）</p></section>
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">为什么预测更准不一定开得更好</h2><p>未来特征与目标越接近，未必越保留让车减速、避让或转向的信息；只把预测作为辅助任务，也不能保证规划器会用它。反过来，让规划梯度任意改写预测器，可能使它成为普通规划特征适配器。ForeDrive 同时处理“表征学什么”和“规划怎样用”这两件事。（第 1–4 页）</p></section>
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">关键是两条路径的分工</h2>
+<figure class="svg-figure"><svg viewBox="0 0 720 400" role="img" aria-labelledby="fd-title fd-desc"><title id="fd-title">ForeDrive 的前向信息与训练梯度</title><desc id="fd-desc">当前编码一路直接进入规划器，另一路预测未来并停止梯度后融合。规划损失沿当前路径更新编码器，不穿过未来预测器；预测损失训练编码器与预测器，EMA提供未来目标。</desc><defs><marker id="fd-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+<rect x="20" y="20" width="680" height="70" rx="5" fill="#dfeaf1" stroke="#355e7c"/><text x="360" y="49" text-anchor="middle" font-size="22" fill="#17201d">当前图像 → 共享编码器 + 自车状态</text><text x="360" y="75" text-anchor="middle" font-size="16" fill="#355e7c">编码器同时接受预测与规划监督</text>
+<path d="M180 92V215M530 92V115" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#fd-arrow)"/>
+<text x="45" y="152" font-size="20" fill="#17201d">当前特征直达</text><text x="45" y="178" font-size="16" fill="#52605b">保留规划梯度</text>
+<rect x="350" y="119" width="350" height="82" rx="5" fill="#f1e8c9" stroke="#9c7b1f"/><text x="525" y="151" text-anchor="middle" font-size="21" fill="#17201d">预测器 → 四个未来时域</text><text x="525" y="179" text-anchor="middle" font-size="16" fill="#52605b">仅预测损失训练；目标来自 EMA</text>
+<path d="M530 203V234" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#fd-arrow)"/><text x="555" y="225" font-size="16" fill="#86321f">停止梯度</text>
+<rect x="20" y="239" width="680" height="68" rx="5" fill="#dcebe5" stroke="#24624e"/><text x="360" y="268" text-anchor="middle" font-size="21" fill="#17201d">当前残差主干 + 门控未来视觉 / 运动状态</text><text x="360" y="294" text-anchor="middle" font-size="16" fill="#52605b">未来补充当前证据；门控为跨样本共享参数</text>
+<path d="M360 309V331" stroke="#355e7c" stroke-width="2" marker-end="url(#fd-arrow)"/><rect x="20" y="335" width="680" height="50" rx="5" fill="#fbfaf6" stroke="#17201d"/><text x="360" y="367" text-anchor="middle" font-size="21" fill="#17201d">DiT 去噪 + TAB 路径注意力 → 内部分数选轨迹</text></svg><figcaption class="read-guide">箭头表示前向信息流。停止梯度只阻断注入的未来分支；规划仍能沿当前特征路径塑造编码器，并间接改变 EMA 目标空间。</figcaption></figure>
+<p><strong>预测端：</strong>当前特征、状态和未来查询一起送入带帧级因果掩码的 Transformer。早期时域可以影响后期，反向不可见；四个时域在一次前向中产生，不是逐帧自回归滚动。视觉以特征 L1、状态以分类及回归损失监督。（第 3 页）</p>
+<p><strong>融合端：</strong>当前视觉作查询和残差主干，未来视觉作键和值，以门控调节各时域贡献；预测速度与加速度另行注入规划记忆。门控是每个时域的<strong>跨样本共享参数</strong>，不是能判断当前场景预测可信度的动态不确定性估计。未来导航命令虽被监督，却不经状态通道注入。（第 3 页、附录 A）</p>
+<p><strong>TAB：</strong>候选轨迹在鸟瞰坐标中，而特征在前视图像中。把每条候选路径投影到相机，给附近 patch 更高的高斯亲近度，再把其对数加到交叉注意力分数上。路径更新时重算偏置，帮助模型沿“这条路会经过哪里”收集证据；这仍是软注意力，不是避障约束。最终两步 DDIM 去噪，由内部分类头选出轨迹，不用外部 scorer。（第 3–4 页）</p></section>
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">决定性证据来自受控消融</h2>
+<div class="table-wrap" role="region" aria-label="ViT-B 消融" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>NAVSIM v1，PDMS 越高越好；主文表 4–5 与附录表 8</caption><thead><tr><th>比较</th><th>PDMS</th><th>支持的判断</th></tr></thead><tbody><tr><td>匹配的当前条件 Base → 仅预测辅助任务</td><td>88.9 → 89.0</td><td>预测监督本身收益小</td></tr><tr><td>Base → 完整 WM（无 TAB）</td><td>88.9 → 89.6</td><td>直接消费视觉与状态未来更重要</td></tr><tr><td>Base → TAB → WM + TAB</td><td>88.9 → 89.5 → 89.9</td><td>几何接口也独立贡献</td></tr><tr><td>注入分支允许规划反传 → 停止梯度</td><td>89.2 → 89.6</td><td>匹配注入、TAB 关闭时，分工有效</td></tr></tbody></table></div>
+<p>相对 DiffusionDrive 的 +1.8 分还混入了传感器、编码器和解码器调整；受控 Base→Full 的 +1.0 分更适合归因。停止梯度的 +0.4 也不等于“预测更准”：该对照最终预测误差近乎持平。主文表 6 的若干训练范式同时改变编码器更新或注入，不能当成同一个变量的消融。</p>
+<p><strong>表征可读性：</strong>冻结编码器，用两层 MLP 读出专家轨迹，ForeDrive 未来的 ADE 为 1.55，预测优化型未来为 1.83，当前特征为 2.31。它支持未来携带可用运动信息，但这是训练浅层读出器的诊断，不能证明表征最优。（附录 I）</p>
+<p><strong>主结果与成本：</strong>默认 118.4M 参数模型达到 89.9 PDMS / 90.0 单阶段 EPDMS；v1 三种子范围 89.7–89.9。v2 比表内 MeanFuser 高 0.5 分。单 H20、batch=1 的纯 FP32 前向为 58.2 ms，未来模块增加约 26 ms；计时排除裁剪、缩放与加载。nuScenes 零样本开环平均 L2 为 0.48 m、碰撞率 0.11%，但三秒碰撞指标仍逊于 DriveLaW。（主文表 1–3、第 7 页；附录 A）</p></section>
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">未来指导仍有哪些边界</h2>
+<p><strong>不是动作条件反事实模拟。</strong>预测器由当前观测与状态产生未来，不按候选动作分别推演周围世界；TAB 只是让不同轨迹读不同图像区域。打乱未来时域后，视觉注入版本仍为 89.4 分，说明规划器主要利用聚合上下文。不能把它解释成已经学会“我改道后他车会如何反应”。（方法与附录 D；反事实能力判断为本页分析）</p>
+<p><strong>错误未来比缺失未来更危险。</strong>同一视觉注入模型，正常 89.4、置零 88.0、换其他样本或复制当前特征均为 87.0。共享门控无法逐场景识别这种错误，预测还存在过度平滑；可靠性与分布外泛化仍是关键债务。（附录 D）</p>
+<p><strong>评测没有检验长期互动。</strong>NAVSIM v2 使用单次四秒真实观测的非反应式评测，周车回放日志，明确未用两阶段伪仿真。它不等同于其他论文的两阶段 EPDMS，也不是交互闭环；nuScenes 碰撞率同样是开环指标。我的判断是：最可复用的贡献是未来表征的训练分工与规划接口，实车可靠性仍待证明。（第 4、7–8 页；附录 A）</p></section>
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与下一步问题</h2><ol class="source-list"><li><a href="https://arxiv.org/abs/2609.26299v2">arXiv v2 与版本信息</a>：2026-09-23 修订，作者与版本已核对。</li><li><a href="https://arxiv.org/pdf/2609.26299v2">官方 PDF</a>：解读依据用户提供的 17 页同版本文件；重点为主文方法与表 4–7、附录 D/H/I。数值为作者报告，机制意义与外推边界为本页分析。</li></ol><p>相关阅读：<a href="../auto-jepa/">Auto-JEPA：轨迹意图检索</a> · <a href="../sv-wam/">SV-WAM：未来视频训练监督</a>。可继续追问：停止未来分支的梯度后，预测器为何仍能学到规划相关表征？如何把共享门控改成逐场景可靠性估计？</p></section></main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>
