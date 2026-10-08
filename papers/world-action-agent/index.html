@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal">
+  <meta name="citation_author" content="Yehang Zhang">
+  <meta name="citation_author" content="Haojian Huang">
+  <meta name="citation_author" content="Yifan Chang">
+  <meta name="citation_author" content="Jianchong Su">
+  <meta name="citation_author" content="Bohan Zhou">
+  <meta name="citation_author" content="Yingjie Xu">
+  <meta name="citation_author" content="Wosong Chen">
+  <meta name="citation_author" content="Tianhao Zhou">
+  <meta name="citation_author" content="Chenxu Wang">
+  <meta name="citation_author" content="Tianyi Zhang">
+  <meta name="citation_author" content="Yangkai Wei">
+  <meta name="citation_author" content="Wenqian Li">
+  <meta name="citation_author" content="Shiyuan Deng">
+  <meta name="citation_author" content="Yinchuan Li">
+  <meta name="citation_author" content="Ying-Cong Chen">
+  <meta name="citation_author" content="Zexi Li">
+  <meta name="citation_publication_date" content="2026-09-24">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.29964v1">
+  <meta name="description" content="解读 WAA 如何用接触视图、动作预演和视图内修正让通用 VLM 操纵机器人；核对技能增益、仿真泛化与 9B 主策略微调的证据边界。">
+  <meta name="keywords" content="World Action Agent, WAA, VLM, robot manipulation, action rehearsal, contact views, multimodal skills, LIBERO-Pro">
+  <meta name="paper:read_at" content="2026-10-09">
+  <title>World Action Agent：在看见偏差的视图里预演与修正动作</title>
+  <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+  <script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/world-action-agent/" data-bridge-url="http://127.0.0.1:8766">
+  <header class="paper-topbar">
+    <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
+    <span class="paper-topbar__meta">ARXIV:2609.29964V1 · 2026-09-24 · 阅读：2026-10-09</span>
+  </header>
+  <div class="paper-doc">
+    <nav class="paper-sidebar" aria-label="内容阅读地图">
+      <p class="paper-sidebar__label">READING MAP</p>
+      <ol class="paper-map">
+        <li><a href="#thesis">接口改变了什么</a></li>
+        <li><a href="#mechanism">观察、预演、修正</a></li>
+        <li><a href="#evidence">技能与泛化的证据</a></li>
+        <li><a href="#limits">规划检查的边界</a></li>
+        <li><a href="#sources">回到论文原文</a></li>
+      </ol>
+    </nav>
+    <main class="paper-main">
+      <section id="thesis" aria-labelledby="paper-title">
+        <p class="paper-kicker">VISUAL ACTION WORKSPACE · ROBOT PILOT · MULTIMODAL SKILLS</p>
+        <h1 id="paper-title" class="paper-title">World Action Agent</h1>
+        <p class="paper-subtitle">通用视觉语言模型如何在机器人动作发生前检查它，并在动作发生后修正它。</p>
+        <div class="paper-byline"><span>Yehang Zhang、Haojian Huang 等 16 位作者</span><span>HKUST (GZ) · CUHK · Knowin AI</span><span>arXiv v1 · 29 页</span></div>
+        <div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让通用视觉语言模型（VLM）利用已有语义与空间理解，通过基本工具完成机器人操作，减少对专门动作策略训练的依赖。</p></div>
+        <p><strong>核心判断：</strong>WAA 的贡献在于把操作接口变成可检查、可修改的视觉工作空间：局部视图揭示偏差，虚拟动作接受规划检查，执行后再在同一视图里纠偏。技能库补上操作顺序与验收条件，是最终成绩的重要来源。现有证据支持这套系统在仿真中有效，尚不足以证明真实机器人上的通用可靠性。<a href="https://arxiv.org/pdf/2609.29964v1#page=4">[§3]</a></p>
+      </section>
+      <section id="concepts" aria-labelledby="concepts-title">
+        <h2 id="concepts-title">谁负责判断，谁负责运动</h2>
+        <p>Harness 是模型与机器人之间的工具和反馈层。VLM 选择目标、工具参数与执行时机；逆运动学、cuRobo 规划器和控制器负责实现运动。这里的“预演”主要是候选位姿的几何预览与可行性检查，没有训练视频世界模型来预测完整接触动力学。<a href="https://arxiv.org/pdf/2609.29964v1#page=6">[§3.2]</a></p>
+      </section>
+      <section id="problem-chain" aria-labelledby="problem-title">
+        <h2 id="problem-title">看见目标，还不足以对准目标</h2>
+        <p>全局相机可能把“碗与盘子对齐”拍成假象，另一方向仍有偏差；直接发出动作又无法提前检查姿态。若每次纠偏都要求模型把像素关系重新换算成精确三维坐标，误差还会继续积累。WAA 将局部观察、候选动作和修正指令绑定在同一套标定视图中。<a href="https://arxiv.org/pdf/2609.29964v1#page=5">[图2–3]</a></p>
+      </section>
+      <section id="mechanism" aria-labelledby="mechanism-title">
+        <h2 id="mechanism-title">一次放碗：先检查姿态，再检查结果</h2>
+        <figure class="svg-figure">
+          <svg viewBox="0 0 760 354" role="img" aria-labelledby="waa-flow-title waa-flow-desc">
+            <title id="waa-flow-title">WAA 的动作预演与执行闭环</title>
+            <desc id="waa-flow-desc">全局和两个接触视图输入主智能体。候选位姿经过虚拟预览和规划检查，可以反复修订而不移动机器人。主智能体提交可行计划后，观察新的状态并用图像拖拽做实际局部纠偏。技能提供关系与验收条件。</desc>
+            <defs><marker id="waa-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+            <rect width="760" height="354" fill="#fbfaf6"/>
+            <text x="28" y="29" font-size="14" font-weight="700" fill="#bd4c32">候选阶段：查询与预览不改变物理状态</text>
+            <g fill="#dfeaf1" stroke="#355e7c"><rect x="28" y="48" width="202" height="88" rx="5"/><rect x="280" y="48" width="202" height="88" rx="5"/><rect x="530" y="48" width="202" height="88" rx="5"/></g>
+            <g fill="#17201d" font-size="17" font-weight="700"><text x="44" y="76">标定的多视图</text><text x="296" y="76">主 Agent 提出位姿</text><text x="546" y="76">预览 + 规划反馈</text></g>
+            <g fill="#52605b" font-size="14"><text x="44" y="102">全局 + Contact A / B</text><text x="44" y="123">看清夹爪、碗与盘子</text><text x="296" y="102">定位 / 抓取候选</text><text x="296" y="123">保留待执行动作</text><text x="546" y="102">虚拟夹爪、IK、cuRobo</text><text x="546" y="123">检查可达性与净空</text></g>
+            <path d="M233 92H272 M485 92H523" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#waa-arrow)"/>
+            <path d="M630 138V165H381V138" fill="none" stroke="#355e7c" stroke-width="1.7" marker-end="url(#waa-arrow)"/>
+            <rect x="416" y="151" width="178" height="27" fill="#fbfaf6"/><text x="422" y="170" font-size="14" fill="#52605b">自己修订 / Imagination</text>
+            <text x="28" y="203" font-size="14" font-weight="700" fill="#24624e">执行阶段：计划可行后提交；每次实际动作后重新观察</text>
+            <g fill="#dcebe5" stroke="#24624e"><rect x="28" y="223" width="202" height="77" rx="5"/><rect x="280" y="223" width="202" height="77" rx="5"/><rect x="530" y="223" width="202" height="77" rx="5"/></g>
+            <g fill="#17201d" font-size="17" font-weight="700"><text x="44" y="251">提交并移动机器人</text><text x="296" y="251">新视图检查偏差</text><text x="546" y="251">视图内拖拽纠偏</text></g>
+            <g fill="#52605b" font-size="14"><text x="44" y="277">execute_action</text><text x="296" y="277">对齐？支撑？抓稳？</text><text x="546" y="277">像素 → 有界末端位移</text></g>
+            <path d="M630 180V216 M233 263H272 M485 263H523" fill="none" stroke="#355e7c" stroke-width="2" marker-end="url(#waa-arrow)"/>
+            <path d="M630 302V324H380V302" fill="none" stroke="#355e7c" stroke-width="1.7" marker-end="url(#waa-arrow)"/>
+            <rect x="409" y="310" width="186" height="28" fill="#fbfaf6"/><text x="417" y="330" font-size="14" fill="#52605b">再观察；必要时释放 / 重规划</text>
+          </svg>
+          <figcaption class="read-guide">机制示意，依据 §3.2 与附录C：上半圈修改虚拟动作，下半圈会实际移动机器人。Skill Agent 提供操作关系与验收条件，主 Agent 保留决策权。</figcaption>
+        </figure>
+        <p><strong>看得清：</strong>从场景点云生成两个 Contact 接触视图，优化局部可见性、紧凑取景和视角稳定性，并约束其水平投影正交。一面看似对齐，另一面就可能暴露深度方向的偏差；这些是点云渲染视角，无须物理相机跟着夹爪移动。<a href="https://arxiv.org/pdf/2609.29964v1#page=5">[§3.2]</a></p>
+        <p><strong>改得动：</strong>把候选夹爪叠在视图中，先检查姿态和规划反馈。Imagination Agent 可在独立上下文中反复平移、旋转候选，物理场景保持不动；计划可行后由主 Agent 提交。接近目标仍可能留有误差，于是从可见碗表面向盘中心画拖拽线，由标定关系换成有界末端位移，再观察决定是否释放。局部拖拽本身是实际动作，不属于虚拟预演。<a href="https://arxiv.org/pdf/2609.29964v1#page=6">[图3、附录C]</a></p>
+        <p><strong>知道何时算完成：</strong>技能包含适用条件、操作关系、参考图和结果检查，避免复用旧坐标。例如放碗要对齐碗底、保持支撑，释放后还要再检查。Skill Agent 单独看历史参考图，与当前画面对照；主 Agent 接收完整文字规程及适用性反馈，减少历史图被误当成当前状态的风险。<a href="https://arxiv.org/pdf/2609.29964v1#page=7">[§3.3、附录A.2]</a></p>
+        <p>技能由 LIBERO-90 每任务一条专家轨迹丰富：Learner 提取带来源帧的经验，Editor 对照既有技能修改，Reviewer 独立核验。人类也能通过同一界面示教恢复动作，但主结果的技能库只从 LIBERO-90 学习并在评测前冻结。“只需视频”也有例外：炉灶示例使用视频对齐的专家末端姿态帮助判断旋转方向。<a href="https://arxiv.org/pdf/2609.29964v1#page=8">[§3.3–4.1、附录A.3]</a></p>
+      </section>
+      <section id="evidence" aria-labelledby="evidence-title">
+        <h2 id="evidence-title">最强证据是技能增益和空间操作</h2>
+        <div class="table-wrap" tabindex="0" role="region" aria-label="LIBERO-Pro 成功率对照">
+          <table class="evidence-table evidence-table--compact">
+            <thead><tr><th>系统</th><th>六划分平均 ↑</th><th>Spatial Pos. ↑</th><th>Spatial Task ↑</th></tr></thead>
+            <tbody>
+              <tr><td>Show-Harness，同骨干、无技能</td><td>6.7%</td><td>0.0%</td><td>0.0%</td></tr>
+              <tr><td>WAA，无技能</td><td>28.9%</td><td>13.3%</td><td>6.7%</td></tr>
+              <tr><td>WAA，文字种子技能</td><td>43.3%</td><td>16.7%</td><td>23.3%</td></tr>
+              <tr class="evidence-table__emphasis"><td>WAA，演化技能</td><td>75.6%</td><td>80.0%</td><td>73.3%</td></tr>
+              <tr><td>ASPIRE，原论文结果</td><td>72.0%</td><td>51.0%</td><td>60.0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>WAA 使用 Gemini 3.7 Flash，每划分 10 个任务、60 回合，总计 360 回合；上限为 50 主 Agent 轮、50 次物理操作及一小时。Show-Harness 重跑为每划分 30 回合，其余基线引用原论文。演化技能相对文字种子提高 <strong>32.3 个百分点</strong>；平均比 ASPIRE 高 3.6 点，但 ASPIRE 在两个 Object 划分和 Goal Pos. 更好，不能说每项都领先。<a href="https://arxiv.org/pdf/2609.29964v1#page=9">[表1、§4.1]</a></p>
+        <p><strong>迁移有支持，但范围有限。</strong>冻结的 LIBERO 技能将 robosuite 的方块重新堆叠从 60% 提到 100%，覆盖的仅是抬起、堆叠、重新堆叠三类任务，未明确给出该表的评测回合数。改用融合 RGB-D 或 VGGT 点云后，LIBERO-Pro 平均为 71.1% / 68.9%；这些输入仍在仿真采集。单示范炉灶技能成功 10/10，来自五个初态各两次，证明案例可学，不足以代表任意技能的一次示范学习。<a href="https://arxiv.org/pdf/2609.29964v1#page=11">[表1、3；附录A.3、B]</a></p>
+        <p><strong>小模型学的是调用工具。</strong>112 条成功轨迹、1,774 次主 Agent 调用微调 Qwen3.5-9B，使未见种子成功率从 1.7% 升到 43.3%。训练使用 LIBERO-Pro，子 Agent 与空间定位仍用 Gemini；这里的域外只指未见种子，不能解读成未见任务或独立 9B 系统。没有单独验证集，使用最后一轮适配器。<a href="https://arxiv.org/pdf/2609.29964v1#page=28">[图5、附录E]</a></p>
+      </section>
+      <section id="limits" aria-labelledby="limits-title">
+        <h2 id="limits-title">预演能挡住什么，挡不住什么</h2>
+        <p><strong>可行计划不保证正确接触。</strong>附录失败案例中，模型误读双视图而空抓、丢失目标物体身份，或把盘边的偏置放置判成完成。作者将部分问题归于骨干感知，但未通过控制实验排除接口与反馈设计的影响。关键仍是执行后能否核验真实结果。<a href="https://arxiv.org/pdf/2609.29964v1#page=29">[附录F]</a></p>
+        <p><strong>整体有效不等于模块贡献已分离。</strong>没有分别移除 Contact 视图、预演和局部拖拽的受控消融，也没有单独拆分技能文本、参考图、独立审核的收益。同骨干比较支持整套接口有效，无法把提升全部归给“想象”或多 Agent。基线预算与试验数不同，论文也未给出误差条。<a href="https://arxiv.org/pdf/2609.29964v1#page=9">[§4、表1]</a></p>
+        <p><strong>真实部署与速度仍待验证。</strong>没有真实机器人实验；重建点云仍需标定与机器人基坐标对齐。表2报告每回合约 31 次模型调用、150 秒、0.20 美元，优于 Show-Harness 的 120 次、874 秒、0.50 美元，但不构成实时控制证据。本页判断：最值得借鉴的是让模型看到动作提案及其反馈的接口设计，其价值依赖几何基础设施、技能知识与结果验证共同成立。<a href="https://arxiv.org/pdf/2609.29964v1#page=11">[表2、§5]</a></p>
+      </section>
+      <section id="sources" aria-labelledby="sources-title">
+        <h2 id="sources-title">回到论文原文</h2>
+        <ol class="source-list">
+          <li><a href="https://arxiv.org/abs/2609.29964v1">arXiv v1 与版本记录</a> · <a href="https://arxiv.org/pdf/2609.29964v1">原始 PDF</a>。本页依据用户提供的 29 页 v1，提交于 2026-09-24，阅读于 2026-10-09。</li>
+          <li>机制：§3、图2–3与附录C；主要证据：表1–3、图5；示范细节：附录A.3；感知输入：附录B；微调：附录E；反例：附录F。</li>
+        </ol>
+        <p class="evidence-note">数字均为作者报告，未复现实验；因果归因与外推边界属于本页解读。论文附录中的系统提示仅作为研究材料阅读。</p>
+      </section>
+    </main>
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p>
+        <button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+    </aside>
+  </div>
+</body>
+</html>
