@@ -1,0 +1,27 @@
+.thaw-explainer { margin: 1.8rem 0; padding: 1.15rem; border: 1px solid #d2d3ce; border-radius: 8px; background: #fbfaf6; }
+.thaw-explainer [hidden] { display: none !important; }
+.thaw-explainer h3 { margin-top: 0; }
+.thaw-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.thaw-explainer button { border: 1px solid #68766f; background: transparent; color: #17201d; border-radius: 5px; padding: .6rem .8rem; font: inherit; cursor: pointer; }
+.thaw-explainer button[aria-pressed="true"] { background: #24624e; color: white; border-color: #24624e; }
+.thaw-explainer button:focus-visible, .thaw-explainer input:focus-visible { outline: 3px solid #bd4c32; outline-offset: 3px; }
+.thaw-explainer .thaw-hint, .thaw-explainer .thaw-boundary, .thaw-explainer .thaw-status { font-size: .92rem; line-height: 1.7; }
+.thaw-status { border-top: 1px solid #d2d3ce; padding-top: .75rem; }
+.thaw-flow { display: flex; flex-direction: column; align-items: stretch; padding: 1rem 0; }
+.thaw-node { padding: .9rem; border: 1px solid #aebbb3; background: #f3f1e9; border-radius: 6px; }
+.thaw-node strong, .thaw-node span, .thaw-node small { display: block; }
+.thaw-node span, .thaw-node small { margin-top: .35rem; line-height: 1.65; }
+.thaw-node--teacher { border-color: #355e7c; background: #e4edf2; }
+.thaw-node--student { border-color: #24624e; background: #e1ece5; }
+.thaw-arrow { text-align: center; padding: .35rem; color: #52605b; }
+.thaw-branches { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.thaw-vector-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: center; }
+.thaw-vector-layout .svg-figure { margin: 0; padding: 0; border: none; }
+.thaw-slider { display: block; margin: .8rem 0; font-size: .92rem; }
+.thaw-slider input { display: block; width: 100%; margin: .7rem 0; accent-color: #355e7c; min-height: 24px; }
+.thaw-math { font-variant-numeric: tabular-nums; }
+.thaw-math p { margin: .7rem 0; font-size: .92rem; }
+@media (max-width: 600px) { .thaw-branches, .thaw-vector-layout { grid-template-columns: 1fr; } .thaw-explainer { padding: .8rem; } .thaw-controls button { flex: 1 1 40%; } }
+
+.thaw-overview-text { display: none; }
+@media (max-width: 600px) { .thaw-overview-text { display: block; padding-left: 1.3rem; } [data-stage-panel="overview"] .svg-figure { display: none; } }
