@@ -2,6 +2,43 @@
   "updatedAt": "2026-10-09",
   "papers": [
     {
+      "slug": "world-action-agent",
+      "title": "World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal",
+      "authors": [
+        "Yehang Zhang",
+        "Haojian Huang",
+        "Yifan Chang",
+        "Jianchong Su",
+        "Bohan Zhou",
+        "Yingjie Xu",
+        "Wosong Chen",
+        "Tianhao Zhou",
+        "Chenxu Wang",
+        "Tianyi Zhang",
+        "Yangkai Wei",
+        "Wenqian Li",
+        "Shiyuan Deng",
+        "Yinchuan Li",
+        "Ying-Cong Chen",
+        "Zexi Li"
+      ],
+      "publicationDate": "2026-09-24",
+      "readAt": "2026-10-09",
+      "description": "解读 WAA 如何用接触视图、动作预演和视图内修正让通用 VLM 操纵机器人；核对技能增益、仿真泛化与 9B 主策略微调的证据边界。",
+      "tags": [
+        "World Action Agent",
+        "WAA",
+        "VLM",
+        "robot manipulation",
+        "action rehearsal",
+        "contact views",
+        "multimodal skills",
+        "LIBERO-Pro"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2609.29964v1",
+      "href": "papers/world-action-agent/"
+    },
+    {
       "slug": "less-language-more-latents",
       "title": "Less Language, More Latents: Annotation-Efficient VLAs for Driving",
       "authors": [
