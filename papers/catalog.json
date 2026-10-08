@@ -2,6 +2,43 @@
   "updatedAt": "2026-10-09",
   "papers": [
     {
+      "slug": "world-action-agent",
+      "title": "World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal",
+      "authors": [
+        "Yehang Zhang",
+        "Haojian Huang",
+        "Yifan Chang",
+        "Jianchong Su",
+        "Bohan Zhou",
+        "Yingjie Xu",
+        "Wosong Chen",
+        "Tianhao Zhou",
+        "Chenxu Wang",
+        "Tianyi Zhang",
+        "Yangkai Wei",
+        "Wenqian Li",
+        "Shiyuan Deng",
+        "Yinchuan Li",
+        "Ying-Cong Chen",
+        "Zexi Li"
+      ],
+      "publicationDate": "2026-09-24",
+      "readAt": "2026-10-09",
+      "description": "解读 WAA 如何用接触视图、动作预演和视图内修正让通用 VLM 操纵机器人；核对技能增益、仿真泛化与 9B 主策略微调的证据边界。",
+      "tags": [
+        "World Action Agent",
+        "WAA",
+        "VLM",
+        "robot manipulation",
+        "action rehearsal",
+        "contact views",
+        "multimodal skills",
+        "LIBERO-Pro"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2609.29964v1",
+      "href": "papers/world-action-agent/"
+    },
+    {
       "slug": "less-language-more-latents",
       "title": "Less Language, More Latents: Annotation-Efficient VLAs for Driving",
       "authors": [
@@ -55,6 +92,46 @@
       ],
       "sourceUrl": "https://arxiv.org/pdf/2609.26299v2",
       "href": "papers/foredrive/"
+    },
+    {
+      "slug": "embodiedswe",
+      "title": "EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics",
+      "authors": [
+        "Zeyu Shen",
+        "Haoxiang You",
+        "Yilang Liu",
+        "Zhicheng Zheng",
+        "Lihan Zha",
+        "Kashu Yamazaki",
+        "Mingtong Zhang",
+        "Suning Huang",
+        "Jiankai Sun",
+        "Qianzhong Chen",
+        "Lucy He",
+        "Kaiyuan Liu",
+        "Haoran Chang",
+        "Katerina Fragkiadaki",
+        "Dhruv Shah",
+        "Mac Schwager",
+        "Peter Henderson",
+        "Ian Abraham",
+        "Canwen Xu"
+      ],
+      "publicationDate": "2026-09-25",
+      "readAt": "2026-10-09",
+      "description": "解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。",
+      "tags": [
+        "EmbodiedSWE",
+        "coding agents",
+        "robotics",
+        "VLA",
+        "仿真数据",
+        "长程操作",
+        "sim-to-real",
+        "SmolVLA"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.27308v2",
+      "href": "papers/embodiedswe/"
     },
     {
       "slug": "ad-wm",
@@ -156,46 +233,6 @@
       ],
       "sourceUrl": "https://github.com/MachEmbodied/ME-VLM",
       "href": "papers/me-vlm/"
-    },
-    {
-      "slug": "embodiedswe",
-      "title": "EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics",
-      "authors": [
-        "Zeyu Shen",
-        "Haoxiang You",
-        "Yilang Liu",
-        "Zhicheng Zheng",
-        "Lihan Zha",
-        "Kashu Yamazaki",
-        "Mingtong Zhang",
-        "Suning Huang",
-        "Jiankai Sun",
-        "Qianzhong Chen",
-        "Lucy He",
-        "Kaiyuan Liu",
-        "Haoran Chang",
-        "Katerina Fragkiadaki",
-        "Dhruv Shah",
-        "Mac Schwager",
-        "Peter Henderson",
-        "Ian Abraham",
-        "Canwen Xu"
-      ],
-      "publicationDate": "2026-09-25",
-      "readAt": "2026-09-28",
-      "description": "解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。",
-      "tags": [
-        "EmbodiedSWE",
-        "coding agents",
-        "robotics",
-        "VLA",
-        "仿真数据",
-        "长程操作",
-        "sim-to-real",
-        "SmolVLA"
-      ],
-      "sourceUrl": "https://arxiv.org/abs/2609.27308v2",
-      "href": "papers/embodiedswe/"
     },
     {
       "slug": "recurrent-depth",
