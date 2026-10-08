@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="AD-WM: Action-Discriminative World Models for Counterfactual Model Predictive Control">
+<meta name="citation_author" content="Jiabin Qiu">
+<meta name="citation_author" content="Zixuan Chen">
+<meta name="citation_author" content="Hongye Cao">
+<meta name="citation_author" content="Jieqi Shi">
+<meta name="citation_author" content="Jing Huo">
+<meta name="citation_author" content="Yang Gao">
+<meta name="citation_publication_date" content="2026-09-25">
+<meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.30264v2">
+<meta name="description" content="AD-WM 用残差预测与预测转移上的动作恢复改善反事实 MPC；核对 Cube 消融、精英集 regret 与带人工子目标的 Franka 迁移证据。">
+<meta name="keywords" content="AD-WM, JEPA, LeWM, world model, MPC, CEM, action recovery, counterfactual, V-JEPA 2">
+<meta name="paper:read_at" content="2026-10-09">
+<title>AD-WM：预测准确，为什么仍然选错动作？</title>
+<link rel="stylesheet" href="../../assets/site.css?v=20260808"><script src="../../assets/paper-reading.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/ad-wm/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">arXiv:2609.30264v2 · 2026-09-25 · 阅读：2026-10-09</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+<li><a href="#thesis">预测准，为何选不对</a></li><li><a href="#mechanism">让预测保留动作差异</a></li><li><a href="#evidence">消融与选优证据</a></li><li><a href="#limits">控制收益的边界</a></li><li><a href="#sources">原文与项目入口</a></li></ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">LATENT WORLD MODELS · COUNTERFACTUAL MPC</p>
+<h1 id="paper-title" class="paper-title">AD-WM</h1><p class="paper-subtitle">预测准确，为什么仍然选错动作？</p>
+<div class="paper-byline"><span>Jiabin Qiu、Zixuan Chen 等 6 位作者 · 南京大学</span><span>arXiv v2 · 9 页</span></div>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让离线训练的潜空间世界模型，在同一状态下比较不同动作时，保留足以指导机器人控制的差异。</p></div>
+<div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p><strong>这篇论文最有价值的提醒：世界模型的质量要看它能否选出好动作，单看预测误差不够。</strong>AD-WM 用残差预测加动作恢复改善选优，Cube 困难起点成功率从 3.7% 提至 52.0%；但消融支持的主要贡献是残差与归一化恢复，不能把收益均摊给所有模块。（§III；表 II–III）</p></div>
+</section>
+<section id="concepts"><h2>“反事实”是在同一起点比较候选动作</h2><p>JEPA 将图像编码成潜在表示，预测未来表示而不重建像素。MPC（模型预测控制）则在模型中试跑多条动作序列，比较预测终点与目标图像的表示距离，执行第一段后重新规划。这里的反事实指“如果换一个动作会怎样”，不意味着论文识别了完整的因果结构。（§III-A/D）</p></section>
+<section id="problem-chain"><h2>背景很容易预测，接触变化却决定控制</h2><p>训练只知道实际执行动作的后果。静止背景占据大部分视觉表示时，直接复制当前状态也能取得较小误差；但若“靠近方块”和“远离方块”的预测几乎相同，规划就失去选择依据。低事实误差与动作可区分性因此是两件事。（§III-A）</p></section>
+<section id="mechanism"><h2>把动作恢复压力加在预测转移上</h2>
+<p><strong>第一步，预测变化量。</strong>下一状态表示 = 当前表示 + 预测增量，真实后继表示继续监督预测。残差连接让网络集中学习局部变化；作者明确承认它与绝对预测在无限制函数空间中有相同最优解，改变的是学习偏置，不是增加信息。（§III-B）</p>
+<figure class="svg-figure"><svg viewBox="0 0 760 335" role="img" aria-labelledby="adwm-diagram-title adwm-diagram-desc">
+<title id="adwm-diagram-title">预测转移上的动作恢复与测试时 MPC</title><desc id="adwm-diagram-desc">当前表示和候选动作产生预测增量，与当前表示相加得到下一状态。训练时从当前和预测下一状态恢复动作，并以真实后继锚定预测。测试时移除恢复头，CEM 按目标距离选优。</desc>
+<defs><marker id="adwm-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#52605b"/></marker></defs>
+<rect width="760" height="335" fill="#fbfaf6"/>
+<g font-family="sans-serif" font-size="16" fill="#17201d">
+<rect x="20" y="65" width="145" height="80" rx="6" fill="#dcebe5"/><text x="40" y="95">当前表示 z</text><text x="40" y="123">候选动作 a</text>
+<rect x="205" y="65" width="160" height="80" rx="6" fill="#dfeaf1"/><text x="225" y="96">残差动力学</text><text x="225" y="123">预测增量 Δẑ</text>
+<rect x="415" y="65" width="150" height="80" rx="6" fill="#dcebe5"/><text x="435" y="96">预测后继 ẑ′</text><text x="435" y="123">z + Δẑ</text>
+<rect x="605" y="65" width="135" height="80" rx="6" fill="#f1e8c9"/><text x="621" y="96">距目标多远？</text><text x="621" y="123">CEM 选优</text>
+<rect x="205" y="220" width="360" height="70" rx="6" fill="#f4ded5"/><text x="228" y="248">训练专用：从 (z, ẑ′) 恢复动作</text><text x="228" y="273" font-size="14">Inv：原尺度　MI：标准化目标 + 均值正则</text>
+<text x="415" y="30" font-size="14">真实后继监督 → 锚定事实</text>
+<text x="22" y="319" font-size="13" fill="#52605b">示意图 · 测试时移除恢复头；编码器与 CEM 流程保持一致</text></g>
+<g fill="none" stroke="#52605b" stroke-width="2" marker-end="url(#adwm-arrow)"><path d="M165 105H205"/><path d="M365 105H415"/><path d="M565 105H605"/><path d="M490 145V220"/><path d="M92 145V255H205"/></g>
+<path d="M385 220V170H285V145" fill="none" stroke="#bd4c32" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#adwm-arrow)"/>
+<text x="215" y="193" font-size="13" fill="#86321f">恢复误差回传到预测器</text>
+</svg><figcaption class="read-guide">关键是恢复头读取<strong>模型预测的后继</strong>：它直接约束规划时使用的动力学，而不只改善真实观测的编码。</figcaption></figure>
+<p><strong>第二步，让预测留下动作信息。</strong>Inv 头从当前与预测后继恢复学习到的动作嵌入；目标停止梯度，预测端仍可回传。MI 头也读这两个端点，但先按 batch 标准化动作嵌入，再做单位协方差高斯恢复。这样控制恢复目标的尺度。（§III-C）</p>
+<p>所谓 MI 目标，去掉常数后就是<strong>标准化动作的平方恢复误差，加恢复均值向零收缩的正则项</strong>。条件互信息下界为恢复项提供动机，其解释依赖固定表示及归一化；不应把整个联合训练目标读成无条件的互信息最大化保证。仿真同时训练编码器并用 SIGReg 保持表示分布，机器人后训练冻结编码器。（§III-C/D）</p>
+<p><strong>第三步，沿用原规划器。</strong>恢复头只在训练时使用。测试时 CEM（交叉熵搜索）不断采样动作序列，保留预测成本最低的“精英集”，再用这些序列更新采样分布。本文没有添加奖励模型或更换动作搜索接口。（§III-D）</p>
+</section>
+<section id="evidence"><h2>最强证据：误差更大，控制反而更好</h2>
+<div class="table-wrap"><table class="evidence-table evidence-table--compact"><caption>Cube：三训练种子均值；表 II-A 与 III，MSE 已乘 10³</caption><thead><tr><th>模型</th><th>困难成功率 ↑</th><th>单步 MSE ↓</th><th>精英 regret ↓</th></tr></thead><tbody>
+<tr><td>LeWM</td><td>3.7%</td><td>2.72</td><td>0.074</td></tr><tr><td>仅残差 Res</td><td>34.7%</td><td>3.61</td><td>0.046</td></tr><tr><td>Res + Inv</td><td>37.1%</td><td>3.43</td><td>0.043</td></tr><tr><td>Res + MI</td><td><strong>54.7%</strong></td><td>4.20</td><td>0.029</td></tr><tr><td>完整 AD-WM</td><td>52.0%</td><td>4.27</td><td>0.029</td></tr></tbody></table></div>
+<p>困难成功率是无夹爪接触的桌面起点 P00–P04 均值，每个协议每种子 50 回合；P00 即使不扰动也不同于原始测试。完整模型提高 <strong>48.3 个百分点</strong>，但 Res+MI 均值更高；Inv 默认权重并未稳定带来额外收益。换成真实编码端点作为 Inv 输入也能达到 60.7%，故不能据此断言“Inv 必须读预测端点”。MI 在这组消融中始终读预测端点。（表 II）</p>
+<p><strong>为什么看精英 regret？</strong>它衡量预测选出的 30 条序列中，真实最好的那条距整个 300 条候选库的真实最优还差多少，并按真实成本范围归一化；另有衡量整组质量的均值 regret。CEM 依赖少数精英，排好大量差动作未必有用。15 个模型–种子观测中，成功率与负 best-in-elite regret 的 Spearman 相关为 0.863，全库排序相关指标 CAD 与成功率反而为 −0.399。（§IV-D）</p>
+<p>仿真五环境中四个相对匹配复现的 LeWM 提升，PushT 从 94% 降至 92%；Scene 35.5%→39.5% 的三种子配对检验 p=0.13，尚不能确认总体增益。外部 INTACT Direct 在 Original 至 P02 更强，AD-WM 在 P04 更强；训练和推理接口不同，不能宣称全面领先。（图 4；表 I）</p>
+<p><strong>真实机器人：</strong>相同冻结 V-JEPA 2 编码器、DROID 后训练及部署流程下，基础抓放成功从 19/45（42.2%）到 32/45（71.1%），增加 28.9 个百分点；复杂物体从 2/10 到 5/10。没有本实验室数据适配，但使用人工抓取／移动／放置子目标图像与强制夹爪开闭。这支持结构化流程中的迁移，不能解释成端到端自主长任务。（§IV-E；表 IV）</p>
+</section>
+<section id="limits"><h2>能恢复动作，还不等于预测物理正确</h2>
+<p><strong>机制保证有限。</strong>本页推断：预测表示可能通过控制无关的信号编码动作；事实监督提供约束，但动作可恢复性本身不能保证未见动作的物理后果正确。论文给出了控制收益，未证明这一风险普遍消失。</p>
+<p><strong>诊断是关联证据。</strong>regret 只在 Cube 的固定候选库上验证，没有跟踪自适应 CEM 全过程；不同模型还各用自己的编码器定义真实与预测成本。归一化缓解尺度影响，却不把潜空间距离变成统一物理误差。（§III-E/IV-D）</p>
+<p><strong>迁移范围较窄。</strong>机器人实验只有一个场地、相机与骨干，两个模型按非随机区块分别评测，可能受顺序和环境漂移影响；仿真与机器人还使用不同辅助权重。结论宜限定为“匹配设置下改善控制”，更广的跨本体泛化仍待验证。（§V）</p>
+</section>
+<section id="sources"><h2>回到原文</h2><ol class="source-list"><li><a href="https://arxiv.org/abs/2609.30264v2">arXiv v2 摘要与版本记录</a>：2026-09-25 修订。</li><li><a href="https://arxiv.org/pdf/2609.30264v2">论文 PDF</a>：用户附件对应 v2，全文 9 页；机制来自 §III，实验来自 §IV、表 I–IV。</li><li><a href="https://ad-wm.github.io/">作者项目入口</a>：论文提供的代码与视频入口；本页未以项目演示替代定量证据。</li></ol><p class="evidence-note">模型结构、数字与协议均来自附件；对贡献强弱、MI 理论范围及动作信息与物理正确性的区分是本页分析。</p></section>
+</main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+          <p class="paper-rail__label">COLLABORATIVE READING</p>
+          <h2 id="mark-panel-title">划线后继续追问</h2>
+          <p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p>
+          <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p>
+        </section>
+
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+          <p class="paper-rail__label">PERSONAL COMMENTS</p>
+          <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+          <p>评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p>
+          <button class="paper-comment-new" type="button">写一条章节评论</button>
+        </section>
+      </aside>
+
+</div></body></html>
