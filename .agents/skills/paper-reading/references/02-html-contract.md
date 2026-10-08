@@ -42,6 +42,10 @@ formula-card__caption formula-legend formula-legend__row formula-card__intuition
 term-bridge concept-visual
 ```
 
+## 机制交互
+
+机制交互属于 `paper-main` 的相应正文 section，不能以右侧划线和评论功能替代。选题、静态回退、控件和动态状态验证遵循 `04-interactive-explainers.md`。交互容器只更新自身状态，保留正文锚点及用户标记、评论。
+
 ## 公式组件
 
 ```html

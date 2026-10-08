@@ -46,3 +46,8 @@ follow-up conversation while preserving annotation and comment contracts.
 Updated in September 2026 with optional interactive explainers for difficult
 mechanisms, preserving static explanations, source boundaries, accessibility,
 and compatibility with the existing annotation and comment workflow.
+
+Updated in October 2026 to honor the user preference for interactive HTML by
+default: evaluate interactions before choosing visuals, implement meaningful
+mechanism controls where suitable, distinguish them from collaboration UI,
+and verify state changes with concrete explanations for omissions.

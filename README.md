@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **THAW-VLA（交互重读）**：用阶段切换拆开离线教师提取、学生训练与部署，再用向量滑块解释余弦对齐的方向约束；保留同架构对照、真实机器人小样本及因果知识迁移的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/thaw-vla/#mechanism) · [GitHub 源码](papers/thaw-vla/index.html)。配套 [paper-reading Skill](.agents/skills/paper-reading/SKILL.md) 已改为默认主动实现有助理解的机制交互，并要求实际操作验证。
+
 - **EmbodiedSWE**：让编程 Agent 在仿真中调试控制程序，再通过五层变化生成 VLA 示范；重点区分 23/28 任务求解、六任务同分布数据扩展、保留配置泛化与真实机器人 2/10 的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/embodiedswe/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/embodiedswe/)
 - **Motus2**：用共享策略、动作条件模拟器与价值评估器构成学习闭环，重点区分 84% 主任务成绩、两任务 MBRL 65%→72.5% 及长期自主进化的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/motus2/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/motus2/)
 
@@ -28,15 +30,22 @@
 ## 项目特点
 
 - **目的优先**：先回答论文试图解决什么，再进入方法细节。
-- **机制可视化**：用结构化页面梳理问题链、核心机制和实验结论。
+- **机制可视化与交互**：围绕核心机制设计流程步进、阶段切换、方法对比或参数操控，让操作与图形、信息流、数值联动；保留静态解释，示意与论文实测结果明确区分。
 - **证据与推断分开**：明确区分论文原始证据、合理推断与个人评论。
-- **交互式阅读**：支持划线、批注和评论；离线时暂存在浏览器，本地 bridge 在线时可写回论文页面。
+- **协作阅读**：支持划线、批注和评论；离线时暂存在浏览器，本地 bridge 在线时可写回论文页面。
 - **静态站点**：不依赖后端服务，可直接托管到 GitHub Pages。
 
 ## 当前收录
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal](papers/world-action-agent/) | 解读 WAA 如何用接触视图、动作预演和视图内修正让通用 VLM 操纵机器人；核对技能增益、仿真泛化与 9B 主策略微调的证据边界。 |
+| [Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies](papers/thaw-vla/) | THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；通过阶段切换与余弦向量实验解释蒸馏机制，核对同架构证据与因果知识迁移边界。 |
+| [Less Language, More Latents: Annotation-Efficient VLAs for Driving](papers/less-language-more-latents/) | LADA 用少量语言与反事实监督对齐离散驾驶意图，再在全量专家轨迹上训练；解读闭环收益、额外成本和仿真迁移边界。 |
+| [ForeDrive: Foresight-Guided End-to-End Autonomous Driving with a Planning-Relevant Latent World Model](papers/foredrive/) | ForeDrive 解读：共享编码器接受规划梯度，未来预测器保持预测目标；核对未来注入、TAB 消融、错误未来与非交互评测边界。 |
+| [AD-WM: Action-Discriminative World Models for Counterfactual Model Predictive Control](papers/ad-wm/) | AD-WM 用残差预测与预测转移上的动作恢复改善反事实 MPC；核对 Cube 消融、精英集 regret 与带人工子目标的 Franka 迁移证据。 |
+| [ME 系列四篇联合解读：认知、记忆、世界动作与触觉的价值及证据缺口](papers/me-embodied-family/) | 联合审读 ME-VLM、ME-Brain-1.0、MachEmbodied-U0 与 ME-Dex1.0：解释四者关系，区分系统工程价值与机制证据，重点核查自进化、统一建模、实时触觉、泛化和复现的不足。 |
+| [ME-VLM: A Unified VLM for Embodied Cognition and Agent Coordination](papers/me-vlm/) | ME-VLM 用两阶段具身 SFT、双专家强化学习和多教师 on-policy 蒸馏统一物理认知与 Agent 能力。解读训练机制、平均分口径、导航适配与 M100 端侧部署的证据边界。 |
 | [EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics](papers/embodiedswe/) | 解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。 |
 | [Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach](papers/recurrent-depth/) | 潜空间推理系列 01：Huginn 如何用随机深度训练、输入持续注入与截断反传扩展测试时计算；区分多循环收益、CoT 评测与等 FLOPs 证据。 |
 | [Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation](papers/mixture-of-recursions/) | 潜空间推理系列 02：MoR 将参数共享、token 级深度路由与 KV 缓存联合设计；核对等数据与等计算实验、因果路由问题和 2.06 倍吞吐的计时边界。 |
@@ -75,7 +84,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 37 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 44 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
@@ -95,16 +104,21 @@ python3 .agents/skills/paper-reading/scripts/bridge.py --site-root .
 
 ## 新增论文解读
 
-1. 按仓库内的 [paper-reading skill](.agents/skills/paper-reading/SKILL.md) 完成论文阅读。
-2. 将页面保存为 `papers/<slug>/index.html`。
-3. 复用 `assets/` 中的公共样式与交互脚本。
-4. 重建目录并校验站点：
+1. 按仓库内的 [paper-reading Skill](.agents/skills/paper-reading/SKILL.md) 完成论文阅读，在选择呈现形式前读取[交互图解规范](.agents/skills/paper-reading/references/04-interactive-explainers.md)。
+2. 将页面保存为 `papers/<slug>/index.html`，默认主动实现有助理解的机制交互。存在阶段、信息流、变量作用或方法差异时，通常至少实现一处；确无合适主题或材料不足时，交付中说明具体原因。评论、划线、目录跳转和纯文字折叠不算机制交互。
+3. 复用 `assets/` 中的公共样式与交互脚本，交互可在普通静态站点运行，不依赖本地 bridge 或模型接口。以 [THAW-VLA](papers/thaw-vla/index.html) 及其 [CSS](assets/thaw-vla.css)、[JavaScript](assets/thaw-vla.js) 为已实现参考。
+4. 通过 localhost 实际操作关键状态、参数边界和键盘控件，检查桌面与窄屏、静态回退以及划线／评论兼容性；构建成功不等于交互可用。
+5. 重建目录并校验站点：
 
 ```bash
 python3 scripts/rebuild_catalog.py
+python3 scripts/rebuild_catalog.py --check
 python3 scripts/validate_site.py
 python3 -m unittest discover -s tests -v
+npm run build
 ```
+
+6. 论文解读完成后，按 [AGENTS.md](AGENTS.md) 同步 GitHub `origin/main` 与 `.openai/hosting.json` 中的既有 ChatGPT Sites 项目，保持公开访问，并返回两端链接。
 
 ## 目录结构
 
