@@ -24,6 +24,39 @@
       "href": "papers/less-language-more-latents/"
     },
     {
+      "slug": "foredrive",
+      "title": "ForeDrive: Foresight-Guided End-to-End Autonomous Driving with a Planning-Relevant Latent World Model",
+      "authors": [
+        "Sinuo Wang",
+        "Zichong Gu",
+        "Yuhan Huang",
+        "Wenxin Wen",
+        "Xun Yang",
+        "Yiqing Zhang",
+        "Xingyu Zhang",
+        "Ningyu Che",
+        "Jie Ling",
+        "Qiankun Yu",
+        "Wei Liu",
+        "Jing Xu",
+        "Xinggang Wang"
+      ],
+      "publicationDate": "2026-09-23",
+      "readAt": "2026-10-09",
+      "description": "ForeDrive 解读：共享编码器接受规划梯度，未来预测器保持预测目标；核对未来注入、TAB 消融、错误未来与非交互评测边界。",
+      "tags": [
+        "ForeDrive",
+        "JEPA",
+        "潜在世界模型",
+        "自动驾驶",
+        "TAB",
+        "DiT",
+        "NAVSIM"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2609.26299v2",
+      "href": "papers/foredrive/"
+    },
+    {
       "slug": "thaw-vla",
       "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
       "authors": [
