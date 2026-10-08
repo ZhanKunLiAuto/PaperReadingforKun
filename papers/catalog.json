@@ -39,6 +39,30 @@
       "href": "papers/world-action-agent/"
     },
     {
+      "slug": "vista",
+      "title": "VISTA: A Visual Harness for Reasoning in an Interactive World",
+      "authors": [
+        "Qiushi Han",
+        "Keya Hu",
+        "Linlu Qiu",
+        "Cathy Wu",
+        "Kaiming He"
+      ],
+      "publicationDate": "2026-10-01",
+      "readAt": "2026-10-09",
+      "description": "解读 VISTA 如何用无损画面档案与主动视觉检查支持长程推理，核对 ARC-AGI-3 满分、组件消融、跨游戏结果及计算成本。",
+      "tags": [
+        "VISTA",
+        "visual harness",
+        "lossless visual memory",
+        "ARC-AGI-3",
+        "visual inspection",
+        "multimodal agents"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2610.02200v1",
+      "href": "papers/vista/"
+    },
+    {
       "slug": "thaw-vla",
       "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
       "authors": [

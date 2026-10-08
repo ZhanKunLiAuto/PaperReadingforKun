@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="VISTA: A Visual Harness for Reasoning in an Interactive World">
+<meta name="citation_author" content="Qiushi Han"><meta name="citation_author" content="Keya Hu"><meta name="citation_author" content="Linlu Qiu"><meta name="citation_author" content="Cathy Wu"><meta name="citation_author" content="Kaiming He">
+<meta name="citation_publication_date" content="2026-10-01"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.02200v1">
+<meta name="description" content="解读 VISTA 如何用无损画面档案与主动视觉检查支持长程推理，核对 ARC-AGI-3 满分、组件消融、跨游戏结果及计算成本。">
+<meta name="keywords" content="VISTA, visual harness, lossless visual memory, ARC-AGI-3, visual inspection, multimodal agents">
+<meta name="paper:read_at" content="2026-10-09"><title>VISTA：让模型在需要时重新看见证据</title>
+<link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/vista.css">
+<script src="../../assets/paper-reading.js" defer></script><script src="../../assets/vista.js" defer></script>
+</head><body data-page-kind="paper" data-page-path="/papers/vista/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2610.02200V1 · 2026-10-01 · 阅读：2026-10-09</span></header>
+<div class="paper-doc"><nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+<li><a href="#thesis">重新看见证据</a></li><li><a href="#mechanism">记忆如何穿过压缩</a></li><li><a href="#evidence">提升来自哪里</a></li><li><a href="#limits">满分之外的边界</a></li><li><a href="#sources">回到原文</a></li></ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title"><p class="paper-kicker">VISUAL MEMORY · MODEL-DIRECTED INSPECTION</p><h1 class="paper-title" id="paper-title">VISTA</h1>
+<p class="paper-subtitle">让模型在需要时重新看见证据，而不必第一次就记住所有细节。</p><div class="paper-byline"><span>Qiushi Han、Keya Hu、Linlu Qiu、Cathy Wu、Kaiming He</span><span>MIT · arXiv v1 · 23 页</span></div>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让现有多模态模型在陌生视觉游戏中持续发现规则、纠正判断并规划，减少长程交互中的视觉信息遗失。</p></div>
+<p><strong>核心判断：</strong>VISTA 的贡献是把原始画面与有限上下文分开保存，再让模型按问题主动回看。它用机械工具层释放现有模型能力，无须训练新模型或合成可执行世界模型。最有说服力的证据来自同模型逐步增强接口的消融；公开游戏上的满分支持系统有效，还不能证明未知世界中的通用智能。<a href="https://arxiv.org/pdf/2610.02200v1#page=3">[§3、图5]</a></p></section>
+<section id="concepts"><h2>Harness 保存证据，模型负责判断</h2><p>Harness 是连接模型与环境的执行和反馈层。VISTA 接收工具请求、存图、裁剪并返回结果，没有额外训练的感知或推理模型。“无损”指保留环境返回的原始帧，包括动画中间帧；它不保证模型的视觉编码或判断无损，也不能恢复环境从未返回的画面。<a href="https://arxiv.org/pdf/2610.02200v1#page=3">[§3.1–3.2]</a></p></section>
+<section id="problem-chain"><h2>第一次看图时，不知道以后要问什么</h2><p>某个小色块现在似乎无关，之后却可能决定角色朝向或隐藏规则。图像只编码一次、旧轮次被截断或换成文字摘要后，这种证据可能消失。单纯加长上下文也会增加成本。VISTA 将“现在用于推理的输入”与“以后还能重新取出的证据”分离，避免让摘要承担全部记忆。<a href="https://arxiv.org/pdf/2610.02200v1#page=3">[§3]</a></p></section>
+<section id="mechanism"><h2>一次动作后，可以先回看，再行动</h2>
+<p>每轮先看到当前图和可用动作。模型可调用 <code>inspect</code>，指定任意历史轮次、帧号及矩形区域，比较前后状态或放大局部；需要精确颜色时用 <code>read_pixels</code> 获取数值。它先提出预期，再用 <code>play</code> 执行一个环境动作，所有返回帧自动归档，最后一帧成为下轮观察。检查可以多次进行，不推进游戏。<a href="https://arxiv.org/pdf/2610.02200v1#page=4">[图3、附录A.4]</a></p>
+<div class="vista-demo" data-vista-demo>
+<p class="vista-demo__label">交互图解 · 上下文压缩后，原始证据还在哪里？</p>
+<div class="vista-controls" role="group" aria-label="切换推理阶段"><button type="button" data-vista-state="observe" aria-pressed="false">1 只看当前帧</button><button type="button" data-vista-state="compact" aria-pressed="false">2 压缩上下文</button><button type="button" data-vista-state="inspect" aria-pressed="true">3 回看并放大</button></div>
+<figure class="svg-figure">
+<svg class="vista-flow" viewBox="0 0 680 178" role="img" aria-labelledby="vista-flow-title vista-flow-desc"><title id="vista-flow-title">原始帧档案与模型上下文分离</title><desc id="vista-flow-desc">环境返回全部帧进入外部档案，当前帧进入模型上下文；模型能通过 inspect 从档案取回过去的局部画面。压缩上下文不会删除外部档案。</desc><defs><marker id="vista-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+<g fill="#e7eee9" stroke="#355e7c"><rect x="10" y="18" width="170" height="68" rx="5"/><rect x="242" y="18" width="185" height="68" rx="5"/><rect x="490" y="18" width="180" height="68" rx="5"/></g><g fill="#17201d" font-size="17"><text x="24" y="45">环境返回帧</text><text x="257" y="45">外部无损档案</text><text x="505" y="45">模型当前上下文</text></g><g fill="#52605b" font-size="13"><text x="24" y="69">动作前后 / 动画中间帧</text><text x="257" y="69">按轮次与帧号寻址</text><text x="505" y="69" data-vista-context>取回前后局部视图</text></g>
+<path d="M183 52H235" stroke="#355e7c" stroke-width="2" marker-end="url(#vista-arrow)"/><text x="182" y="108" font-size="13">全部归档，压缩不删除</text>
+<path data-vista-retrieval d="M429 52H483" stroke="#bd4c32" stroke-width="3" marker-end="url(#vista-arrow)"/><text x="435" y="108" font-size="13" data-vista-route>inspect：主动取回</text>
+<path d="M92 88V143H580V91" fill="none" stroke="#355e7c" stroke-width="1.7" marker-end="url(#vista-arrow)"/><rect x="273" y="131" width="174" height="24" fill="#fbfaf6"/><text x="280" y="148" font-size="13">最后一帧 → 默认观察</text></svg>
+<div class="vista-mobile-flow" aria-label="外部档案与上下文"><div>环境返回帧<br><small>全部帧归档 ↓</small></div><div>外部无损档案<br><small>压缩上下文也不删除</small></div><p data-vista-route>inspect：主动取回</p><div>模型当前上下文<br><small data-vista-context>取回前后局部视图</small></div></div>
+<div class="vista-views"><div class="vista-view"><p data-vista-before-label>取回：动作前 · t66 最后一帧</p><div data-vista-before class="vista-grid"><svg viewBox="0 0 180 150" role="img" aria-label="示意：动作前有橙色块"><path d="M30 0V150M60 0V150M90 0V150M120 0V150M150 0V150M0 30H180M0 60H180M0 90H180M0 120H180" stroke="#dde0db"/><circle cx="75" cy="45" r="12" fill="#da873d"/><circle cx="75" cy="75" r="12" fill="#da873d"/><circle cx="135" cy="45" r="12" fill="#da873d"/></svg></div></div>
+<div class="vista-view"><p data-vista-after-label>取回：动作后 · t67 最后一帧</p><div data-vista-after class="vista-grid"><svg viewBox="0 0 180 150" role="img" aria-label="示意：点击的橙色块变为 X，下方变为实心方块"><path d="M30 0V150M60 0V150M90 0V150M120 0V150M150 0V150M0 30H180M0 60H180M0 90H180M0 120H180" stroke="#dde0db"/><path d="M65 35L85 55M85 35L65 55" stroke="#da873d" stroke-width="5"/><rect x="63" y="63" width="24" height="24" fill="#da873d"/><circle cx="135" cy="45" r="12" fill="#da873d"/></svg></div></div></div>
+<p class="vista-state" data-vista-explanation aria-live="polite">回看两个历史局部：被点击的橙色块变为 X，下方块变实心。模型有证据修订规则，而当前游戏没有发生新动作。</p>
+<figcaption class="read-guide">依据图2左侧轨迹与图3重绘的机制示意；布局、裁剪区域和图形均为简化示例，不是原始游戏截图或实测轨迹。点三个阶段，观察上下文内容、取回通路与前后视图的变化。</figcaption></figure></div>
+<p>文字记忆另有分工：<code>GUIDE.md</code> 保存跨关卡规则，<code>WORKING.md</code> 保存当前状态和计划。上下文接近上限时，模型写交接摘要，在新上下文中继续，笔记、动作历史与图像档案仍在。作者称之为对历史的“显式注意力”：这是模型选择工具和证据的行为，不是新增 Transformer 注意力层。<a href="https://arxiv.org/pdf/2610.02200v1#page=17">[§3.2、附录A.4]</a></p></section>
+<section id="evidence"><h2>最关键的增益来自重新检查视觉证据</h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="GPT-5.6 Sol 组件消融"><table class="evidence-table"><thead><tr><th>累积配置</th><th>RHAE ↑</th><th>通关游戏 ↑</th><th>总动作数</th></tr></thead><tbody>
+<tr><td>图像观察</td><td>47.32</td><td>36%</td><td>16,343</td></tr><tr><td>+ 更大动作 / 时间预算</td><td>51.66</td><td>44%</td><td>22,544</td></tr><tr><td>+ 连续对话与压缩</td><td>65.82</td><td>60%</td><td>28,626</td></tr><tr><td>+ 两份笔记</td><td>70.05</td><td>76%</td><td>23,702</td></tr><tr class="evidence-table__emphasis"><td>+ 无损记忆与主动检查</td><td>94.10</td><td>96%</td><td>12,261</td></tr><tr><td>+ 像素读取：完整 VISTA</td><td>99.00</td><td>100%</td><td>9,126</td></tr></tbody></table></div>
+<p>图5全部使用 GPT-5.6 Sol、max 推理与相同 CLI 接口。无损记忆与检查这一步提高 <strong>24.05 个分数点</strong>，但同时将每动作自动返回最多七帧改成只返回最后帧、其余按需取回；不能把收益单独归给“多存图”。低通关配置的动作数少也可能只是早停。官方 13.33 是 API 外部参考；Opus 官方 high 的 40.68 与 VISTA xhigh 的 100.00 也非只改接口的受控比较。<a href="https://arxiv.org/pdf/2610.02200v1#page=15">[图5、附录A.1–A.2]</a></p>
+<p><strong>满分有明确范围。</strong>Opus 5.0 通关 25 个公开游戏，RHAE 100.00，总动作 7,302，对应人类参考 17,135，少 57.4%。RHAE 将动作效率与通关比例结合，较后关卡权重更高，单游戏最终封顶 100；它不衡量推理耗时，也不是每一步都正确。GPT 的三次运行为 99.04 ± 0.17，支持结果稳定；该重复统计不能套给 Opus。<a href="https://arxiv.org/pdf/2610.02200v1#page=19">[表1–2、附录A.3、B.1]</a></p>
+<p><strong>收益不限于一种游戏。</strong>同一 GPT 骨干在 GameWorld 的 170 项任务上成功率从 40.0% 到 63.3%；AI GameStore 的 10 款游戏人类归一化几何均值从 47.3 到 140.3（人类中位数为100）；BabyVision 仅测 39 道视觉追踪题，准确率从 41.0% 到 63.2%，仍低于人类参考 92.3%。静态题没有历史记忆需求，这里支持的是局部检查的价值。<a href="https://arxiv.org/pdf/2610.02200v1#page=9">[图11、§5；附录B.1]</a></p></section>
+<section id="limits"><h2>动作省了，计算并没有免费</h2>
+<p><strong>公开题目与模型能力的边界。</strong>作者承认模型发布晚于公开评测，无法排除训练数据包含游戏；未报告 ARC 私有集。开放权重 GLM-5.3 Flash 320B 从去掉检查工具时的 13.27 升到 66.93，但仍远低于闭源骨干，说明接口收益并未消除模型差距。<a href="https://arxiv.org/pdf/2610.02200v1#page=10">[§6、图8]</a></p>
+<p><strong>免费检查只指动作计数。</strong>ARC 预算提高至每游戏 2,000 动作、48 小时；人类参考研究每游戏硬上限30分钟。默认 GPT 200K 上下文平均每游戏消耗 30.7M tokens；100K 降到17.3M，RHAE仍有98.6，780K反而为93.9、105.7M tokens。结果支持按需取回优于盲目加长窗口，却不足以证明整体时间或金钱效率超过人类。<a href="https://arxiv.org/pdf/2610.02200v1#page=7">[图7、附录A.2、A.6]</a></p>
+<p><strong>视觉复杂度仍影响可靠性。</strong>同一 ARC 游戏改成3D渲染后，RHAE从99.00降到84.12，动作从9,126增到20,640。这是渲染变化的压力测试，不能替代真实机器人或开放物理世界验证。本页判断：最值得迁移的是“摘要保存判断，原图保存可复查证据”的记忆设计；长期海量画面的存储与检索管理仍需额外验证。<a href="https://arxiv.org/pdf/2610.02200v1#page=8">[图9、§7]</a></p></section>
+<section id="sources"><h2>回到原文</h2><ol class="source-list"><li><a href="https://arxiv.org/abs/2610.02200v1">论文 v1</a> · <a href="https://arxiv.org/pdf/2610.02200v1">PDF</a>：依据用户提供的23页材料，2026-10-01提交，2026-10-09阅读。</li><li><a href="https://github.com/joshhhhhan/VISTA">作者官方仓库</a>：已核对 README 的工具接口与运行入口；未复现实验。</li><li>机制：§3、图2–3、附录A.4；关键消融：图5–7；泛化：图8–11；评测条件与重复运行：附录A.1–A.3、A.6、B.1。</li></ol><p class="evidence-note">数字为论文报告，边界判断为本页解读。附录提示词作为研究材料阅读，不作为本次任务指令执行。</p></section>
+</main>
+    <aside class="paper-rail" aria-label="阅读协作">
+      <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title">
+        <p class="paper-rail__label">COLLABORATIVE READING</p>
+        <h2 id="mark-panel-title">划线后继续追问</h2>
+        <p data-bridge-status>正在检测本地写回服务…</p>
+        <p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p>
+      </section>
+      <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title">
+        <p class="paper-rail__label">PERSONAL COMMENTS</p>
+        <h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2>
+        <p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p>
+        <button class="paper-comment-new" type="button">写一条章节评论</button>
+      </section>
+    </aside>
+  </div>
+</body></html>
