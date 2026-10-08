@@ -134,6 +134,34 @@
       "href": "papers/embodiedswe/"
     },
     {
+      "slug": "ad-wm",
+      "title": "AD-WM: Action-Discriminative World Models for Counterfactual Model Predictive Control",
+      "authors": [
+        "Jiabin Qiu",
+        "Zixuan Chen",
+        "Hongye Cao",
+        "Jieqi Shi",
+        "Jing Huo",
+        "Yang Gao"
+      ],
+      "publicationDate": "2026-09-25",
+      "readAt": "2026-10-09",
+      "description": "AD-WM 用残差预测与预测转移上的动作恢复改善反事实 MPC；核对 Cube 消融、精英集 regret 与带人工子目标的 Franka 迁移证据。",
+      "tags": [
+        "AD-WM",
+        "JEPA",
+        "LeWM",
+        "world model",
+        "MPC",
+        "CEM",
+        "action recovery",
+        "counterfactual",
+        "V-JEPA 2"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2609.30264v2",
+      "href": "papers/ad-wm/"
+    },
+    {
       "slug": "thaw-vla",
       "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
       "authors": [
