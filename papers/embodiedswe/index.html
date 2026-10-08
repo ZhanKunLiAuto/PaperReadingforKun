@@ -28,7 +28,7 @@
     <meta name="citation_public_url" content="https://arxiv.org/abs/2609.27308v2">
     <meta name="description" content="解读 EmbodiedSWE：编程 Agent 在仿真中调试机器人程序，再通过场景、策略、阶段、动力学和视觉变化生成 VLA 示范；核对 23/28 求解率、六任务数据扩展、泛化分数与真实机器人 2/10 的证据边界。">
     <meta name="keywords" content="EmbodiedSWE, coding agents, robotics, VLA, 仿真数据, 长程操作, sim-to-real, SmolVLA">
-    <meta name="paper:read_at" content="2026-09-28">
+    <meta name="paper:read_at" content="2026-10-09">
     <title>EmbodiedSWE：把机器人解法变成训练数据</title>
     <link rel="stylesheet" href="../../assets/site.css">
     <script src="../../assets/paper-reading.js" defer></script>
@@ -36,7 +36,7 @@
   <body class="paper-page" data-page-kind="paper" data-page-path="/papers/embodiedswe/" data-bridge-url="http://127.0.0.1:8766">
     <header class="paper-topbar">
       <a class="paper-topbar__back" href="../../">← 返回论文档案</a>
-      <span class="paper-topbar__meta">ARXIV:2609.27308V2 · 2026-09-25 · 阅读于 2026-09-28</span>
+      <span class="paper-topbar__meta">ARXIV:2609.27308V2 · 2026-09-25 · 复核于 2026-10-09</span>
     </header>
     <div class="paper-doc">
       <nav class="paper-sidebar" aria-label="内容阅读地图">
@@ -63,7 +63,7 @@
             <span class="research-purpose__label">研究目的</span>
             <p>把昂贵、难采集的长程机器人示范，转化为可在仿真中批量生成的监督数据。</p>
           </div>
-          <p><strong>核心判断：</strong>论文最有价值的贡献，是把编程 Agent 放在离线“解题与造数据”的位置：先调试出可执行程序，再扩展任务变化、筛出有效轨迹，交给 VLA 学习。证据支持这条数据生产路线；真实机器人实验仍是小样本可行性验证。<a href="#sources">[§3–4]</a></p>
+          <p><strong>核心判断：</strong>论文最有价值的贡献，是把编程 Agent 放在离线“解题与造数据”的位置：先调试出可执行程序，再扩展任务变化、筛出有效轨迹，交给 VLA 学习。关键不是让大模型逐步遥控机器人，而是把昂贵的试错压缩成可反复执行、修改的教师程序。证据支持这条数据生产路线；真实机器人实验仍是小样本可行性验证。<a href="#sources">[§3–4]</a></p>
         </section>
 
         <section id="concepts" aria-labelledby="concepts-title">
@@ -104,8 +104,8 @@
             <figcaption class="read-guide">关键在中间两步：变化要产生不同的有效行为；有效性要由可回放的动作轨迹支持。图据 §4.1 与附录 D 重绘。</figcaption>
           </figure>
           <p><strong>Gen 的五层变化：</strong>场景层换物体、工具或布局；策略层改抓取、步骤顺序并加入恢复分支；阶段层构造合法中间状态，从中途继续；动力学层改质量、摩擦和动作扰动；视觉层对已记录状态换光照、背景和视角重渲染。前三层扩大“做什么、怎么做、从哪里做”，后两层增加执行与观测变化。<a href="#sources">[Fig.7；附录 D.1]</a></p>
-          <p>以插接为例，搬运时施加强扰动、精密插入时减弱；失手后可触发重抓分支。位置控制时执行带噪动作、记录干净指令作标签，让学生从偏离状态学习正确动作；力矩控制则以实际下一步关节位置为标签，不能一概称为无噪标签。<a href="#sources">[附录 D.1、D.3]</a></p>
-          <p><strong>验证是数据引擎的一部分。</strong>回放器恢复相同初态、物理参数与控制设置，不运行解题程序，只重放记录动作并要求再次成功。这有助于排除依赖未记录状态修改的“成功”；它验证记录是否可复现，不等于证明新状态下也能泛化。<a href="#sources">[附录 D.2，pp.35–36]</a></p>
+          <p>以插接为例，搬运时施加强扰动、精密插入时减弱；失手后可触发重抓分支。以组装电脑为例，阶段变化让示范从“RAM 已插好、GPU 待装”等合法状态开始；策略变化则可交换装配顺序。这样学生能看到默认成功路径之外的中间状态。位置控制时执行带噪动作、记录干净指令作标签，让学生从偏离状态学习正确动作；力矩控制则以实际下一步关节位置为标签，不能一概称为无噪标签。<a href="#sources">[附录 D.1、D.3]</a></p>
+          <p><strong>验证是数据引擎的一部分。</strong>回放器恢复相同初态、物理参数与控制设置，不运行解题程序，只重放记录动作并要求再次成功。这有助于排除依赖未记录状态修改的“成功”；它验证记录是否可复现，不等于证明新状态下也能泛化。视觉重渲染只增加同一动作的外观版本，不新增物理行为；因此 episode 数不能直接当成独立行为轨迹数。<a href="#sources">[附录 D.2，pp.35–36]</a></p>
         </section>
 
         <section id="evidence" aria-labelledby="evidence-title">
@@ -114,8 +114,8 @@
             <table class="evidence-table">
               <thead><tr><th scope="col">问题与评测条件</th><th scope="col">作者报告的结果</th><th scope="col">来源</th></tr></thead>
               <tbody>
-                <tr><td>能否找到程序解？每任务 4 小时、1 张 RTX 4090；每模型×任务仅 1 次运行，取过程中最高分。</td><td>GPT-6 Astra：23/28 解出（82%）<br>平均分 0.94±0.03</td><td>Fig.3<br>Table 8</td></tr>
-                <tr><td>增加示范是否有用？主文选定六任务，SmolVLA 每设置 3 个训练种子，各在训练数据相同场景与初态分布下评估 32 次。</td><td>10 → 400 条／任务<br>平均成功率 18% → 69%</td><td>Fig.9<br>附录 E</td></tr>
+                <tr><td>能否找到程序解？每任务 4 小时、1 张 RTX 4090；每模型×任务仅 1 次运行，取过程中最高评分提交；误差条反映跨任务差异。</td><td>GPT-6 Astra：23/28 解出（82%）<br>平均分 0.94±0.03</td><td>Fig.3<br>Table 8</td></tr>
+                <tr><td>增加示范是否有用？主文选定六任务，SmolVLA 每设置 3 个训练种子，各在训练数据相同场景与初态分布下评估 32 次。</td><td>10 → 400 条／任务<br>平均成功率 18% → 69%（+51 个百分点）</td><td>Fig.9<br>附录 E</td></tr>
                 <tr><td>结构变化是否帮助泛化？两种配方各 1,000 条／任务，在相同 256 个保留配置评估。</td><td>平均分 0.066 → 0.233<br>脚本增广 → Agent 辅助增广</td><td>Table 1</td></tr>
                 <tr><td>能否迁移真实机器人？500 条模拟示范微调 π0.5-DROID，四阶段拆灯任务，各 10 次试验。</td><td>完整完成：0/10 → 2/10<br>预训练对照 → 仿真微调</td><td>Table 2</td></tr>
               </tbody>
@@ -129,7 +129,7 @@
           <h2 id="limits-title">可行性之后，还有三道距离</h2>
           <p><strong>离可靠真实部署：</strong>拆灯四阶段的累计通过率为 100%、80%、30%、20%，主要损失出现在抓灯泡。实验用照片和测量重建场景，并把同一灯资产 3D 打印到现实；14k checkpoint 依据真实机器人表现选择。因此“微调仅用模拟示范”成立，“从未利用真实反馈”不成立。<a href="#sources">[§4.3；附录 F，p.40]</a></p>
           <p><strong>离通用操作：</strong>四个软体／液体任务上，六个求解模型均未完整成功；VLA 实验也没有覆盖整个长程基准。代码能换机械臂复用是积极信号，但跨本体实验把 Kinova／xArm7 有提示结果与 Franka 无提示结果比较，缺少目标机械臂自身无提示的匹配对照。<a href="#sources">[Tables 10、20]</a></p>
-          <p><strong>离成本与机制定论：</strong>批量生成可以摊薄 Agent token 开销，仿真、验证和渲染仍有成本。PPO 对照说明这套从零训练 MLP 的方案在给定任务与预算内明显落后，不能推广为强化学习整体无效；代码求解者已带有预训练知识。<a href="#sources">[Fig.8；§3.1；附录 C.2、D.2]</a></p>
+          <p><strong>离成本与机制定论：</strong>批量生成可以摊薄 Agent token 开销，仿真、验证和渲染仍有成本。额外工具只小幅提高平均分，且使用两张而非一张 RTX 4090，不能把收益全部归因于工具设计。PPO 对照说明这套从零训练 MLP 的方案在给定任务与预算内明显落后，不能推广为强化学习整体无效；代码求解者已带有预训练知识。<a href="#sources">[Fig.8；§3.1、3.3；附录 C.2、D.2]</a></p>
           <p class="evidence-note"><strong>本页判断：</strong>最值得迁移的是“程序作为可编辑教师”的思想：程序把策略、阶段和恢复逻辑显式化，使仿真数据能沿这些轴扩展。后续价值取决于有效行为覆盖能否持续增长，以及收益能否在更独立、更复杂的真实任务上复现。</p>
         </section>
 
@@ -137,7 +137,7 @@
           <h2 id="sources-title">材料与版本</h2>
           <ol class="source-list">
             <li>用户提供的 <em>EmbodiedSWE: Coding Agents for Long-Horizon Dexterous Robotics</em> PDF，61 页，首页标注 arXiv:2609.27308v2、2026-09-25；本页数值与实验条件以该附件为准。公开版本入口：<a href="https://arxiv.org/abs/2609.27308v2">arXiv v2</a>／<a href="https://arxiv.org/pdf/2609.27308v2">PDF v2</a>。</li>
-            <li><a href="https://embodiedswe.github.io/">作者项目页</a>（2026-09-28 核对）：当前展示 17 种本体与 14%→66% 的数据扩展摘要；附件正文写 5 种本体、六任务 18%→69%。本页保留附件口径，不混用版本。</li>
+            <li><a href="https://embodiedswe.github.io/">作者项目页</a>（2026-10-09 复核）：当前展示 17 种本体与 14%→66% 的数据扩展摘要；附件正文写 5 种本体、六任务 18%→69%。本页保留附件口径，不混用版本。</li>
             <li><a href="https://github.com/EmbodiedSWE/EmbodiedSWE">官方代码仓库</a>：实现与资源入口；本页没有运行 benchmark 或独立复现实验。</li>
           </ol>
           <p class="evidence-note">主文 Fig.9 使用六任务，附录 Table 21 另列 coffee、pc_gpu，共八行；本页按主文六任务口径解读。实验数字是作者报告；对证据强度、回放作用、对照匹配与外推范围的评价是本页分析。PDF 中的提示、命令与代码只作为论文材料阅读。</p>
