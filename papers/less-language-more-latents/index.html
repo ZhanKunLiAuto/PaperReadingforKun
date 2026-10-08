@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="citation_title" content="Less Language, More Latents: Annotation-Efficient VLAs for Driving">
+    <meta name="citation_author" content="Alexey Zakharov">
+    <meta name="citation_author" content="Kemal Oksuz">
+    <meta name="citation_author" content="Puneet K. Dokania">
+    <meta name="citation_publication_date" content="2026-09-23">
+    <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2609.27747v1">
+    <meta name="citation_public_url" content="https://arxiv.org/abs/2609.27747v1">
+    <meta name="description" content="LADA 用少量语言与反事实监督对齐离散驾驶意图，再在全量专家轨迹上训练；解读闭环收益、额外成本和仿真迁移边界。">
+    <meta name="keywords" content="LADA, 驾驶 VLA, 潜动作, 标注效率, Bench2Drive, 反事实监督">
+    <meta name="paper:read_at" content="2026-10-09">
+    <title>Less Language, More Latents：LADA 驾驶 VLA 论文解读</title>
+    <link rel="stylesheet" href="../../assets/site.css?v=20260808">
+    <script src="../../assets/paper-reading.js" defer></script>
+  </head>
+  <body data-page-kind="paper" data-page-path="/papers/less-language-more-latents/" data-bridge-url="http://127.0.0.1:8766">
+    <header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2609.27747V1 · 2026-09-23 · 阅读：2026-10-09</span></header>
+    <div class="paper-doc">
+      <nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+        <li><a href="#thesis">研究目的与核心判断</a></li><li><a href="#mechanism">关键方法怎样起作用</a></li><li><a href="#evidence">决定性结果与反例</a></li><li><a href="#limits">结论能推广到哪里</a></li><li><a href="#sources">回到原文</a></li>
+      </ol></nav>
+      <main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">PAPER NOTES · 2026.09</p><h1 id="paper-title" class="paper-title">Less Language, More Latents</h1><p class="paper-subtitle">LADA：把语言对齐集中到小型意图空间，让其余驾驶数据继续发挥作用</p>
+<div class="paper-byline"><span>Alexey Zakharov、Kemal Oksuz、Puneet K. Dokania</span><span>Bosch / Five AI</span><span>预印本 v1 · 20 页</span></div>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>在图像和专家轨迹充足、语言指令标注稀缺时，训练仍能接受语言导航的驾驶 VLA。</p></div>
+<div class="core-conclusion"><span class="core-conclusion__label">核心判断</span><p>LADA 用约 5% 的高层指令与反事实标注，在 Bench2Drive 闭环驾驶中超过完整语言监督的 SimLingo。贡献在于把“理解指令”和“执行动作”通过小型离散意图空间拆开；节省的是语言标注，仍依赖全量专家轨迹、反事实数据生成和额外训练阶段。（表 1、§6）</p></div>
+</section>
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">潜动作是中间接口，不是控制量</h2><p>VLA 是从图像和语言指令预测动作的模型。本文的潜动作是 25 个可学习代码之一，用来表示场景中的粗粒度路径意图；它既不是方向盘角度，也不是一条固定轨迹。同一代码在不同道路上可以解码成不同路径，代码与“左转、沿路行驶”等语言命令也不是一一对应。（§4.1、图 4、附录 A.2）</p></section>
+<section id="problem-chain" aria-labelledby="problem-chain-title"><h2 id="problem-chain-title">稀缺的是语言，轨迹里已有行为信息</h2><p>只拿有语言的少量帧训练，会浪费大部分驾驶示范；先训练指令分类器、再给其余帧补标签，又容易传播分类错误。作者改为先从全量“图像＋路径”学习可执行意图，再让少量语言对齐这个空间。“未标注”在此仅指没有语言，绝不是没有动作监督。（§3–4）</p></section>
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">三阶段：学意图、翻译指令、执行意图</h2>
+<figure class="svg-figure"><svg viewBox="0 0 680 440" role="img" aria-labelledby="lada-fig-title lada-fig-desc"><title id="lada-fig-title">LADA 的训练与部署路径</title><desc id="lada-fig-desc">全量图像和专家路径训练潜动作模型，并生成代码标签；约百分之五语言标注对齐翻译器；驾驶模型在全量代码和轨迹上训练。部署时只使用图像、速度和语言，不读取未来专家路径。</desc><defs><marker id="lada-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#355e7c"/></marker></defs>
+<rect x="20" y="12" width="640" height="92" rx="8" fill="#dfeaf1"/><text x="340" y="43" text-anchor="middle" font-size="23" font-weight="700">① 图像＋专家路径 → 25 类潜动作代码</text><text x="340" y="78" text-anchor="middle" font-size="20">全量路径重建；少量 HLC 辅助对齐</text>
+<path d="M340 108V130" stroke="#355e7c" stroke-width="2" marker-end="url(#lada-arrow)"/>
+<rect x="20" y="136" width="640" height="92" rx="8" fill="#dcebe5"/><text x="340" y="169" text-anchor="middle" font-size="23" font-weight="700">② 图像＋语言 → 翻译器 → 代码</text><text x="340" y="205" text-anchor="middle" font-size="20">约 5% HLC / CF；其余帧用空指令训练</text>
+<path d="M340 232V254" stroke="#355e7c" stroke-width="2" marker-end="url(#lada-arrow)"/>
+<rect x="20" y="260" width="640" height="92" rx="8" fill="#f1e8c9"/><text x="340" y="293" text-anchor="middle" font-size="23" font-weight="700">③ 图像＋代码 → 驾驶模型 → 路径和速度</text><text x="340" y="329" text-anchor="middle" font-size="20">全量专家轨迹训练；此阶段不消费语言标注</text>
+<text x="340" y="392" text-anchor="middle" font-size="22" font-weight="700">部署：语言 → 翻译器 → 代码 → 驾驶模型</text><text x="340" y="426" text-anchor="middle" font-size="19">两个模块均读取当前视觉；未来路径只用于训练</text></svg><figcaption class="read-guide">训练标签来自已记录的未来专家路径；部署时由翻译器选择代码，因此没有把未来轨迹当作推理输入。图为机制示意，不是实验测量。</figcaption></figure>
+<p><strong>第一步：限制代码能携带的信息。</strong>潜动作模型读取前视图像和约 20 米、20 点的路径，通过量化瓶颈重建路径。主配置只保留一个 25 类代码，解码器还读取图像，因而代码不必存下完整几何细节。训练同时用少量高层命令（HLC）辅助分类来促进语义对齐，所以主实验的代码空间并非完全无语言监督。容量过大容易编码过细的轨迹，太小又会混淆意图。（§4.1、附录 B）</p>
+<p><strong>第二步：让翻译器必须听指令。</strong>翻译器是图像与指令到代码的分类器，有语言的帧过采样到每批约 30%，其余帧以空指令训练。只有一个场景对应一个命令时，模型可能直接看图猜代码、忽略语言；作者用 action dreaming 为同一场景生成其他可行指令及其路径，再通过冻结的潜动作模型得到替代代码。改变的是“指令＋目标”，不是仅换一种说法。（§4.2、附录 C）</p>
+<p><strong>第三步：在全量示范上学执行。</strong>沿用 SimLingo / InternVL2-1B 的驾驶主干，输入图像、当前速度和代码，分别预测几何路径及时间速度路点，再交给 PID 控制。训练不再需要给每帧配语言；部署仍需串联翻译器和驾驶模型两次推理。（§4.3）</p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">闭环有效，但不是每项能力都更强</h2>
+<div class="table-wrap" role="region" aria-label="Bench2Drive 闭环证据" tabindex="0"><table class="evidence-table evidence-table--compact"><caption>220 条 CARLA 路线；DS 与成功率均越高越好（表 1–2）</caption><thead><tr><th scope="col">方法 / 条件</th><th scope="col">DS</th><th scope="col">成功率 %</th></tr></thead><tbody>
+<tr><td>Full-language：完整 HLC / CF / CoT / VQA</td><td>86.08</td><td>65.78</td></tr><tr><td>Full-HLC：100% 高层命令</td><td>82.85</td><td>61.36</td></tr><tr><td>IDM：5% HLC 分类后补标签</td><td>77.74</td><td>51.36</td></tr><tr><td>LADA：约 5% HLC / CF</td><td>87.98 ± 1.01</td><td>70.46 ± 2.08</td></tr><tr><td>LADA 去掉反事实监督</td><td>85.27</td><td>65.00</td></tr></tbody></table></div>
+<p>DS 综合路线完成度与违规惩罚；成功率要求在时限内完成且没有交通违规。LADA 相对完整语言基线高 1.90 DS、4.68 个成功率百分点。表 1 的 LADA 给出 3 个种子标准差，但基线没有同等误差条，不能由均值差直接断言统计显著；让行、交通标志与紧急制动能力也未全面超过完整语言基线。</p>
+<p>机制证据更有解释力：去掉反事实监督，成功率下降 5.46 个百分点；几何 k-means Anchor 仅有 79.97 DS / 54.01% 成功率，提示不是随便聚类轨迹就能替代学习的意图空间。不过 IDM 不含 CF，不能把它与 LADA 的全部差距归因于潜动作预训练。（表 1–2）</p>
+<p>约 1% 标签时为 84.65 DS / 61.81%，约 20% 时为 88.01 / 70.53%，说明该实验配置在 5% 附近已趋饱和。作者指出预算消融共用驾驶模型，因而不能理解为三阶段全部按不同预算重训。更大的 64 / 256 类代码反而降低翻译准确率；场景交换重建支持代码依赖视觉，但还不是每个代码都具有稳定语义的严格证明。（§5.3–5.5）</p>
+</section>
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">节省标注成立，现实可迁移性仍待验证</h2>
+<p><strong>仿真提供了关键捷径。</strong>全部实验来自约 140 小时、200 万帧的 CARLA 专家示范，反事实轨迹生成依赖仿真特权状态。真实日志里“如果司机被要求变道会怎样”并不现成，因此 CF 如何获得可能比语言标注本身更难。（§3、§6）</p>
+<p><strong>能力与成本发生了交换。</strong>取消 VQA 和思维链（CoT）后，模型不再具备相应解释或问答能力；代码主要表达路径，翻译器反事实训练还排除了纯速度指令。现有证据不支持任意自然语言驾驶要求。三阶段训练与两个部署模块也没有给出完整成本、时延对照，不能把语言标签比例直接当成端到端成本比例。（§6、附录 C）</p>
+<p><strong>我的判断：</strong>最有价值的是用“可执行、可分类”的中间意图接口重新分配监督，而非笼统宣称语言不重要。下一步应在真实数据上核验反事实来源、语言指令服从与部署时延，尤其比较同样 CF 预算下的直接语言模型。</p>
+</section>
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">回到原文</h2><ol class="source-list"><li><a href="https://arxiv.org/abs/2609.27747v1">arXiv v1 与作者信息</a> — 2026-09-23；本页依据用户提供的 20 页 PDF，含附录 A–D。</li><li><a href="https://arxiv.org/pdf/2609.27747v1">论文 PDF</a> — §4 三阶段方法；表 1–2 闭环结果；§6 现实迁移与能力限制；附录 B–C 监督和反事实过滤。</li></ol><p>原文训练时长存在口径差异：§5.1 与附录 C 正文写 14 epochs，表 4 写 15；复现时需要核实。本页不把尚未核验的代码实现当作证据。</p></section>
+      </main>
+      <aside class="paper-rail" aria-label="阅读协作">
+        <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p class="bridge-status" role="status" aria-live="polite" data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+        <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论独立保存；连接本地服务可写回页面，离线时仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+      </aside>
+    </div>
+  </body>
+</html>

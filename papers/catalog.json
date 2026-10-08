@@ -1,6 +1,28 @@
 {
-  "updatedAt": "2026-09-29",
+  "updatedAt": "2026-10-09",
   "papers": [
+    {
+      "slug": "less-language-more-latents",
+      "title": "Less Language, More Latents: Annotation-Efficient VLAs for Driving",
+      "authors": [
+        "Alexey Zakharov",
+        "Kemal Oksuz",
+        "Puneet K. Dokania"
+      ],
+      "publicationDate": "2026-09-23",
+      "readAt": "2026-10-09",
+      "description": "LADA 用少量语言与反事实监督对齐离散驾驶意图，再在全量专家轨迹上训练；解读闭环收益、额外成本和仿真迁移边界。",
+      "tags": [
+        "LADA",
+        "驾驶 VLA",
+        "潜动作",
+        "标注效率",
+        "Bench2Drive",
+        "反事实监督"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2609.27747v1",
+      "href": "papers/less-language-more-latents/"
+    },
     {
       "slug": "thaw-vla",
       "title": "Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies",
