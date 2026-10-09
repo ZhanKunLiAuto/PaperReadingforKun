@@ -89,6 +89,35 @@
       "href": "papers/thaw-vla/"
     },
     {
+      "slug": "openwam",
+      "title": "OpenWAM: An Open Framework for Composable World-Action Models",
+      "authors": [
+        "Heng Yu",
+        "David D. Yuan",
+        "Juze Zhang",
+        "Changan Chen",
+        "Yao Feng",
+        "Michelle Baldonado",
+        "Steve Cousins",
+        "Li Fei-Fei",
+        "Jiajun Wu",
+        "Ehsan Adeli"
+      ],
+      "publicationDate": "2026-10-06",
+      "readAt": "2026-10-09",
+      "description": "OpenWAM 解读：同骨干比较四种视频动作交互，以反事实转移训练可复用局部动力学；区分冻结动作组件迁移与整模型零样本。",
+      "tags": [
+        "OpenWAM",
+        "world action model",
+        "MoT",
+        "inverse dynamics",
+        "counterfactual",
+        "LIBERO"
+      ],
+      "sourceUrl": "https://openwam.stanford.edu/",
+      "href": "papers/openwam/"
+    },
+    {
       "slug": "less-language-more-latents",
       "title": "Less Language, More Latents: Annotation-Efficient VLAs for Driving",
       "authors": [
