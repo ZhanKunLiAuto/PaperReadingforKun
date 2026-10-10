@@ -1,6 +1,42 @@
 {
-  "updatedAt": "2026-10-09",
+  "updatedAt": "2026-10-10",
   "papers": [
+    {
+      "slug": "long-wam",
+      "title": "Long-WAM: Scaling the Context of World-Action Models",
+      "authors": [
+        "Wei Huang",
+        "Bohan Zhang",
+        "Chenzhi Liu",
+        "Isabella Liu",
+        "Shuai Yang",
+        "Weian Mao",
+        "Luozhou Wang",
+        "Yicheng Xiao",
+        "Weifeng Lin",
+        "Qixin Hu",
+        "Bryan Chu",
+        "Sifei Liu",
+        "Linxi Fan",
+        "Xiaojuan Qi",
+        "Song Han",
+        "Yukang Chen"
+      ],
+      "publicationDate": "2026-10-07",
+      "readAt": "2026-10-10",
+      "description": "解读 Long-WAM 的自回归视频预训练、因果动作适配与实时部署，核对长历史收益、107.4 ms 的条件和原文数字不一致。",
+      "tags": [
+        "Long-WAM",
+        "world-action model",
+        "autoregressive video",
+        "visual history",
+        "IDM",
+        "robot control",
+        "NVFP4"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2610.10528v1",
+      "href": "papers/long-wam/"
+    },
     {
       "slug": "world-action-agent",
       "title": "World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal",
