@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="Video Prediction Policy 2: Predict Better, Act Better">
+<meta name="citation_author" content="Yanjiang Guo">
+<meta name="citation_author" content="Haodong Yan">
+<meta name="citation_author" content="Zhide Zhong">
+<meta name="citation_author" content="Zhongru Zhang">
+<meta name="citation_author" content="Qingyuan Yang">
+<meta name="citation_author" content="Qingzhou Lu">
+<meta name="citation_author" content="Xiaoyu Chen">
+<meta name="citation_author" content="Yen-Jen Wang">
+<meta name="citation_author" content="Shuying Deng">
+<meta name="citation_author" content="Chenghan Yang">
+<meta name="citation_author" content="Puzhen Yuan">
+<meta name="citation_author" content="Chenxin Liu">
+<meta name="citation_author" content="Tun Ban">
+<meta name="citation_author" content="Xiang Zhu">
+<meta name="citation_author" content="Yichen Liu">
+<meta name="citation_author" content="Kun Feng">
+<meta name="citation_author" content="Haoang Li">
+<meta name="citation_author" content="Jianyu Chen">
+
+<meta name="citation_publication_date" content="2026-10-08">
+<meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.10270v2">
+<meta name="description" content="VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。">
+<meta name="keywords" content="VPP2, 世界动作模型, 视频预测, 事件级预训练, 一致性蒸馏, MoT, ALOHA, LIBERO-OOD">
+<meta name="paper:read_at" content="2026-10-13">
+<title>VPP2：先学会预测完整操作，再学会执行动作</title>
+<link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/vpp2.css">
+<script src="../../assets/paper-reading.js" defer></script><script src="../../assets/vpp2.js" defer></script>
+</head><body data-page-kind="paper" data-page-path="/papers/video-prediction-policy-2/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2610.10270V2 · 2026-10-08 · 阅读：2026-10-13</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+<li><a href="#thesis">最值得记住的判断</a></li><li><a href="#mechanism">从完整事件到动作块</a></li><li><a href="#evidence">预测与执行的证据</a></li><li><a href="#limits">泛化与速度的边界</a></li><li><a href="#sources">原文与实现</a></li></ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">WORLD ACTION MODEL · EVENT-LEVEL LEARNING · ROBOT MANIPULATION</p>
+<h1 id="paper-title" class="paper-title">Video Prediction Policy 2</h1>
+<p class="paper-subtitle">Predict Better, Act Better：先学会预测完整操作，再把视觉未来转成机器人动作。</p>
+<div class="paper-byline"><span>Yanjiang Guo、Haodong Yan 等 18 位作者</span><span>Robotera · 清华 · HKUST (GZ) · UC Berkeley · 上海交大</span><span>arXiv v2 · 21 页</span></div>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让视频模型在未见操作指令下预测正确的物体运动，并把这种能力转成可快速执行的机器人策略。</p></div>
+<p><strong>核心判断：</strong>VPP2 的主线是先建立可靠的“指令→视觉轨迹”映射，再适配动作学习：详细描述配完整事件减少监督歧义，固定时长与单步蒸馏解决控制接口和速度，动作训练早期保护视频骨干。实验支持这套组合提升泛化，但尚未把每个环节的独立收益全部拆开。<a href="https://arxiv.org/pdf/2610.10270v2#page=4">[§3]</a></p>
+</section>
+<section id="concepts" aria-labelledby="concepts-title"><h2 id="concepts-title">视频预测怎样成为策略</h2>
+<p>世界动作模型（WAM）先根据当前画面和指令预测未来，再从视觉特征生成动作。这里的“隐式逆动力学”是学习什么动作能实现预测中的状态变化；执行时动作专家读取视频模型的潜变量与注意力 KV 特征，无须先把未来视频解码成像素供另一个模型观看。高层 VLM 负责拆解任务、补足明确描述，VPP2 负责具体轨迹。<a href="https://arxiv.org/pdf/2610.10270v2#page=5">[§3.2–3.3、图4]</a></p></section>
+<section id="problem-chain" aria-labelledby="problem-title"><h2 id="problem-title">短动作块为什么容易学偏</h2>
+<p>“把碗放进盒子”配几帧短片段，可能对应靠近、抓起或移动中的任一步；若有多个碗、多个夹爪，目标又不明确。作者认为，直接扩大这种监督容易学到短时相关性。通用视频模型还偏重画面生成，未必遵守精确操作指令；新动作模块的训练梯度也可能破坏已有视频能力。VPP2 分别用数据语义、事件覆盖和分阶段训练处理这些问题。<a href="https://arxiv.org/pdf/2610.10270v2#page=2">[§1、图1]</a></p></section>
+<section id="mechanism" aria-labelledby="mechanism-title"><h2 id="mechanism-title">完整事件学语义，固定时间接控制</h2>
+<p><strong>数据先对齐。</strong>机器人、人手和筛选后的通用视频被切成 1–12 秒语义事件；描述明确操作顺序、活动末端、目标物体及相机变化，并要求目标和活动末端在首帧可见。多视图拼成 T 形输入，缺少视图补黑；动作训练所用双臂数据还统一工作空间与末端坐标，减少相似运动对应不同动作轴的冲突。<a href="https://arxiv.org/pdf/2610.10270v2#page=3">[§2、附录A]</a></p>
+<div class="vpp2-demo" data-vpp2-demo>
+<p class="vpp2-prompt"><strong>交互：切换训练阶段</strong>，看预测目标、时间跨度和动作模块如何改变。</p>
+<div class="vpp2-controls" role="group" aria-label="训练阶段"><button type="button" data-stage="0" aria-pressed="true">① 完整事件</button><button type="button" data-stage="1" aria-pressed="false">② 固定时长＋蒸馏</button><button type="button" data-stage="2" aria-pressed="false">③ 动作学习</button></div>
+<figure class="svg-figure">
+<svg viewBox="0 0 660 230" role="img" aria-labelledby="vpp2-flow-title vpp2-flow-desc">
+<title id="vpp2-flow-title">VPP2 三阶段训练目标</title><desc id="vpp2-flow-desc">首帧与详细指令输入视频模型。事件预训练覆盖子任务全程；固定时长后训练与蒸馏得到单步预测；动作学习增加读取视频特征的动作专家。</desc>
+<defs><marker id="vpp2-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#355e7c"/></marker></defs>
+<rect x="10" y="12" width="160" height="78" rx="5" fill="#eee9dd" stroke="#9c9b85"/>
+<text x="24" y="42" font-size="17">首帧＋详细指令</text><text x="24" y="69" font-size="14">末端、物体、相机</text>
+<rect x="211" y="12" width="195" height="78" rx="5" fill="#dcebe5" stroke="#24624e"/>
+<text x="228" y="42" font-size="17">Wan2.1 视频骨干</text><text x="228" y="69" font-size="14" data-video-mode>事件级继续预训练</text>
+<rect x="449" y="12" width="201" height="78" rx="5" fill="#dfeaf1" stroke="#355e7c"/>
+<text x="465" y="42" font-size="17" data-output-label>完整子任务轨迹</text><text x="465" y="69" font-size="14" data-frame-label>49 帧；覆盖事件全程</text>
+<path d="M172 51H202 M409 51H439" stroke="#355e7c" stroke-width="2" marker-end="url(#vpp2-arrow)"/>
+<g data-action-graph visibility="hidden"><path d="M551 93V118H308V138" fill="none" stroke="#8c5979" stroke-width="2" marker-end="url(#vpp2-arrow)"/><text x="422" y="113" font-size="13" fill="#8c5979">视觉 KV → 动作条件</text><rect x="211" y="146" width="195" height="65" rx="5" fill="#f0e2eb" stroke="#8c5979"/><text x="228" y="172" font-size="17">0.9B 动作专家</text><text x="228" y="197" font-size="14">5 步去噪 → 2 秒动作</text></g>
+<g data-event-note><text x="16" y="153" font-size="16" data-target-note>学习目标：从初态直到子任务完成</text><text x="16" y="182" font-size="14" fill="#52605b" data-timing-note>事件长短不同，均匀采样的帧间隔也不同</text></g>
+</svg>
+<figcaption class="read-guide">依据 §3 与图4 的结构示意；箭头表示信息条件，不表示梯度流。动作分支仅在第三阶段出现。</figcaption>
+</figure>
+<div class="vpp2-mobile-flow" aria-label="同一流程的窄屏表示"><div>首帧＋详细指令</div><span aria-hidden="true">↓</span><div data-mobile-video>视频骨干：事件级继续预训练</div><span aria-hidden="true">↓</span><div data-mobile-output>完整子任务轨迹 · 49 帧</div><div data-mobile-action hidden>视觉 KV ↓ 动作专家 · 2 秒动作</div></div>
+<div class="vpp2-timeline"><div class="vpp2-track"><span data-video-span>视频：覆盖完整事件（时长可变）</span></div><div class="vpp2-action-track" data-action-track hidden><span>动作：2 秒</span><small>视觉预见 8 秒</small></div></div>
+<p data-stage-status aria-live="polite">阶段①：均匀取样覆盖完整子任务，描述和视觉终点对齐。此时尚未训练动作专家。</p>
+</div>
+<p><strong>第一阶段：先学完整事件。</strong>从 Wan2.1-I2V-14B 出发，用流匹配学习从噪声恢复未来轨迹；49 帧覆盖整个子任务，不固定实际时长。详细条件减少“动谁、怎么动”的歧义，完整事件让目标描述有对应终点。它缩小合理未来的分布，并不使真实动作轨迹唯一。<a href="https://arxiv.org/pdf/2610.10270v2#page=4">[§3.1]</a></p>
+<p><strong>第二阶段：把语义能力接到时钟。</strong>不同长度事件的取样间隔不同，无法直接与动作对齐；因此后训练改为人手 2 秒、机器人 8 秒的固定预测跨度，并把视频输入缩至 17 帧。一致性蒸馏让多步生成压成一次前向，保留可供动作读取的未来潜变量。先完整事件、后固定时长，两者服务于不同训练目的。<a href="https://arxiv.org/pdf/2610.10270v2#page=5">[§3.1、图4]</a></p>
+<p><strong>第三阶段：视觉未来变成短动作。</strong>MoT（不同模态的 Transformer 专家）增加 0.9B 动作 DiT，读取视频 KV，生成 2 秒动作块。动作训练早期冻结视频骨干基础参数，仅用 LoRA 低秩适配，限制随机初始化动作专家对视频表征的扰动；原文并未说骨干全程完全冻结。<a href="https://arxiv.org/pdf/2610.10270v2#page=5">[§3.2]</a></p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">预测更准，执行更好：证据有多强</h2>
+<div class="table-wrap" tabindex="0" role="region" aria-label="关键评测结果"><table class="evidence-table evidence-table--compact"><thead><tr><th>评测与条件</th><th>VPP2 成功率 ↑</th><th>比较对象</th></tr></thead><tbody>
+<tr><td>视频遵循指令：人手 / 机器人</td><td>80% / 90%</td><td>Cosmos3-64B：70% / 78%</td></tr>
+<tr><td>ALOHA 真机，10 类任务零样本</td><td>58.5%</td><td>π0.5：40%；Fast-WAM：20.5%</td></tr>
+<tr><td>LIBERO-Pro，标准四套件训练后</td><td>45.0%</td><td>表中最强基线 π0.5：11.0%</td></tr>
+<tr><td>LIBERO-OOD，同一训练设定</td><td>63.9%</td><td>Temporal Ratio：59.4%</td></tr>
+<tr><td>RoboDojo 仿真，基准后训练</td><td>32.26%</td><td>GPT-6-Astra：22.48%</td></tr>
+</tbody></table></div>
+<p><strong>直接支持事件训练的消融：</strong>同属 VPP2 的固定时长预训练变体只有 48% / 42% 视频成功率，明显低于事件版；这是主线的重要证据。人手、机器人各 50 个图像—指令对，由 GPT 评判成功，另有人类两两比较；两类均值为 85% 对 74%，即高 11 个百分点。该表评估预训练视频模型，不能当成最终蒸馏策略的成功率。<a href="https://arxiv.org/pdf/2610.10270v2#page=7">[表2、图6]</a></p>
+<p><strong>真机收益明确，但零样本有范围：</strong>ALOHA 使用训练中见过的机器人形态，不做任务专属微调；π0.5 和 14B Fast-WAM 也在 VPP2 暴露的 ALOHA 数据上训练。VPP2 高 18.5 个百分点，10 类中赢 9 类，却在折叠上落后 π0.5（70% 对 80%）。LIBERO 的高分则来自先在标准套件训练、再测试扰动与组合，不能混称无需目标域训练。<a href="https://arxiv.org/pdf/2610.10270v2#page=8">[图8、表3]</a></p>
+<p><strong>任务分解补上另一层能力：</strong>RoboDojo 五组精选任务各 50 次，加入子任务规划后均值从 27.6% 到 57.6%。训练也改用分段子任务描述，所以是规划配置整体的收益，不是仅换一个推理提示的受控比较；更不能替换全基准的 32.26%。<a href="https://arxiv.org/pdf/2610.10270v2#page=9">[图9]</a></p>
+</section>
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">应保留的三个边界</h2>
+<p><strong>因果链还未完全拆开。</strong>事件消融支持该训练设计，但正文没有分别隔离详细描述、数据扩张、蒸馏与 LoRA 保护的收益。视频与动作结果共同改善，也不等于已证明视频质量每升一点就必然提升控制。论文未充分列出处理后数据总量、真机每类试验数和置信区间，限制复现与统计判断。</p>
+<p><strong>快速推理不等于整套系统延迟。</strong>作者报告视频约 0.12 秒、动作 5 步约 0.10 秒，共 0.22 秒/块；没有明确给出硬件及包含高层 VLM 的端到端延迟。视频部分单步，动作仍多步；8 秒预见也不等于开环执行 8 秒。大视频骨干的部署成本仍需单独核算。<a href="https://arxiv.org/pdf/2610.10270v2#page=5">[§3.2]</a></p>
+<p><strong>泛化仍不均衡。</strong>RoboDojo 虽总体领先，开放任务成功率仅 4.08%，低于 GPT-6-Astra 的 31.00%；记忆项 55.56% 相对强。正文也未给出系统性的未见机器人真机控制测试。本页判断：最可迁移的贡献是先用语义一致的完整视觉事件建立先验，再谨慎适配控制，而不是已经解决任意开放任务。<a href="https://arxiv.org/pdf/2610.10270v2#page=21">[附录表8]</a></p>
+</section>
+<section id="sources" aria-labelledby="sources-title"><h2 id="sources-title">原文与实现</h2><ol class="source-list">
+<li><a href="https://arxiv.org/abs/2610.10270v2">论文 v2</a> · <a href="https://arxiv.org/pdf/2610.10270v2">PDF</a>。依据用户提供的 21 页版本，2026-10-08 更新。</li>
+<li><a href="https://robert-gyj.github.io/video-prediction-policy-2/">官方项目页</a> · <a href="https://github.com/roboterax/video-prediction-policy-2">官方代码与权重入口</a>，核验于 2026-10-13。仓库已提供视频和基准策略资源；RoboDojo 实现加入历史帧，并从蒸馏前 Stage-2 开始适配，不能直接把主文的简化流水线视为所有基准的完整配置。</li>
+<li>主线：§2–3、图1–4；证据：表2–4、图8–9；数据标注：附录A；能力反例：附录C、表8。</li></ol><p class="evidence-note">结果均为作者报告，未复现实验。机制图是结构示意；统计与因果边界属于本页解读。排行限于论文采用的基线和评测版本。</p></section>
+</main>
+<aside class="paper-rail" aria-label="阅读协作"><section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+<section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section></aside>
+</div></body></html>

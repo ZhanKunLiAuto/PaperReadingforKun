@@ -1,6 +1,45 @@
 {
-  "updatedAt": "2026-10-10",
+  "updatedAt": "2026-10-13",
   "papers": [
+    {
+      "slug": "video-prediction-policy-2",
+      "title": "Video Prediction Policy 2: Predict Better, Act Better",
+      "authors": [
+        "Yanjiang Guo",
+        "Haodong Yan",
+        "Zhide Zhong",
+        "Zhongru Zhang",
+        "Qingyuan Yang",
+        "Qingzhou Lu",
+        "Xiaoyu Chen",
+        "Yen-Jen Wang",
+        "Shuying Deng",
+        "Chenghan Yang",
+        "Puzhen Yuan",
+        "Chenxin Liu",
+        "Tun Ban",
+        "Xiang Zhu",
+        "Yichen Liu",
+        "Kun Feng",
+        "Haoang Li",
+        "Jianyu Chen"
+      ],
+      "publicationDate": "2026-10-08",
+      "readAt": "2026-10-13",
+      "description": "VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。",
+      "tags": [
+        "VPP2",
+        "世界动作模型",
+        "视频预测",
+        "事件级预训练",
+        "一致性蒸馏",
+        "MoT",
+        "ALOHA",
+        "LIBERO-OOD"
+      ],
+      "sourceUrl": "https://arxiv.org/pdf/2610.10270v2",
+      "href": "papers/video-prediction-policy-2/"
+    },
     {
       "slug": "long-wam",
       "title": "Long-WAM: Scaling the Context of World-Action Models",
