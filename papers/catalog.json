@@ -1,6 +1,37 @@
 {
-  "updatedAt": "2026-10-13",
+  "updatedAt": "2026-10-19",
   "papers": [
+    {
+      "slug": "drivewla",
+      "title": "DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving",
+      "authors": [
+        "Shuzheng Wang",
+        "Haoxuan Li",
+        "Shengzhen Li",
+        "Chenxi Wu",
+        "Yajing Sun",
+        "Lu Hou",
+        "Wenyu Liu",
+        "Xinggang Wang"
+      ],
+      "publicationDate": "2026-10-13",
+      "readAt": "2026-10-19",
+      "description": "详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。",
+      "tags": [
+        "DriveWLA",
+        "自动驾驶",
+        "World-Language-Action",
+        "Mixture-of-Transformers",
+        "Cross-Expert Attention",
+        "Flow Matching",
+        "Flow-GRPO",
+        "NAVSIM",
+        "HUGSIM",
+        "世界模型"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.17903v1",
+      "href": "papers/drivewla/"
+    },
     {
       "slug": "video-prediction-policy-2",
       "title": "Video Prediction Policy 2: Predict Better, Act Better",

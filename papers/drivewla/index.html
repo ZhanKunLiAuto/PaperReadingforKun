@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving">
+  <meta name="citation_author" content="Shuzheng Wang">
+  <meta name="citation_author" content="Haoxuan Li">
+  <meta name="citation_author" content="Shengzhen Li">
+  <meta name="citation_author" content="Chenxi Wu">
+  <meta name="citation_author" content="Yajing Sun">
+  <meta name="citation_author" content="Lu Hou">
+  <meta name="citation_author" content="Wenyu Liu">
+  <meta name="citation_author" content="Xinggang Wang">
+  <meta name="citation_publication_date" content="2026-10-13">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.17903v1">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2610.17903v1">
+  <meta name="paper:read_at" content="2026-10-19">
+  <meta name="description" content="详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。">
+  <meta name="keywords" content="DriveWLA, 自动驾驶, World-Language-Action, Mixture-of-Transformers, Cross-Expert Attention, Flow Matching, Flow-GRPO, NAVSIM, HUGSIM, 世界模型">
+  <title>DriveWLA：让世界与语言表征为驾驶规划相互适配</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/drivewla.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+  <script src="../../assets/drivewla.js" defer></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/drivewla/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2610.17903V1 · 阅读于 2026-10-19</span></header>
+<div class="paper-doc">
+  <nav class="paper-sidebar" aria-label="内容阅读地图">
+    <p class="paper-sidebar__label">READING MAP</p>
+    <ol class="paper-map">
+      <li><a href="#thesis">总体判断：规划对齐的价值</a></li>
+      <li><a href="#concepts">三个专家究竟输入输出什么</a></li>
+      <li><a href="#problem-chain">为什么把特征拼起来还不够</a></li>
+      <li><a href="#mechanism">信息流、监督与动作生成</a></li>
+      <li><a href="#mask-explainer">交互：谁能读取谁</a></li>
+      <li><a href="#training-explainer">交互：各阶段更新什么</a></li>
+      <li><a href="#rl-detail">强化学习怎样利用多维奖励</a></li>
+      <li><a href="#evidence">分开读消融、主结果和迁移</a></li>
+      <li><a href="#limits">未来预测与部署还缺什么</a></li>
+      <li><a href="#sources">原文定位与核验范围</a></li>
+    </ol>
+  </nav>
+  <main class="paper-main">
+    <section id="thesis" aria-labelledby="paper-title">
+      <p class="paper-kicker">WORLD · LANGUAGE · ACTION</p>
+      <h1 class="paper-title" id="paper-title">DriveWLA</h1>
+      <p class="paper-subtitle">世界模型与语言模型怎样共同服务轨迹规划？读懂三专家之间的信息方向，比记住“统一世界—语言—动作”这个名称更重要。</p>
+      <div class="paper-byline"><span>Shuzheng Wang 等 8 位作者</span><span>华中科技大学 · 引望智能技术</span><span>用户提供的 17 页 PDF</span></div>
+      <p><strong>总体判断：这是一篇有较完整消融支撑的驾驶表征融合与策略优化论文。</strong>最有价值的贡献，是让世界模型与 VLM 的表示在每层互相读取，并用同一个轨迹目标把它们适配到规划任务。论文自己的对照比跨模型排行榜更有说服力：模仿学习下，三专家达到 90.8 PDMS，取消世界—语言交互降至 88.4；冻结世界专家降至 88.0。它支持“有交互、可适配的预训练表征更有利于规划”。但它还没有直接证明，联合训练后未来动力学预测更准确，或语义推理能力更强。</p>
+      <p>这条边界来自方法本身：推理不生成未来 RGB 视频，也不输出自然语言推理链；模仿学习只有轨迹损失，没有额外视频或文本损失。加入强化学习后的 92.3 PDMS、HUGSIM 闭环迁移的 41.47 HD-Score，说明整套规划器有效；默认 10 步推理报告 970 ms 延迟，且没有实车闭环结果，因此距离实时、安全的部署结论仍有明显距离。<a href="#sources">[§4–5；表 3、5–8；附录 A、C]</a></p>
+      <div class="research-purpose"><span class="research-purpose__label">先建立完整图景</span><p>当前与历史前视图像进入世界分支，当前前视图像和驾驶提示进入语言分支；两组隐藏表示逐层交换信息。动作分支读取两者，从高斯噪声出发生成未来 4 秒的 8 个轨迹点。先模仿人类轨迹，再用驾驶评分优化动作分支。输出是自车坐标系中的位置与航向，仍需跟踪控制器执行。</p></div>
+    </section>
+
+    <section id="concepts" aria-labelledby="concepts-title">
+      <h2 id="concepts-title">三个“专家”是持续工作的分支，各自承担不同角色</h2>
+      <p>这里的 Mixture-of-Transformers（MoT）不是用路由器每次只挑选少数专家的稀疏 MoE。世界、语言适配器和动作三条 Transformer 分支均参与计算，保留各自的参数与前馈网络，在注意力处交换信息。这样可以复用不同预训练来源，也让各分支保有不同的表征处理方式。<a href="#sources">[§4.1–4.2]</a></p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="三个专家的输入、计算与输出">
+        <table class="evidence-table dw-prose-table"><thead><tr><th scope="col">分支</th><th scope="col">输入与实现</th><th scope="col">供规划使用的输出</th></tr></thead><tbody>
+          <tr><td>World，世界专家</td><td>DriveLaW-Video 初始化的 LTX-Video-2B；4 张 768 × 1344 前视历史帧；冻结视频 VAE 和文本编码器；28 层、宽度 2048 的 DiT。</td><td>观测潜变量和高斯初始化的未来潜变量经过一次前向计算，得到逐层隐藏特征；不迭代采样完整视频，不解码未来图像。</td></tr>
+          <tr><td>Language，语言专家</td><td>来自 ReCogDrive 的驾驶预训练 InternVL3-2B；当前前视图像使用 448 × 448 动态切块；输入驾驶提示；VLM 冻结，外接 28 层、宽度 512 的适配器。</td><td>有效输入 token 的最后一层隐藏状态，经过适配器成为规划条件；不自回归生成文字答案。</td></tr>
+          <tr><td>Action，动作专家</td><td>28 层、宽度 512 的 DiT；噪声轨迹、flow 时间、4 个 2 Hz 历史自车位姿、当前状态与导航命令。</td><td>轨迹生成所需的速度场，积分后得到 8 × (x, y, θ)，每 0.5 秒一个点，共 4 秒。</td></tr>
+        </tbody></table>
+      </div>
+      <p>DiT 是在 Transformer 中处理加噪变量的生成网络；VAE 把高维图像压缩成连续潜变量。World 分支的“未来位置”首先是高斯噪声占据的潜空间槽位，并不是把真实未来帧提前交给规划器。论文附录 D 将 4 个观测帧分别对应到 4 个历史潜变量，将 8 个未来帧的位置分成两组，每个未来潜变量对应 2 秒，合计覆盖 4 秒。这说明时间组织方式，不等于已生成可验证的未来场景。<a href="#sources">[式 2；附录 A.1、A.3、D]</a></p>
+      <p>Language 也需要准确理解：参与跨专家交互的是 <strong>VLM Adapter 的表示</strong>。冻结 VLM 先提取特征，World 信息随后进入适配器，并不回到冻结的 InternVL3 主干重写它的词元推理过程。因此论文中的“双向世界—语言交互”，不能读成两个完整大模型持续用自然语言讨论驾驶决策。</p>
+      <h3>用一次左转理解三种表示的分工</h3>
+      <p>设想车辆接近左转路口：图像与提示提供道路结构、交通参与者和左转命令；世界分支的预训练经验使其具备从连续观测提取时序变化的基础；语言适配器把场景语义与导航意图组织为条件；动作分支将这些条件转成具体转弯轨迹。这里的分工解释是帮助理解的示意，不能据此声称模型已经显式识别了某个行人的意图。</p>
+      <p>原文图 3(a) 确实给出两个左转场景：一个场景去掉 World 后驶出可行驶区域，另一个场景去掉 Language 后发生同类失败，而完整模型两例均满足 DAC。这是互补性的直观个案；具体哪一类语义或运动线索产生了改善，还需要对象级干预或定量探针验证。</p>
+    </section>
+
+    <section id="problem-chain" aria-labelledby="problem-title">
+      <h2 id="problem-title">共同出现的两种能力，未必已经对同一个规划目标起作用</h2>
+      <p>作者要解决的是一种表征错位：VLM 的预训练让它擅长视觉语义与语言关联，视频生成模型的预训练让它擅长描述场景随时间变化，但规划要选择的是“此刻应该怎样开”。能够描述一辆车、能够建模图像变化，都不自动保证隐藏表示便于动作网络读取距离、可行驶空间和与当前机动有关的风险。</p>
+      <p>论文把已有融合路线概括为两类：给 VLA 增加未来图像预测辅助目标，或者让一类模型的特征作为另一类模型的条件。它以 DriveVLA-W0、DriveWAM 等说明动机。这个分类来自作者的相关工作讨论，本页没有独立审计这些论文的全部实现，也不据此宣称所有已有方法都没有双向交互。<a href="#sources">[§1–2]</a></p>
+      <p><strong>DriveWLA 做了两个相关但不同的改变。</strong>一是前向计算时，世界和语义表示在每个 block 内互相读取，动作分支直接读取两者；二是模仿学习时，轨迹误差反向更新世界 DiT、语言适配器和动作 DiT。前者改变“信息能去哪里”，后者改变“这些信息为了什么任务而组织”。只有前向融合而保持所有特征冻结，仍可能保留与规划无关的预训练偏好。</p>
+      <p>这也决定了评价重点：表 7 的注意力掩码消融检验信息交换，表 6 的冻结世界专家对照检验联合适配。二者都出现收益，才构成比“把两个强骨干接在一起”更充分的论证。不过，这些实验测的是轨迹结果，并没有直接测量所谓“表征冲突减少”或“语义与动力学已对齐”的程度；后两者仍是作者对性能变化的机制解释。</p>
+    </section>
+
+    <section id="mechanism" aria-labelledby="mechanism-title">
+      <h2 id="mechanism-title">核心机制：前向动作不回流，反向轨迹梯度仍能更新条件分支</h2>
+      <h3>1. 用注意力掩码规定谁能读取谁</h3>
+      <p>在每一层，三条分支分别生成 Q、K、V，再投影到可进行共同注意力计算的维度。Q 可以理解为“当前 token 要查找什么”，K 是其他 token 可被匹配的索引，V 是实际提供的信息。合并后的注意力使用掩码 M，允许的位置加 0，禁止的位置加 −∞；softmax 后，被禁止的信息源得到零权重。输出再分回各分支，经过其各自的输出投影、残差、归一化和前馈网络。<a href="#sources">[式 5–7]</a></p>
+      <div class="formula-card">
+        <div class="formula-card__label">跨专家注意力</div>
+        <div class="formula-card__equation">O = softmax(QKᵀ / √d + M)V</div>
+        <p class="formula-card__caption">这条式子回答：一个分支的 token 能从哪些分支读取信息？</p>
+        <dl class="formula-legend"><div class="formula-legend__row"><dt>Q、K、V</dt><dd>各专家独立投影后拼接的查询、键和值；d 是参与缩放的共享注意力维度。</dd></div><div class="formula-legend__row"><dt>M</dt><dd>行是查询方，列是提供 K/V 的信息源。按 W、A、L 顺序，三行分别为 (0, −∞, 0)、(0, 0, 0)、(0, −∞, 0)。</dd></div></dl>
+        <div class="formula-card__intuition">W 和 L 互相看见，A 看见 W、L 和自己；W、L 看不见 A。箭头 W → A 表示 A 的 query 读取 W 的 key/value，不能把矩阵行列读反。</div>
+      </div>
+      <div class="dw-interactive" id="mask-explainer" data-dw-mask>
+        <p class="dw-eyebrow">交互图解 1 · 注意力方向与实际消融</p>
+        <label for="dw-mask-mode">切换信息流，观察箭头、可见性矩阵与 PDMS 一起变化：</label>
+        <select id="dw-mask-mode">
+          <option value="full">论文方案：W ↔ L，二者 → A</option>
+          <option value="world-to-language">只保留 W → L</option>
+          <option value="language-to-world">只保留 L → W</option>
+          <option value="all">允许 A 回流到 W / L</option>
+          <option value="none">W 与 L 不交换，二者仍 → A</option>
+        </select>
+        <div class="dw-mask-layout">
+          <svg viewBox="0 0 480 285" role="img" aria-labelledby="dw-graph-title dw-graph-desc">
+            <title id="dw-graph-title">三专家信息流</title><desc id="dw-graph-desc">世界与语言双向交换；二者向动作提供信息，动作不回流。自注意力始终保留，图中省略自环。</desc>
+            <defs><marker id="dw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="currentColor"/></marker></defs>
+            <g class="dw-edge" fill="none" stroke="currentColor" stroke-width="2.5" marker-end="url(#dw-arrow)">
+              <path data-edge="wl" d="M162 46H318"/><path data-edge="lw" d="M318 70H162"/>
+              <path data-edge="wa" d="M104 95L209 197"/><path data-edge="la" d="M376 95L271 197"/>
+              <path data-edge="aw" d="M185 218Q22 212 62 94" hidden/><path data-edge="al" d="M295 218Q458 212 418 94" hidden/>
+            </g>
+            <rect x="20" y="20" width="142" height="75" rx="8" fill="#dcebe5"/><text x="91" y="53" text-anchor="middle">W · 世界</text><text x="91" y="77" class="dw-small" text-anchor="middle">动态表征</text>
+            <rect x="318" y="20" width="142" height="75" rx="8" fill="#f1e8c9"/><text x="389" y="53" text-anchor="middle">L · 语言适配器</text><text x="389" y="77" class="dw-small" text-anchor="middle">语义表征</text>
+            <rect x="167" y="197" width="146" height="75" rx="8" fill="#dfeaf1"/><text x="240" y="229" text-anchor="middle">A · 动作</text><text x="240" y="253" class="dw-small" text-anchor="middle">轨迹速度场</text>
+          </svg>
+          <table class="dw-matrix"><caption>行读取列的 K/V<br>✓ 可见 · × 禁止</caption><thead><tr><th scope="col">Q ↓ / K →</th><th scope="col">W</th><th scope="col">A</th><th scope="col">L</th></tr></thead><tbody>
+            <tr><th scope="row">W</th><td data-cell="ww">✓</td><td data-cell="wa">×</td><td data-cell="wl">✓</td></tr>
+            <tr><th scope="row">A</th><td data-cell="aw">✓</td><td data-cell="aa">✓</td><td data-cell="al">✓</td></tr>
+            <tr><th scope="row">L</th><td data-cell="lw">✓</td><td data-cell="la">×</td><td data-cell="ll">✓</td></tr>
+          </tbody></table>
+        </div>
+        <div class="dw-result" aria-live="polite" aria-atomic="true"><strong data-mask-score>90.8 PDMS</strong><p data-mask-detail>论文默认方案：世界与语言双向交换，动作只接收两者。表 7 中得分最高。</p></div>
+        <p class="read-guide">箭头只表示前向信息流；自环省略。五种分数全部来自原文表 7 的模仿学习检查点，不是本页模拟，也不包含强化学习。无脚本时保留默认结构；完整对照见下文证据表。</p>
+      </div>
+      <p><strong>为什么限制动作回流？</strong>动作生成会经历不同噪声水平，动作表征随积分步骤变化；让 W、L 只依赖观测与彼此，能在结构上使条件表示独立于当前候选动作。论文表 7 的全向连接只有 90.4，低于默认方案 90.8，支持当前设置下的方向选择。但“噪声污染了语义和动力学”是合理解释，不是论文通过特征测量确认的事实；0.4 分差异也没有跨种子误差条。</p>
+      <p><strong>不允许 A → W/L，不等于阻断轨迹损失的梯度。</strong>动作输出依赖从 W/L 读到的特征，因而损失仍能沿这条依赖反向更新世界 DiT 和语言适配器。这是理解联合训练的关键：前向信息可见性与反向参数优化是两回事。“所有专家联合训练”的准确范围也不包含冻结的 VLM、VAE 和文本编码器。</p>
+      <h3>2. 从轨迹噪声积分出 4 秒动作</h3>
+      <p>模仿学习并不直接回归一条固定轨迹，而是学习 flow matching 的向量场。a₀ 是示范轨迹，a₁ 是同形状高斯噪声，τ ∈ [0,1] 是生成过程中的时间；它不是道路上实际流逝的 4 秒。随机选一个 τ，把真实轨迹和噪声线性混合，再要求网络预测这条插值路径的方向。</p>
+      <div class="formula-card"><div class="formula-card__label">训练方向与采样方向要分清</div><div class="formula-card__equation">a<sub>τ</sub> = (1 − τ)a₀ + τa₁<br>L<sub>BC</sub> = E ‖v<sub>θ</sub>(a<sub>τ</sub>, τ, C<sub>d</sub>) − (a₁ − a₀)‖²</div><p class="formula-card__caption">式 4 学习从数据指向噪声的速度；推理从 τ = 1 向 τ = 0 反向积分，把噪声变成轨迹。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>v<sub>θ</sub>、C<sub>d</sub></dt><dd>动作网络预测的轨迹空间速度场；显式驾驶条件含自车信息与导航，世界和语义上下文通过跨专家注意力进入网络。</dd></div><div class="formula-legend__row"><dt>Euler 更新</dt><dd>a<sub>τ下一步</sub> = a<sub>τ当前</sub> + (τ下一步 − τ当前)v<sub>θ</sub>。从 1 降到 0 时，步长为负；默认进行 10 次。</dd></div></dl><div class="formula-card__intuition">这里“速度场”是如何修改整条候选轨迹的方向，并不是车辆在某个路点的物理车速。最终得到的是 8 个位置和航向点。</div></div>
+      <p>世界分支在一次前向处理中提供逐层条件表示，动作分支则执行多步生成；世界未来潜变量和初始动作噪声固定之后，Euler 积分是确定的。去掉 RL 探索噪声，不等于不同初始高斯噪声一定产生同一条轨迹。论文也没有给出完整缓存实现、延迟分项或部署调度，本页不把结构上可复用的条件特征写成已核验的代码优化。<a href="#sources">[附录 A.3]</a></p>
+      <h3>3. 先联合适配，再只优化动作 LoRA</h3>
+      <div class="dw-interactive" id="training-explainer" data-dw-training>
+        <p class="dw-eyebrow">交互图解 2 · 参数更新范围与输出路径</p>
+        <p>切换阶段，查看哪些模块更新、使用何种监督，以及最终输出怎样变化。</p>
+        <div class="dw-buttons" role="group" aria-label="训练与推理阶段"><button type="button" data-phase="il" aria-pressed="true">① 模仿学习</button><button type="button" data-phase="rl" aria-pressed="false">② 强化学习</button><button type="button" data-phase="infer" aria-pressed="false">③ 部署推理</button></div>
+        <div class="dw-stage-flow">
+          <div class="dw-stage-input">前视观测 + 自车状态 + 导航<br><span>冻结的 VAE / 文本编码器 / VLM</span></div>
+          <div class="dw-stage-arrow" aria-hidden="true">↓ 特征</div>
+          <div class="dw-stage-pair"><div class="dw-module is-trainable" data-module="world"><strong>World DiT</strong><span data-module-status>更新全部 DiT 权重</span></div><span class="dw-stage-link" aria-label="双向信息交换">↔</span><div class="dw-module is-trainable" data-module="language"><strong>VLM Adapter</strong><span data-module-status>更新适配器权重</span></div></div>
+          <div class="dw-stage-arrow" aria-hidden="true">↓ 条件表示</div>
+          <div class="dw-module is-trainable" data-module="action"><strong>Action DiT</strong><span data-module-status>更新全部动作权重</span></div>
+          <div class="dw-stage-arrow" aria-hidden="true">↓</div>
+          <div class="dw-stage-output" data-stage-output><span>加噪示范 → 预测速度场 → LBC</span></div>
+          <div class="dw-stage-gradient" data-gradient>轨迹损失反向更新：Action + World + Adapter</div>
+        </div>
+        <p class="dw-result" data-stage-detail aria-live="polite">模仿学习：30 epochs，16 张 A100，全局 batch 16。只使用轨迹 flow-matching 损失，没有视频预测损失或文本生成损失。</p>
+        <p class="read-guide">边框与文字共同标记更新状态；箭头表示前向数据流，下方单独标出监督更新范围。结构依据图 1、附录 A.1 与 C。无脚本时显示模仿学习，正文保留三个阶段的完整说明。</p>
+      </div>
+      <p><strong>模仿学习阶段：</strong>103,288 个 NAVSIM navtrain 场景训练 30 epochs，使用 16 张 A100，全局 batch size 为 16，初始学习率 3 × 10<sup>−5</sup>，余弦衰减。World DiT、VLM Adapter、Action DiT 共同接受 L<sub>BC</sub> 的更新；VLM、视频 VAE 和文本编码器冻结。附录 A.1 明确写出没有辅助视频或文本生成损失，因此不能将其描述成三种任务联合监督。</p>
+      <p><strong>强化学习阶段：</strong>选择模仿策略 PDMS 低于 90 的场景，每个场景采样 8 条轨迹，用 10 步随机 flow 进行探索，训练 8 epochs；只更新动作分支的 LoRA 参数，rank 为 16、缩放系数 32，世界、语言以及动作基础权重全部冻结。它把有限的策略更新集中在低分场景，并用低秩增量改变生成行为。低分筛选的具体样本数和训练总耗时未报告。<a href="#sources">[附录 C]</a></p>
+      <p><strong>推理阶段：</strong>不更新参数，移除强化学习时的额外探索噪声，默认用 10 步确定性 Euler 求解生成轨迹。这里仍然运行世界与语言条件分支；它们没有被蒸馏掉。所谓“一次前向”只描述世界表示提取，不能用来宣称整个驾驶规划器只运行一次网络。</p>
+
+      <h3 id="rl-detail">4. 为什么不只拿总 PDMS 算优势？</h3>
+      <p>组相对策略优化在同一个场景采样多条候选，比较它们的奖励，再提高相对好轨迹的概率。Flow-GRPO 将这一思路用于 flow matching 策略，通过向常微分方程过程加入随机探索形成可优化的随机转移，训练后恢复确定性积分。DriveWLA 的新增处理主要在“候选轨迹的相对好坏怎样计算”。</p>
+      <div class="formula-card"><div class="formula-card__label">先看被优化的任务评分 · 原文式 13</div><div class="formula-card__equation">PDMS = NC × DAC × (5EP + 5TTC + 2C) / 12</div><p class="formula-card__caption">NC 是无责任碰撞评分，DAC 是可行驶区域合规；EP 是相对参考规划器的前进进度，TTC 衡量碰撞时间风险，C 衡量运动学舒适性。公式按归一化分数计算，结果表按百分制报告。</p><div class="formula-card__intuition">NC 与 DAC 是乘法门控。即使两条轨迹在进度或舒适性上有差别，只要同样因 DAC = 0 得零分，总分优势就无法区分它们的这些改善方向。</div></div>
+      <p>作者因此先逐项标准化奖励，再组合成优势，而不是先把它们压成一个总分。对某个场景的第 i 条候选、第 m 个指标，用该场景 8 条候选的均值 μ<sub>m</sub> 和标准差 σ<sub>m</sub> 计算 z<sub>i,m</sub> = (r<sub>i,m</sub> − μ<sub>m</sub>)/(σ<sub>m</sub> + ε)。这样“比同组更安全”和“比同组走得更远”都保留一个信号。组合权重为 NC、DAC 各 2，EP、TTC 各 5，C 为 2；这是一种优化设计，不是对原来乘法 PDMS 的等价展开。</p>
+      <div class="formula-card"><div class="formula-card__label">因子化优势 + 低方差收缩 · 原文式 8–9</div><div class="formula-card__equation">u<sub>i</sub> = Σ<sub>m</sub>w<sub>m</sub>z<sub>i,m</sub><br>A<sub>i</sub> = u<sub>i</sub> / √(Var(u) + ε) × s² / (s² + 0.1²)</div><p class="formula-card__caption">把各指标在组内的相对差别合成 u，再标准化，并依据整组总 PDMS 的方差缩小更新。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>Var(u)、s²</dt><dd>都在同场景 8 条候选内计算；前者是组合信号的方差，后者是总 PDMS 的方差。两者不是同一个量。</dd></div><div class="formula-legend__row"><dt>0.1、ε</dt><dd>0.1 是附录 C 给定的收缩强度；正文式 9 将其记为 τ，与 flow 时间 τ 不是同一变量。ε 是数值稳定项。</dd></div></dl><div class="formula-card__intuition">若总分几乎没有差别，收缩因子接近 0，不因标准化放大很弱的信号。若 s² = 0.01，收缩因子是 0.5；若 s² = 0，则优势整体变为 0。这是公式示例，不是实测数据。</div></div>
+      <p><strong>这个设计存在一个值得看清的折中：</strong>逐项标准化能保留总分掩盖的差异，但如果整组总 PDMS 完全相同，最后的收缩又会把这些差异全部压掉。例如所有候选都因同一个乘法门控失败而得零，分项优势不能独自推动更新。这不是实验已证实的故障，而是式 9 的直接性质：作者选择稳定性，代价是对某些全失败候选组仍缺少有效策略梯度。</p>
+      <p>训练目标用 A<sub>i</sub> 加权各随机去噪转移的对数概率，步骤折扣 γ = 0.8，再加 0.1L<sub>BC</sub> 约束策略不要过度偏离示范。该步骤编号对应生成链，不是路上第几秒。表 6 中原版 Flow-GRPO 已把 90.8 提升到 92.1；因子化优势与方差收缩合在一起只再提升到 92.3。论文没有把这两个新增设计分别消融，也没有报告误差条，所以只能说组合有小幅正向结果，不能把整个 1.5 分增益归给新优势公式。<a href="#sources">[式 10；表 6；附录 C]</a></p>
+    </section>
+
+    <section id="evidence" aria-labelledby="evidence-title">
+      <h2 id="evidence-title">实验最有力的部分，是把“专家、交互、适配、强化学习”拆开了</h2>
+      <h3>先用同一训练框架判断机制是否有用</h3>
+      <p>表 5、7、8 都用<strong>强化学习之前的模仿学习检查点</strong>，默认是 90.8 PDMS；表 6 再从它出发加入 RL。这一点在附录 C 明确说明。若把去掉 World 的 86.2 直接与完整 RL 模型 92.3 相减，就会把 RL 的收益也错误归到世界专家。</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="NAVSIM v1 控制变量消融"><table class="evidence-table dw-prose-table"><thead><tr><th scope="col">对照设置</th><th scope="col">PDMS ↑</th><th scope="col">相对于 90.8 能支持的判断</th></tr></thead><tbody>
+        <tr><td>完整三专家，模仿学习</td><td>90.8</td><td>表 5–8 共同参照，不含 RL。</td></tr>
+        <tr><td>去掉 World</td><td>86.2（−4.6）</td><td>当前设置中，世界分支对规划很重要；移除也改变参数量、时序输入与预训练来源。</td></tr>
+        <tr><td>去掉 Language</td><td>89.1（−1.7）</td><td>语义分支在世界分支之外仍有增益，二者有互补性。</td></tr>
+        <tr><td>冻结 World</td><td>88.0（−2.8）</td><td>只有预训练特征不够，针对规划更新世界 DiT 有明显收益。</td></tr>
+        <tr><td>仅 W → L，取消 L → W</td><td>90.1（−0.7）</td><td>在此架构中，语言到世界的方向有额外贡献。</td></tr>
+        <tr><td>仅 L → W，取消 W → L</td><td>89.8（−1.0）</td><td>世界到语言的方向也有贡献。</td></tr>
+        <tr><td>世界与语言不互通，均供给 A</td><td>88.4（−2.4）</td><td>三个专家同时存在，仍不足以替代双向交换。</td></tr>
+        <tr><td>额外允许 A → W/L</td><td>90.4（−0.4）</td><td>默认信息方向优于全向连接，但差异稳定性尚不清楚。</td></tr>
+        <tr><td>加原版 Flow-GRPO</td><td>92.1（+1.3）</td><td>奖励后训练能超出纯模仿，尤其改善 DAC 和进度。</td></tr>
+        <tr><td>加改进 Flow-GRPO</td><td>92.3（+1.5）</td><td>新增优势设计相对原版 RL 为 +0.2，未分别拆解两个改动。</td></tr>
+      </tbody></table></div>
+      <p>这组证据足以支持“完整组合在 NAVSIM 有用”，但不能把 −4.6 对比 −1.7 解释为动力学在所有驾驶场景都比语义重要。两个分支的大小、输入历史、预训练数据和初始化强度不同；没有等参数、等时序输入的普通视觉编码器对照，就还不能隔离出“视频世界模型预训练”这一因素的全部贡献。</p>
+      <h3>NAVSIM 主结果：分数领先与指标取舍同时成立</h3>
+      <p>训练集为 103,288 个 navtrain 场景，测试为 12,146 个 navtest 场景。v1 的 PDMS 同时考虑安全、可行驶性、进度和舒适性。它是规划评估分数，不是现实世界“安全概率”。跨论文方法虽然使用同名基准，骨干、预训练与后训练条件仍不完全一致，因果归因应优先依赖上面的内部消融。<a href="#sources">[§5.1；附录 B.1]</a></p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="NAVSIM 主结果及比较条件"><table class="evidence-table dw-prose-table"><thead><tr><th scope="col">评测与比较对象</th><th scope="col">作者报告分数 ↑</th><th scope="col">如何评价</th></tr></thead><tbody>
+        <tr><td>v1：DriveWLA / SGDrive</td><td>92.3 / 91.1</td><td>领先所列 VLM 路线最佳项 1.2 分。</td></tr>
+        <tr><td>v1：DriveWLA / SimWAM</td><td>92.3 / 91.5</td><td>领先所列世界模型路线最佳项 0.8 分。</td></tr>
+        <tr><td>v1：DriveWAM / BrainWAM</td><td>90.1 / 89.5</td><td>DriveWLA 分别高 2.2 / 2.8 分，但骨干和训练配方不同。</td></tr>
+        <tr><td>v2：DriveWLA / CoWorld-VLA / DriveFuture</td><td>90.1 / 90.0 / 89.9</td><td>使用修正后的官方 evaluator 与 human-reference filtering；领先很小，未报告统计不确定性。</td></tr>
+      </tbody></table></div>
+      <p>v1 的 DriveWLA：NC 99.1、DAC 98.8、TTC 97.0、Comfort 100.0、EP 86.4。它不是每一项都最好，例如 ReWorld 的 TTC 为 97.7，SGDrive 的 EP 为 85.8 而 ReCogDrive 为 87.3。更准确的结论是：多项折中之后，总 PDMS 在表内最高。主干标称 2B + 2B 比若干 8B + 5B 或 4B + 5B 的比较项小，但还要运行适配器与动作网络；论文没有完整总参数、显存、FLOPs 和同硬件对照，不能只用主干规模证明计算效率更优。<a href="#sources">[表 1]</a></p>
+      <p>v2 加入行驶方向 DDC、红灯 TLC、车道保持 LK、历史舒适性 HC 与扩展舒适性 EC。修正的评估器会将人类参考在某项得零时，该项规划器分数置为 1，EC 不单独过滤；因此不同 evaluator 版本的数字不宜直接混排。DriveWLA 的 DDC、TTC、LK、HC 在表内最佳，TLC 并列最佳，但 EC 为 82.5，低于 DiffusionDriveV2 的 91.0。EC 衡量连续预测之间的一致性，这个反向结果说明总分领先尚不等于输出时序一致性已经解决。<a href="#sources">[表 2；式 14；附录 B.2]</a></p>
+      <h3>HUGSIM：有真实的闭环反馈，但仍是仿真迁移</h3>
+      <p>HUGSIM 的观察会随车辆执行轨迹而更新，所以它能暴露开环里看不到的误差积累。论文没有进行 HUGSIM 专门训练或微调，测试覆盖来自 nuScenes、KITTI-360、Waymo、PandaSet 的全部 436 个场景。基线来自 WA-JEPA 对同一批场景的重评估，使用一致的驾驶命令、修正控制器、指标与聚合方式；摄像头数量仍不同，DriveWLA 使用单前视，LTF 用 3 个，其他列出方法用 4 个。<a href="#sources">[表 3；附录 B.3]</a></p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="HUGSIM 闭环分难度成绩"><table class="evidence-table"><thead><tr><th scope="col">方法</th><th scope="col">Easy</th><th scope="col">Medium</th><th scope="col">Hard</th><th scope="col">Extreme</th><th scope="col">总 HD-Score ↑</th></tr></thead><tbody>
+        <tr><td>UniAD</td><td>64.00</td><td>37.20</td><td>21.00</td><td>6.30</td><td>31.20</td></tr>
+        <tr><td>DrivoR</td><td>78.00</td><td>29.10</td><td>20.00</td><td>14.10</td><td>32.50</td></tr>
+        <tr class="evidence-table__emphasis"><td>DriveWLA</td><td>73.87</td><td>47.91</td><td>31.41</td><td>15.87</td><td>41.47</td></tr>
+      </tbody></table></div>
+      <p>相对 DrivoR，平均 HD-Score 高 8.97 分，优势主要出现在 Medium 与 Hard；但 Easy 低 4.13 分，Extreme 只有 15.87，说明极难场景仍很远未解决。全场景路线完成度为 54.99，Comfort 为 75.78，低于 VAD 的 95.30 与 DrivoR 的 93.90。不能把“11 项中 8 项最好”简化成所有驾驶属性都更好。</p>
+      <p>HD-Score 不等于四列简单平均。四种难度分别有 80、157、96、103 个场景；每个难度内先按源数据集平均，再对四个数据集平均，最后按难度场景数加权。用表内数值计算 (73.87 × 80 + 47.91 × 157 + 31.41 × 96 + 15.87 × 103) / 436 ≈ 41.47，与作者报告一致。</p>
+      <h3>nuScenes 与 Bench2Drive：低碰撞代理指标值得肯定，开环边界必须保留</h3>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="开环迁移平均 L2 与碰撞指标"><table class="evidence-table dw-prose-table"><thead><tr><th scope="col">数据集与方法</th><th scope="col">平均 L2 ↓ / 碰撞率 ↓</th><th scope="col">比较条件</th></tr></thead><tbody>
+        <tr><td>nuScenes：DriveWLA</td><td>0.94 m / 0.09%</td><td>完整 150 场景验证集，未在该数据集进一步训练规划器。</td></tr>
+        <tr><td>nuScenes：DriveVLA-W0 / PWM</td><td>1.43 m / 0.77%；3.99 m / 0.36%</td><td>表内其他零样本方法，数字引自 DriveVA 的跨数据集比较。</td></tr>
+        <tr><td>nuScenes：OpenDriveVLA / UniDriveVLA-L</td><td>0.67 m / 0.30%；0.74 m / 0.20%</td><td>使用目标训练数据；L2 更低，碰撞指标更高。</td></tr>
+        <tr><td>Bench2Drive：DriveWLA</td><td>1.61 m / 1.06%</td><td>日志观测上的轨迹评估，没有交互式闭环 rollout。</td></tr>
+        <tr><td>Bench2Drive：UNIVERSE / DriveVA</td><td>1.33 m / 1.19%；1.33 m / 1.79%</td><td>均为 NAVSIM 训练后迁移；DriveWLA 碰撞平均值低，但 L2 较高。</td></tr>
+      </tbody></table></div>
+      <p>两个指标都在 1、2、3 秒计算，再对三项未舍入结果取平均。DriveWLA 在 nuScenes 的 L2 为 0.38 / 0.83 / 1.60 m，碰撞率为 0.03 / 0.03 / 0.20%；Bench2Drive 分别为 0.77 / 1.53 / 2.53 m 与 0.34 / 0.97 / 1.88%。Bench2Drive 的 3 秒碰撞率还高于 UNIVERSE 的 1.70%，因此“平均最好”也不等于每个预测时域都最好。<a href="#sources">[表 4；附录 B.4–B.5]</a></p>
+      <p>日志开环用记录好的观测与其他交通参与者轨迹评估预测，它没有执行预测后产生的新观测，也没有验证别人如何响应自车。L2 衡量与日志示范的接近程度，并不是合法轨迹的唯一性；低碰撞率是有意义的几何安全代理指标，但不能独立证明主动交互安全或良好通行效率。本文的 Bench2Drive 成绩尤其不能冒充该基准通常的闭环 Driving Score。</p>
+      <p>“零样本”还要限定对象：本文说明的是没有在目标集上进一步训练规划器。World 与 VLM 初始化已经使用驾驶预训练，论文没有提供完整、可核验的预训练数据与测试来源重叠审计。因此不能把这些结果写成所有底层模型从未接触过目标域。作者明确的目标集微调边界应得到承认，同时保留预训练覆盖范围的不确定性。</p>
+      <h3>采样步数把“使用视频先验”和“实时部署”拉开了距离</h3>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="模仿学习检查点的采样成本"><table class="evidence-table"><thead><tr><th scope="col">Euler 步数</th><th scope="col">PDMS ↑</th><th scope="col">作者报告延迟 ↓</th><th scope="col">关键变化</th></tr></thead><tbody>
+        <tr><td>1</td><td>49.2</td><td>540 ms</td><td>Comfort 只有 1.7，不能直接单步替换</td></tr>
+        <tr><td>5</td><td>90.6</td><td>810 ms</td><td>已恢复大部分性能</td></tr>
+        <tr><td>10</td><td>90.8</td><td>970 ms</td><td>论文默认</td></tr>
+        <tr><td>15</td><td>90.8</td><td>1160 ms</td><td>没有额外分数收益</td></tr>
+        <tr><td>20</td><td>90.7</td><td>1390 ms</td><td>更慢，分数略降</td></tr>
+      </tbody></table></div>
+      <p>5 步相对 10 步少 160 ms，延迟减少约 16.5%，只低 0.2 PDMS；这给工程优化一个明确起点。970 ms 按串行、无额外开销换算约为 1.03 次推理/秒，但不能据此认定整个系统实测控制频率是 1.03 Hz，也不能把输出点间隔 0.5 秒当作在线规划频率。表 8 未清楚交代推理硬件、batch、预处理和控制开销的计时范围；文中 16 张 A100 是训练设置。需要统一条件的端到端测量，才能评估车端可用性。<a href="#sources">[表 8；§5.3]</a></p>
+    </section>
+    <section id="limits" aria-labelledby="limits-title">
+      <h2 id="limits-title">最值得保留的结论，与最需要补证据的地方</h2>
+      <h3>贡献怎样定性：架构与训练配方的增量最清楚</h3>
+      <p>LTX-Video、InternVL、MoT、flow matching、LoRA 和 Flow-GRPO 都有已有基础。DriveWLA 的具体增量，是在驾驶任务里用三分支层级交互规定 W ↔ L、W/L → A，并通过轨迹监督联合适配这些表示，再用分项优势与方差收缩进行动作后训练。系统组合本身有价值，因为内部消融说明结构和更新范围的变化确实影响规划；不需要把它包装成所有底层算法都是新提出的。</p>
+      <p>其中，世界—语言交互带来的 +2.4、世界专家可训练带来的 +2.8，是比较直接的结构与适配证据；RL 相对模仿学习的 +1.5 说明任务奖励有效；新 RL 公式相对原版的 +0.2 则属于证据更弱的细部改进。把这几层分开，才能合理分配研究注意力。</p>
+      <h3>边界一：未来槽位的结构，不足以证明未来预测准确</h3>
+      <p>作者不是完全没有检查世界特征：图 4 展示三组驾驶场景的历史和未来潜变量 PCA 投影，统一色标下可见场景相关、随时间组织的结构。这说明输出不是简单的同一常量，也给出时序结构的定性线索。但 PCA 的颜色差异本身不衡量运动误差、对象轨迹、几何一致性或预测校准；时序位置编码与输入场景差异也可能形成可见结构。</p>
+      <p>结合“只用轨迹监督更新 World DiT”，更稳妥的解读是：<strong>世界模型预训练提供了有用初始化，经过规划目标改造后形成有利于动作生成的特征。</strong>模型是否仍保留准确的视频预测能力，以及规划收益是否主要来自真实的未来推演，都没有被直接测量。最针对性的补充实验是：比较适配前后、冻结与可训练版本的未来状态预测探针，并与规划分数一起报告；再补等计算预算的普通时序视觉编码器对照。这样能区分预训练动力学先验、额外容量和时序上下文本身的作用。</p>
+      <h3>边界二：它没有显式执行“换一种动作，世界会怎样”的反事实评估</h3>
+      <p>默认掩码阻止 A 的表示进入 W/L；世界分支以观测、生成指令和语言交互提供上下文，不以当前采样候选动作作为反馈输入。因此结构图里没有“先提出轨迹，再按这条轨迹滚动预测世界，最后按预测后果重选轨迹”的闭环。它依然可以学到有用的场景动态先验，但不能仅凭 World-Language-Action 名称就认定它已经是动作条件世界模拟器或显式模型预测控制器。</p>
+      <p>若研究目标是交互式让行或多车博弈，关键问题就变成：不同候选自车动作是否产生不同且正确的他车响应预测？本文没有这类验证。可以设计候选动作干预实验，测量下游世界表征或未来状态预测是否响应动作变化；默认结构预计不会通过 A 分支产生这种变化，这是一条可由架构直接检验的边界，而不是对其已有规划成绩的否定。</p>
+      <h3>边界三：一些重要归因与小分差还缺控制变量</h3>
+      <p>世界专家删除实验同时移除了 4 帧时序输入路径、大型预训练模型和参数容量；语言删除实验也改变提示与语义通路。这些消融足以判断完整分支有用，却没有单独证明“动力学”和“语义”这两个抽象能力各占多少收益。语言侧也没有专门的问答、交通规则或指令干预测试，所以不能从轨迹分数推断语义理解普遍增强。</p>
+      <p>另一方面，v2 领先第二名 0.1、改进 RL 领先原版 0.2、注意力全向与受限相差 0.4，都没有训练种子方差、场景级置信区间或显著性检验。应先用多种子与配对场景分析确认这些细小差异，再据此选复杂配方。针对 RL，分别去掉因子化与收缩的 2 × 2 对照，比继续堆更多排行榜更能回答新公式的作用。</p>
+      <h3>边界四：奖励、分布和延迟都限制部署外推</h3>
+      <p>RL 用 NAVSIM 的评分因子优化，测试主指标也属于同一套评分体系；这是一种合理的任务优化，但总分提高首先证明更好地适应该目标。HUGSIM 的跨平台闭环结果缓解了“只会优化一个表”的担忧，不过仍是仿真，且困难场景、舒适性和完成度保留了明显缺口。系统的前视单相机设置还没有覆盖全周向感知、多传感器失效和实车长时运行。</p>
+      <p>对工程使用，最先需要补充的是统一硬件下各模块耗时、显存、吞吐与端到端闭环控制频率，以及更少生成步骤或蒸馏后的安全—进度—舒适性变化。970 ms 不能只靠“无需生成视频”这句话解释成已经足够快；同样，不应在没有实测前断言它必然不能通过优化部署。</p>
+      <p class="evidence-note"><strong>这篇论文值得带走的研究思路：</strong>在已有 VLM 与视频模型之间，先明确每层信息方向和可训练范围，再用同一动作目标检验它们是否真正互补。最有依据的起点是默认掩码与联合适配；最应谨慎外推的是“学会了更准确的世界动力学”“完全未见目标域的泛化”和“实时安全驾驶”。这些是不同层次的主张，需要不同证据。</p>
+    </section>
+
+    <section id="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">原文定位、版本与核验范围</h2>
+      <ol class="source-list">
+        <li>用户提供的 <em>DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving</em> PDF，共 17 页。本页方法、表格、公式与评测条件以该附件为主要依据；已读取正文及附录，并目视核对架构图、注意力图、主要结果表与定性示例。</li>
+        <li><a href="https://arxiv.org/abs/2610.17903v1">arXiv:2610.17903v1</a> · <a href="https://arxiv.org/pdf/2610.17903v1">论文 PDF</a>。2026-10-19 核对官方条目：2026-10-13 提交，8 位作者，17 页、4 张图。</li>
+        <li>架构与训练：§3–4、图 1–2、式 1–12、附录 A（PDF 第 3–5、14 页）；RL 筛选、权重、LoRA、消融检查点：附录 C（第 16 页）。</li>
+        <li>主结果与消融：表 1–8、§5（第 6–9 页）；评测口径：附录 B（第 14–16 页）；世界特征可视化：图 4、附录 D（第 16–17 页）。</li>
+      </ol>
+      <p class="evidence-note">数值均为作者报告，差值与延迟比例由本页计算。未运行训练、独立复现实验或审计官方实现；创新归因、统计强度与外推边界是本页分析，不是作者额外实验。示意解释不冒充实测场景，附件内文字仅作为研究材料，不作为执行指令。</p>
+    </section>
+  </main>
+  <aside class="paper-rail" aria-label="阅读协作">
+    <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前页面预置解释请求 <strong data-mark-count>0</strong> 条。</p></section>
+    <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>个人评论与模型解释分开保存；连接本地 bridge 后可写回这篇 HTML。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+  </aside>
+</div>
+</body>
+</html>

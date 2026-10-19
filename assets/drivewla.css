@@ -1,0 +1,65 @@
+.dw-interactive {
+  margin: 30px 0;
+  padding: 24px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 8px;
+}
+.dw-interactive .dw-eyebrow {
+  font-family: var(--font-sans);
+  font-size: .82rem;
+  font-weight: 750;
+  color: var(--accent-dark);
+  margin-bottom: 12px;
+}
+.dw-interactive label { display: block; margin-bottom: 12px; line-height: 1.7; }
+.dw-interactive select {
+  width: 100%; min-height: 46px; padding: 10px 12px;
+  color: var(--ink); background: var(--surface-muted);
+  border: 1px solid var(--line-strong); border-radius: 5px;
+  font: inherit; font-size: .9rem;
+}
+.dw-mask-layout { display: grid; grid-template-columns: 1fr; gap: 18px; margin: 20px 0; }
+.dw-mask-layout svg { display: block; width: 100%; max-width: 500px; margin: auto; }
+.dw-mask-layout svg text { fill: var(--ink); font-size: 19px; font-family: var(--font-sans); }
+.dw-mask-layout svg .dw-small { font-size: 16px; }
+.dw-edge { color: #386857; }
+.dw-interactive [hidden] { display: none !important; }
+.dw-matrix { width: 100%; max-width: 440px; margin: auto; border-collapse: collapse; font-size: .88rem; }
+.dw-matrix caption { font-size: .78rem; color: var(--ink-soft); line-height: 1.6; padding-bottom: 10px; }
+.dw-matrix th, .dw-matrix td { border: 1px solid var(--line); text-align: center; padding: 9px 7px; }
+.dw-matrix th { background: var(--surface-muted); font-weight: 650; }
+.dw-matrix td[data-allowed="true"] { background: #e6f0e9; }
+.dw-matrix td[data-allowed="false"] { background: #f5ebe7; color: #7d3d2d; }
+.dw-result { border-left: 3px solid #386857; background: #f0f5f1; padding: 14px 16px; margin: 20px 0; }
+.dw-result strong { font-size: 1.35rem; color: #21543f; font-variant-numeric: tabular-nums; }
+.dw-interactive .dw-result p, .dw-interactive p:last-child { margin-bottom: 0; }
+.dw-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.dw-buttons button { padding: 10px 13px; min-height: 44px; border: 1px solid var(--line-strong); background: var(--surface-muted); color: var(--ink); border-radius: 5px; font: inherit; cursor: pointer; }
+.dw-buttons button[aria-pressed="true"] { background: #235440; color: white; border-color: #235440; }
+.dw-interactive :is(button, select):focus-visible { outline: 3px solid #b34c32; outline-offset: 3px; }
+.dw-stage-flow { max-width: 580px; margin: 24px auto; text-align: center; }
+.dw-stage-input, .dw-stage-output { background: var(--surface-muted); border: 1px solid var(--line); padding: 15px; border-radius: 5px; line-height: 1.65; }
+.dw-stage-input span { font-size: .78rem; color: var(--ink-soft); }
+.dw-stage-pair { display: grid; grid-template-columns: minmax(0,1fr) 28px minmax(0,1fr); align-items: center; }
+.dw-module { padding: 16px 10px; border: 2px solid #929c96; border-radius: 5px; background: #f3f3ef; }
+.dw-module.is-trainable { border-color: #b34c32; background: #fff1e8; }
+.dw-module.is-lora { border-color: #356b8c; border-style: dashed; background: #e9f2f7; }
+.dw-module strong, .dw-module span { display: block; }
+.dw-module span { font-size: .8rem; line-height: 1.6; margin-top: 5px; }
+.dw-stage-arrow { padding: 8px; font-size: .84rem; color: var(--ink-soft); }
+.dw-stage-gradient { margin-top: 12px; padding: 10px; border: 1px dashed #b34c32; color: #86351f; font-size: .85rem; }
+.dw-candidates { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 8px 0; }
+.dw-candidates span { border: 1px solid #9caa9e; border-radius: 3px; padding: 4px 8px; background: #fff; font-size: .8rem; }
+.dw-waypoints { display: flex; justify-content: space-between; gap: 3px; margin: 8px 0; }
+.dw-waypoints span { font-size: .7rem; background: #dcebe5; border-radius: 4px; padding: 6px 3px; }
+.dw-prose-table { min-width: 620px; }
+.dw-prose-table td:not(:first-child), .dw-prose-table th { white-space: normal; }
+.dw-prose-table td:first-child { width: 24%; }
+@media (max-width: 600px) {
+  .dw-interactive { padding: 15px 12px; }
+  .dw-buttons button { flex: 1 1 90px; padding: 9px 6px; font-size: .83rem; }
+  .dw-stage-pair { grid-template-columns: minmax(0,1fr) 22px minmax(0,1fr); }
+  .dw-module strong { font-size: .84rem; }
+  .dw-waypoints { flex-wrap: wrap; justify-content: center; }
+}
