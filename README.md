@@ -10,6 +10,13 @@
 
 ## 最近更新
 
+- **LAW**：详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/law/) · [GitHub 源码](papers/law/index.html)
+- **DriveWLA**：详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/drivewla/) · [GitHub 源码](papers/drivewla/index.html)
+- **VPP2**：VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/video-prediction-policy-2/) · [GitHub 源码](papers/video-prediction-policy-2/index.html)
+- **Long-WAM**：解读 Long-WAM 的自回归视频预训练、因果动作适配与实时部署，核对长历史收益、107.4 ms 的条件和原文数字不一致。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/long-wam/) · [GitHub 源码](papers/long-wam/index.html)
+- **VISTA**：解读 VISTA 如何用无损画面档案与主动视觉检查支持长程推理，核对 ARC-AGI-3 满分、组件消融、跨游戏结果及计算成本。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/vista/) · [GitHub 源码](papers/vista/index.html)
+- **OpenWAM**：OpenWAM 解读：同骨干比较四种视频动作交互，以反事实转移训练可复用局部动力学；区分冻结动作组件迁移与整模型零样本。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/openwam/) · [GitHub 源码](papers/openwam/index.html)
+
 - **THAW-VLA（交互重读）**：用阶段切换拆开离线教师提取、学生训练与部署，再用向量滑块解释余弦对齐的方向约束；保留同架构对照、真实机器人小样本及因果知识迁移的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/thaw-vla/#mechanism) · [GitHub 源码](papers/thaw-vla/index.html)。配套 [paper-reading Skill](.agents/skills/paper-reading/SKILL.md) 已改为默认主动实现有助理解的机制交互，并要求实际操作验证。
 
 - **EmbodiedSWE**：让编程 Agent 在仿真中调试控制程序，再通过五层变化生成 VLA 示范；重点区分 23/28 任务求解、六任务同分布数据扩展、保留配置泛化与真实机器人 2/10 的证据边界。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/embodiedswe/) · [GitHub Pages](https://zhankunliauto.github.io/PaperReadingforKun/papers/embodiedswe/)
@@ -39,6 +46,12 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence](papers/law/) | 详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。 |
+| [DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving](papers/drivewla/) | 详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。 |
+| [Video Prediction Policy 2: Predict Better, Act Better](papers/video-prediction-policy-2/) | VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。 |
+| [Long-WAM: Scaling the Context of World-Action Models](papers/long-wam/) | 解读 Long-WAM 的自回归视频预训练、因果动作适配与实时部署，核对长历史收益、107.4 ms 的条件和原文数字不一致。 |
+| [VISTA: A Visual Harness for Reasoning in an Interactive World](papers/vista/) | 解读 VISTA 如何用无损画面档案与主动视觉检查支持长程推理，核对 ARC-AGI-3 满分、组件消融、跨游戏结果及计算成本。 |
+| [OpenWAM: An Open Framework for Composable World-Action Models](papers/openwam/) | OpenWAM 解读：同骨干比较四种视频动作交互，以反事实转移训练可复用局部动力学；区分冻结动作组件迁移与整模型零样本。 |
 | [World Action Agent: Harnessing VLMs for Robot Manipulation via World Action Rehearsal](papers/world-action-agent/) | 解读 WAA 如何用接触视图、动作预演和视图内修正让通用 VLM 操纵机器人；核对技能增益、仿真泛化与 9B 主策略微调的证据边界。 |
 | [Think Like a World Model, Act Like a VLA: Distilling World-Model Representations into Compact Robot Policies](papers/thaw-vla/) | THAW-VLA 用离线世界模型特征监督紧凑 VLA，在部署结构不变时提升成功率；通过阶段切换与余弦向量实验解释蒸馏机制，核对同架构证据与因果知识迁移边界。 |
 | [Less Language, More Latents: Annotation-Efficient VLAs for Driving](papers/less-language-more-latents/) | LADA 用少量语言与反事实监督对齐离散驾驶意图，再在全量专家轨迹上训练；解读闭环收益、额外成本和仿真迁移边界。 |
@@ -84,7 +97,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 44 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 50 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
@@ -118,7 +131,7 @@ python3 -m unittest discover -s tests -v
 npm run build
 ```
 
-6. 论文解读完成后，按 [AGENTS.md](AGENTS.md) 同步 GitHub `origin/main` 与 `.openai/hosting.json` 中的既有 ChatGPT Sites 项目，保持公开访问，并返回两端链接。
+6. 上传前同步更新本 README 的“最近更新”“当前收录”和收录总数，核对新增论文的源码与在线阅读链接，再按 [AGENTS.md](AGENTS.md) 同步 GitHub `origin/main` 与 `.openai/hosting.json` 中的既有 ChatGPT Sites 项目，保持公开访问，并返回两端链接。
 
 ## 目录结构
 
