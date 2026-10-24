@@ -1,6 +1,48 @@
 {
-  "updatedAt": "2026-10-19",
+  "updatedAt": "2026-10-24",
   "papers": [
+    {
+      "slug": "law",
+      "title": "LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence",
+      "authors": [
+        "Jiajun Cao",
+        "Kai Tang",
+        "Bohua Zhang",
+        "Zezhong Qian",
+        "Ying Li",
+        "Xiaozhu Ju",
+        "Xiaobao Wei",
+        "Jiaming Liu",
+        "Yang Ding",
+        "Sixiang Chen",
+        "Yiding Sun",
+        "Siyuan Qian",
+        "Tinghao Wang",
+        "Jixian Wu",
+        "Yichen Guo",
+        "Yi Zhang",
+        "Shilong Zou",
+        "Yong Dai",
+        "Jian Tang",
+        "Shanghang Zhang"
+      ],
+      "publicationDate": "2026-10-16",
+      "readAt": "2026-10-24",
+      "description": "详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。",
+      "tags": [
+        "LAW",
+        "VLM-WAM",
+        "语义子任务",
+        "MoTE",
+        "分层记忆",
+        "局部价值学习",
+        "RoboTwin",
+        "RoboDojo",
+        "长程操作"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.23334v1",
+      "href": "papers/law/"
+    },
     {
       "slug": "drivewla",
       "title": "DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving",

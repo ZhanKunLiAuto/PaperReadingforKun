@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence">
+<meta name="citation_author" content="Jiajun Cao"><meta name="citation_author" content="Kai Tang"><meta name="citation_author" content="Bohua Zhang"><meta name="citation_author" content="Zezhong Qian"><meta name="citation_author" content="Ying Li"><meta name="citation_author" content="Xiaozhu Ju"><meta name="citation_author" content="Xiaobao Wei"><meta name="citation_author" content="Jiaming Liu"><meta name="citation_author" content="Yang Ding"><meta name="citation_author" content="Sixiang Chen"><meta name="citation_author" content="Yiding Sun"><meta name="citation_author" content="Siyuan Qian"><meta name="citation_author" content="Tinghao Wang"><meta name="citation_author" content="Jixian Wu"><meta name="citation_author" content="Yichen Guo"><meta name="citation_author" content="Yi Zhang"><meta name="citation_author" content="Shilong Zou"><meta name="citation_author" content="Yong Dai"><meta name="citation_author" content="Jian Tang"><meta name="citation_author" content="Shanghang Zhang">
+<meta name="citation_publication_date" content="2026-10-16"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.23334v1"><meta name="citation_public_url" content="https://arxiv.org/abs/2610.23334v1">
+<meta name="description" content="详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。">
+<meta name="keywords" content="LAW,VLM-WAM,语义子任务,MoTE,分层记忆,局部价值学习,RoboTwin,RoboDojo,长程操作">
+<meta name="paper:read_at" content="2026-10-24">
+<title>LAW：用语义进度连接语言、动作与世界模型</title>
+<link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/law.css">
+<script src="../../assets/paper-reading.js" defer></script><script src="../../assets/law.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/law/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2610.23334V1 · 阅读：2026-10-24</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+<li><a href="#thesis">总体判断：进度连接控制</a></li><li><a href="#concepts">一段整理抽屉任务</a></li><li><a href="#problem-chain">长任务难在三个接口</a></li><li><a href="#mechanism">语义闭环怎样运行</a></li><li><a href="#law-mote">两种“专家”不要混淆</a></li><li><a href="#law-memory">什么历史值得保留</a></li><li><a href="#law-value">失败前缀仍有价值</a></li><li><a href="#evidence">把性能放回实验条件</a></li><li><a href="#law-ablation">哪些增益被隔离验证</a></li><li><a href="#limits">外推、融合与部署边界</a></li><li><a href="#sources">来源与核验范围</a></li>
+</ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">SEMANTIC PROGRESS · HYBRID EXPERTS · CLOSED-LOOP CONTROL</p>
+<h1 id="paper-title" class="paper-title">LAW</h1><p class="paper-subtitle">用语义子任务进度，把“想做什么”“动作怎么做”和“是否做完”接起来。</p>
+<div class="paper-byline"><span>Jiajun Cao、Kai Tang 等 20 位作者</span><span>北京大学 · 北京人形机器人创新中心</span><span>arXiv v1 · 27 页</span></div>
+<p><strong>总体判断：</strong>LAW 是一项有实证支撑的机器人闭环系统工作，最有价值的贡献是把<strong>语义子任务</strong>同时用作规划目标、动作条件、完成判断、记忆边界和价值学习的信用分配单位。它在已有 WAM 上得到稳定的平均收益，三个真机长任务的提升尤其明显；MoTE 的对照也支持共享专家及其放置位置确有作用。不过，这些证据主要来自经过任务专门训练、人工定义语义阶段的场景，尚不能推出通用开放任务规划、可靠失败恢复或跨机器人迁移。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=4">[§3、表5–11]</a></p>
+<p>阅读时应先抓住两点。第一，题目里的“统一”发生在<strong>多个模块围绕同一进度接口协同</strong>，训练也分阶段进行。第二，默认 Fast-WAM 路线在推理时<strong>不采样显式未来图像</strong>：视频预测提供训练信号，在线由 VLM 对动作候选直接估值。把它理解成“在脑中生成多条未来视频，再选最好的那一条”，会误读本文最核心的计算路径。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=5">[§3.1、§4.1]</a></p>
+<div class="research-purpose"><span class="research-purpose__label">研究目的</span><p>让机器人持续回答：当前子任务是什么？执行到了哪一步？这段候选动作是否有助于完成当前目标？何时应该切换目标？</p></div>
+</section>
+<section id="concepts" aria-labelledby="concepts-title">
+<h2 id="concepts-title">用“整理抽屉”理解整个系统</h2>
+<p>论文的真机 Organize 任务要求把三个彩色方块放入对应抽屉并关好。作者将其定义为九个语义阶段：对每个方块依次“开对应抽屉 → 放入方块 → 关抽屉”。其中“放入方块”可以包含接近、抓取、搬运和释放等多个低层动作；语义子任务由一个可识别的目标组织，而非固定时长或每个关节动作各算一步。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=22">[附录B、E，表15]</a></p>
+<p><strong>输入：</strong>全局语言指令、一个场景相机和两个腕部相机的 RGB 图像、机器人状态，以及各自编码的历史。<strong>输出：</strong>两个机械臂的绝对末端位姿与夹爪目标。默认动作是 16 维：每臂三维位置、四元数旋转和一个夹爪量。WAM 使用 16 维末端状态；VLM 的 state 专家另接收文本化的 14 维关节与夹爪状态。二者并非简单地消费完全相同的输入张量。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=23">[附录D]</a></p>
+<ol class="law-steps">
+<li><strong>Planner 定当前目标。</strong>根据指令、图像和记忆，预测尚未完成的子任务序列；取第一项，例如“打开第一个抽屉”。</li>
+<li><strong>WAM 提议如何动。</strong>在该子任务和当前状态条件下，以不同噪声生成 32 个候选动作块；每块长 32 步。</li>
+<li><strong>Value 判断哪个候选更有用。</strong>给候选打局部价值分，取 top-8，按权重融合成一个动作块，执行其前缀。</li>
+<li><strong>State 在执行期间检查完成情况。</strong>若尚未完成，下一轮继续同一目标；接受完成信号后，保存边界观测，重新规划剩余任务。</li>
+</ol>
+<p>于是“抽屉已经打开”不仅是一个自然语言描述。它会改变下一次动作生成的条件、价值评估的目标、被高保真保留的历史帧以及 planner 的调用时机。这种<strong>同一个事件驱动多个模块变化</strong>，才是论文所说的语义进度接口。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=5">[式1–6、Algorithm 1]</a></p>
+</section>
+<section id="problem-chain" aria-labelledby="problem-chain-title">
+<h2 id="problem-chain-title">长任务的瓶颈，是目标、反馈和历史脱节</h2>
+<p><strong>一份初始计划无法证明某一步真的完成。</strong>如果“开抽屉”失败，继续执行原定“放方块”就可能把物体放在柜子外。反过来，如果其实已经完成却迟迟不切换，也会重复操作。只把一个语言规划器接到策略前面，还缺少执行结果如何更新目标的规则。</p>
+<p><strong>物理可执行不等于符合当前目标。</strong>同一观测下可能有多条平滑、合理的动作轨迹，但只有其中一部分能推动当前阶段。例如向抽屉靠近和向另一个物体靠近都可能像训练动作；需要一个以当前子任务为条件的评估器区分它们。</p>
+<p><strong>当前图像可能缺少“之前做过什么”。</strong>被关上的抽屉外观不能直接说明里面是否已放入方块。保留全部图像会增加计算；把历史都池化又可能丢失边界处的物体位置和接触状态。LAW 用“近期、子任务边界、较早历史”三种保留精度来做取舍。</p>
+<p>这些问题以前分别出现在语言规划、价值引导控制与记忆策略中。本文增量主要在于把它们放在统一的执行进度框架下，同时改进 WAM 的视频—动作联合计算。作者在相关工作中承认这些已有技术基础；本页不据此声称某一个组成部件是首次出现。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=3">[§1–2]</a></p>
+</section>
+<section id="mechanism" aria-labelledby="mechanism-title">
+<h2 id="mechanism-title">一个慢语义循环，连接一个快动作循环</h2>
+<h3>规划、评分和完成判断，调用频率不同</h3>
+<p>Planner 在 episode 初始化和接受子任务完成时调用。WAM 候选生成与 value 评分发生在每次动作块决策时，二者存在同步依赖。State 在动作执行期间异步运行，正文报告单次约 60 ms，流水并行使吞吐提高 15%。因此，“异步”具体指完成判断与执行重叠，不能把整套系统都理解成无等待控制。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=6">[§3.2、图4]</a></p>
+<div class="law-demo" data-law-loop>
+<p class="read-guide"><strong>交互 1｜一次子任务怎样推进？</strong>点击阶段，观察当前目标、参与模块和反馈路径变化。依据 §3.1、Algorithm 1、图4；用 Organize 前两个子任务作机制示意。</p>
+<div class="law-controls" data-loop-controls hidden><button type="button" data-loop-step="0" aria-pressed="true">1 初始化计划</button><button type="button" data-loop-step="1" aria-pressed="false">2 生成与筛选</button><button type="button" data-loop-step="2" aria-pressed="false">3 尚未完成</button><button type="button" data-loop-step="3" aria-pressed="false">4 接受完成</button><button type="button" data-loop-step="4" aria-pressed="false">5 旧结果迟到</button></div>
+<p>当前目标：<strong data-loop-objective>打开第一个抽屉</strong> · <span data-loop-instance>实例编号 u = 0</span></p>
+<figure class="svg-figure law-loop-svg"><svg viewBox="0 0 700 360" role="img" aria-labelledby="law-loop-title law-loop-desc"><title id="law-loop-title">语义进度协调规划、动作与记忆</title><desc id="law-loop-desc">Planner 给 WAM 当前子任务；WAM 候选经过 value 同步筛选再执行。执行观测送给异步 state；接受完成时保存边界记忆并重新规划。旧实例的状态结果被丢弃。</desc><defs><marker id="law-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#617e6d"/></marker></defs>
+<g text-anchor="middle" font-size="17"><rect data-loop-node="plan" x="12" y="20" width="160" height="75" rx="6"/><text x="92" y="48">Planner</text><text x="92" y="74" font-size="14">预测剩余子任务</text><rect data-loop-node="wam" x="245" y="20" width="180" height="75" rx="6"/><text x="335" y="48">WAM</text><text x="335" y="74" font-size="14">32 个候选动作块</text><rect data-loop-node="value" x="505" y="20" width="180" height="75" rx="6"/><text x="595" y="48">Value</text><text x="595" y="74" font-size="14">top-8 评分与融合</text><rect data-loop-node="execute" x="505" y="225" width="180" height="75" rx="6"/><text x="595" y="253">执行动作前缀</text><text x="595" y="279" font-size="14">产生新真实观测</text><rect data-loop-node="state" x="245" y="225" width="180" height="75" rx="6"/><text x="335" y="253">State（异步）</text><text x="335" y="279" font-size="14">是否完成当前目标</text><rect data-loop-node="memory" x="12" y="225" width="160" height="75" rx="6"/><text x="92" y="253">边界记忆</text><text x="92" y="279" font-size="14">在切换时保存</text></g>
+<g marker-end="url(#law-arrow)"><path data-loop-flow="plan" d="M172 57H237"/><path data-loop-flow="candidate" d="M425 57H497"/><path data-loop-flow="action" d="M595 95V217"/><path data-loop-flow="observe" d="M505 263H433"/><path data-loop-flow="advance" d="M245 263H180"/><path data-loop-flow="memory" d="M92 225V103"/></g><text x="615" y="160" font-size="13">同步决定</text><text x="350" y="145" text-anchor="middle" font-size="15" data-loop-result>state 与动作执行并行</text><text x="350" y="181" text-anchor="middle" font-size="13">新观测还会更新两路记忆并条件化下一轮候选</text><text x="350" y="338" text-anchor="middle" font-size="13">箭头表示控制与数据依赖；不表示梯度，也不表示未来视频生成</text></svg></figure>
+<div class="law-mobile-loop"><div data-loop-node="plan">Planner → 当前子任务</div><div data-loop-node="wam">WAM → 32 个候选</div><div data-loop-node="value">Value → top-8 融合</div><div data-loop-node="execute">执行前缀 → 新观测</div><div data-loop-node="state">State 异步判断 → 继续 / 推进</div><div data-loop-node="memory">接受完成 → 保存边界 → 重新规划</div></div>
+<p class="law-status" data-loop-status aria-live="polite">初始化时 planner 生成剩余计划；执行期间异步判断完成。只有新鲜且属于当前实例的完成结果才可推进语义目标。</p>
+<noscript><p>静态读法：每个动作块先生成候选并评分，再执行前缀；state 在执行时异步判断。未完成则继续，完成则存边界并重新规划；已切换后旧实例的结果丢弃。</p></noscript>
+</div>
+<p><strong>防止异步反馈串台，是实现中的重要细节。</strong>每次剩余计划的索引都从 1 开始，所以仅凭“第几个子任务”不能唯一识别一次执行。作者额外维护单调递增的实例编号 u，并给预测附上观测采集时间。只消费属于当前 u、比上次已消费结果更新的预测，且丢弃被更新结果取代的旧结果。切换时存的是控制循环转换当下的观测，而非之前用于完成判断的旧图像。这使“什么时候看见完成”和“什么时候真正切换”被明确区分。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=5">[§3.1、Algorithm 1]</a></p>
+<p>还需要注意：state 训练时有一个辅助 failure 预测头，但部署算法的语义事件只有 <strong>CONTINUE 和 ADVANCE</strong>。辅助失败监督帮助区分“失败”和“做完”；论文没有在 Algorithm 1 中实现基于 failure 头的回退、撤销或重新抓取分支。持续重采样动作可能纠正局部偏差，但这与专门的失败恢复机制是不同强度的主张。</p>
+<h3 id="law-mote">VLM 的专家按职能切换，WAM 的专家按 token 路由</h3>
+<p><strong>第一类专家在 VLM 内。</strong>Qwen3-VL-2B-Instruct 的语言与视觉骨干冻结，planner、state、value 各有 LoRA 适配器与对应输出。LoRA 可理解为在冻结的大权重旁训练低秩增量；此处按控制职能选择适配器，并非每个 token 动态选择专家。Planner 和 state 的 rank 为 64，value 为 128，三者合计增加约 100M 参数。这样既复用视觉语言基础，又减少三种训练目标相互干扰。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=10">[§3.2、§4.1]</a></p>
+<p>Planner 通过自回归监督学习剩余子任务序列；state 用完成二分类与辅助失败二分类共同训练。Value 将候选动作编码为 token，与图像、指令、当前子任务和历史共同输入，使用一个 query token 聚合信息，输出 101 个 value bin 的概率，最终 Q 值是各 bin 中心的概率加权平均。它是动作条件化的 critic，不是让语言模型自由生成一段“这个动作很好”的文字。</p>
+<p><strong>第二类专家在 WAM 内，这就是 MoTE。</strong>视频分支和动作分支先把 Q/K/V 放到共同注意力空间交流信息，随后各自继续变换。LAW 在这种 mixed attention 之后加一层带残差的专家计算，让已经交换过跨模态信息的表征，既可走模态专属变换，也可走两种模态共用的变换。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=8">[§3.3、图5]</a></p>
+<figure class="svg-figure law-figure law-static-svg"><svg viewBox="0 0 690 255" role="img" aria-labelledby="law-mote-title law-mote-desc"><title id="law-mote-title">MoTE 在混合注意力之后选择共享或私有专家</title><desc id="law-mote-desc">视频和动作先做共同注意力，再使用各自路由器，从本模态两个私有专家和一个共享专家中 top-1 选择；同一个 token 不会同时经过所有专家。</desc><g text-anchor="middle" font-size="16"><rect x="10" y="25" width="125" height="65" rx="5" fill="#dce8ef"/><text x="72" y="63">视频 token</text><rect x="10" y="165" width="125" height="65" rx="5" fill="#f3e5cf"/><text x="72" y="203">动作 token</text><rect x="175" y="65" width="135" height="125" rx="5" fill="#e8e0ef"/><text x="242" y="118">Mixed attention</text><text x="242" y="145" font-size="13">先交换跨模态信息</text><rect x="355" y="15" width="155" height="65" rx="5" fill="#dce8ef"/><text x="432" y="43">视频路由器</text><text x="432" y="64" font-size="13">视频私有 1 / 2</text><rect x="355" y="175" width="155" height="65" rx="5" fill="#f3e5cf"/><text x="432" y="202">动作路由器</text><text x="432" y="225" font-size="13">动作私有 1 / 2</text><rect x="550" y="88" width="130" height="80" rx="5" fill="#dce9df"/><text x="615" y="119">共享专家</text><text x="615" y="145" font-size="13">同一组参数</text></g><g stroke="#5c7367" fill="none" stroke-width="2" marker-end="url(#law-arrow)"><path d="M135 57H155V98H168"/><path d="M135 197H155V156H168"/><path d="M310 102H332V48H348"/><path d="M310 151H332V207H348"/><path d="M510 48H615V81"/><path d="M510 207H615V175"/></g><text x="414" y="119" font-size="14" text-anchor="middle">每个 token 只选一个</text><text x="414" y="143" font-size="13" text-anchor="middle">私有或共享，top-1</text></svg><figcaption>图为结构简化。路由器只能选择本模态的私有专家或共享专家；连线表示可达路径，并非全部同时激活。选中输出经 0.1 缩放后残差加回，再进入后续 Transformer 变换。</figcaption></figure>
+<div class="formula-card"><div class="formula-card__label">MoTE 的关键运算 · 式10–12</div><div class="law-formula">H̃ = H + α ∑<sub>e</sub> w<sub>e</sub> E<sub>e</sub>(LN(H))</div><p class="formula-card__caption">混合注意力之后，还允许学习怎样共同变换视频与动作表征。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>H、LN</dt><dd>H 是 mixed attention 的输出；LN 对它作层归一化。</dd></div><div class="formula-legend__row"><dt>E、w</dt><dd>E 是专家网络，w 来自本模态路由器。默认 top-1；每模态两个私有专家，另有一个共享专家供两边选择。</dd></div><div class="formula-legend__row"><dt>α = 0.1</dt><dd>控制新增残差的幅度；不是“10% token 走共享专家”。</dd></div></dl><div class="formula-card__intuition">同一 token 只走一位专家；“共享”指两个模态都能更新和使用同一专家参数。路由还加入负载平衡与 logit 正则，权重均为 10<sup>−4</sup>，视频、动作损失权重均为 1。</div></div>
+<p>作者将共享专家的作用解释为学习共同时间和物理结构。表8支持共享变换带来更好的动作损失与任务成功率，但没有直接测量专家内是否形成了可解释的物理变量。因此，“改善联合建模”有实验依据，“显式学出统一物理规律”仍超过现有证据。</p>
+<h3 id="law-memory">两路记忆共享时间点，使用不同表征</h3>
+<p>VLM 的图像 token 与 WAM 的 VAE latent 并不兼容，作者因此分别编码同一组历史观测。VLM 记忆服务规划、完成判断和价值估计；WAM 记忆服务视频预测训练与动作生成。“双流”指这两个原生特征空间，而不是把一个模型的隐状态直接传给另一个模型。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=7">[§3.4、式13、图6]</a></p>
+<div class="law-memory"><div><strong>近期：保留空间细节</strong><p>保留 t−20、t−16、t−12、t−8、t−4 五次观测；当前 t 单独提供。episode 开头缺少的历史直接省略。</p></div><div><strong>边界：保留关键状态</strong><p>初始观测和子任务切换处的观测，在近期窗口之外继续以完整空间 token 保留。边界帧不重复存储。</p></div><div><strong>远期：保留粗略上下文</strong><p>当前子任务较早历史每 4 步采样，已完成子任务每 16 步采样；空间平均池化为每个旧观测一个摘要 token。</p></div></div>
+<p>这个设计的理由很具体：近期帧有助于判断运动和刚发生的接触；“方块刚放入抽屉”的边界帧有助于记住当前画面看不见的状态；更久以前的细节可压缩。采样沿 t mod 4 对齐。这里的步数是论文采样索引，不宜不经说明直接换算为相机视频秒数。压缩的是空间分辨率，也不等于历史 token 总数恒定；任务越长，摘要和边界仍可能增加。</p>
+<h3 id="law-value">失败的整条轨迹，不应抹去成功的前半段</h3>
+<p>假设“开抽屉、放方块”都成功，最后关抽屉失败。如果只在整条任务最终成功时给奖励，前面正确的动作也拿不到正信用。LAW 为每个成功子任务的终止动作赋奖励 1，其余为 0；最后失败的子任务无正奖励，未观察到的后续子任务不进入监督。价值因此表示<strong>当前语义目标下的折扣回报</strong>，不是整条任务最终成功的保证。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=8">[§3.5]</a></p>
+<div class="formula-card"><div class="formula-card__label">局部 TD 目标 · 式14</div><div class="law-formula">y<sub>t</sub> = ∑<sub>i=0…h−1</sub> γ<sup>i</sup> r<sub>t+i</sub> + b<sub>t</sub> γ<sup>h</sup> Q<sub>θ̄</sub>(x<sub>t+h</sub>, A<sub>t+h</sub><sup>data</sup>)</div><p class="formula-card__caption">一个动作块的监督应只追踪到本子任务边界。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>h、r、γ</dt><dd>h 是遇到首个子任务边界前的有效动作数，越界动作被 mask；r 只在成功子任务的终止动作为 1；默认 γ = 0.99。</dd></div><div class="formula-legend__row"><dt>b<sub>t</sub></dt><dd>仅当块内没有终止动作、且同一子任务内存在后续记录块时为 1。否则为 0，切断跨子任务 bootstrap。</dd></div><div class="formula-legend__row"><dt>Q<sub>θ̄</sub>、A<sup>data</sup></dt><dd>用 EMA 目标网络估计下一段记录动作的价值；它不在所有候选上取 max，也不向下一语义阶段延伸。</dd></div></dl><div class="formula-card__intuition">当前块没到终点，就从同子任务下一块接续信用；一旦到边界就结算，从而保留失败轨迹里已完成阶段的正监督。</div></div>
+<div class="law-demo" data-law-value><p class="read-guide"><strong>交互 2｜同一条失败轨迹，两种奖励边界。</strong>切换监督范围，并拖动折扣因子。示意假设每段 10 个动作，前两段成功、第三段失败；图示为解析回报，不是论文实测 critic 输出。</p>
+<div data-value-controls hidden><div class="law-controls"><button type="button" data-value-mode="local" aria-pressed="true">子任务局部奖励</button><button type="button" data-value-mode="episode" aria-pressed="false">整条任务终点奖励</button></div><label for="law-gamma">折扣因子 γ：<output data-gamma for="law-gamma">0.990</output>（论文默认 0.99）</label><input id="law-gamma" type="range" min="0.9" max="1" step="0.001" value="0.99"></div>
+<div class="law-value-grid"><div class="law-value-stage"><strong>① 开抽屉 · 成功</strong><output data-return>0.914</output><div class="law-value-meter"><span data-return-bar style="width:91.35%"></span></div><small>从段首到终止奖励相隔 9 次折扣</small></div><div class="law-value-stage"><strong>② 放方块 · 成功</strong><output data-return>0.914</output><div class="law-value-meter"><span data-return-bar style="width:91.35%"></span></div><small>后续失败不取消这一段的局部奖励</small></div><div class="law-value-stage"><strong>③ 关抽屉 · 失败</strong><output data-return>0.000</output><div class="law-value-meter"><span data-return-bar style="width:0%"></span></div><small>没有成功终止奖励</small></div></div>
+<p class="law-status" data-value-status aria-live="polite">局部奖励下前两段起点回报均为 0.99⁹ ≈ 0.914，第三段为 0；若只奖励整条任务最终成功，这条失败轨迹的三段示意回报均为 0。</p></div>
+<p>为了训练稳定，作者把 TD 目标裁剪到 [−0.01, 1.01]，用宽度 σ = 0.0075 的 Gaussian kernel 生成 101 个 bin 的软标签，再做分类交叉熵；输出分布的期望就是 Q 值。EMA 更新率为 0.005。Value 仅用成功示范与构造失败轨迹中的<strong>记录动作</strong>训练，失败样本占 25%，并未使用部署 WAM 采样的候选动作进行训练。后者是评价泛化的关键前提，不能忽略。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=10">[§4.1]</a></p>
+<h3>评分之后执行的是融合动作</h3>
+<p>部署取 32 个候选中的 top-8，权重 w<sub>n</sub> ∝ exp(Q<sub>n</sub>/T)，默认 T = 1；一个候选的权重在整个时间块内共享。位置与夹爪目标按权重线性平均。旋转用 Markley 四元数均值：构造 M = ∑ w<sub>n</sub>q<sub>n</sub>q<sub>n</sub><sup>⊤</sup>，取最大特征值对应的单位特征向量。因为 q 和 −q 表示同一个旋转，直接平均会互相抵消，而这种外积形式对符号翻转不敏感。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=9">[式16–17]</a></p>
+<p>32 步动作以 0.06 秒为步间隔，覆盖约 1.92 秒；这只是候选时域。机器人执行前缀后重采样，论文正文没有在此给出统一前缀长度，因此不能用 1.92 秒推断实际观测闭环频率。三步去噪也只描述 WAM 的采样步数，不包括 value 批量评估、规划和通信耗时。</p>
+<h3>分阶段训练，把生成器与评估器分开优化</h3>
+<p>第一阶段依次训练 planner、state，WAM 则独立进行视频—动作联合训练；第二阶段冻结这些组件，仅训练 value 的适配器、动作编码器、query 和分类头。WAM 以 Wan2.2-TI2V-5B 与预训练 ActionDiT 初始化，训练视频/动作 DiT 与 MoTE，其余预训练模块冻结。表1分别列出 planner 3,000 步、state 50,000 步、WAM 30,000 步、value 50,000 步；WAM 用 32 张 GPU，其他阶段各 16 张。论文未给出完整 GPU 小时，不能据“2B VLM”推断整套训练很轻。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=9">[§4.1、表1]</a></p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title">
+<h2 id="evidence-title">平均收益成立，能力范围要分开看</h2>
+<h3>RoboTwin：两个 WAM 骨干都受益</h3>
+<p>RoboTwin 包含 50 个双臂操作任务，分别测试 clean 与 domain-randomized 场景。公开训练数据每任务提供 50 条 clean、500 条随机化示范；作者增补语义阶段、时间边界和失败数据。因此这里是<strong>任务内训练后的场景变化测试</strong>，不是首次看到这些任务就零样本执行。表12说明基线逐任务数据复用已报告结果；不同方法的预训练和训练数据也不完全一致。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=9">[§4.1]</a> <a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=20">[附录A]</a></p>
+<div class="table-wrap" tabindex="0" aria-label="RoboTwin 主结果，可横向滚动"><table class="evidence-table law-table"><thead><tr><th>方法</th><th>Clean</th><th>随机化</th><th>平均成功率</th><th>可支持的判断</th></tr></thead><tbody>
+<tr><td>Fast-WAM</td><td>91.88%</td><td>91.78%</td><td>91.83%</td><td>默认路线的基线</td></tr><tr><td>LAW + Fast-WAM</td><td>94.22%</td><td>94.20%</td><td>94.21%</td><td>平均提高 2.38 个百分点</td></tr><tr><td>OpenWAM-α</td><td>93.74%</td><td>93.46%</td><td>93.60%</td><td>更强的预训练 WAM</td></tr><tr><td>LAW + OpenWAM-α</td><td>95.60%</td><td>95.52%</td><td>95.56%</td><td>该骨干也提高 1.96 个百分点</td></tr><tr><td>MotuBrain（闭源）</td><td>95.80%</td><td>96.08%</td><td>95.94%</td><td>95.56% 的“最佳”需保留开源限定</td></tr></tbody></table></div>
+<p>数字来自表2、表6。作者报告 OpenWAM 路线复用同一个 value 专家，不针对新骨干重训，这支持接口具有一定可替换性。它证明两种候选生成器上都能受益，尚不能证明对任意动作分布、动作表示或机器人形态即插即用。对“无 robot-data pretraining”的表述，也应与“没有任何预训练”区分：论文明确使用预训练视觉语言、视频及 ActionDiT 初始化；这里沿用的是作者实验分组标签。</p>
+<p><strong>平均提升没有覆盖每个任务。</strong>附录表12里 Blocks Ranking Size 从 Fast-WAM 的 94% / 98% 降到 LAW + Fast-WAM 的 79% / 75%，即平均 96% → 77%；Hanging Mug 从 60% 降到 49.5%。OpenWAM 路线分别恢复到 91% 和 77.5%，但尺寸排序仍低于该 Fast-WAM 基线。因而 LAW 的增益是任务集合平均意义上的；复杂语义协调也可能在某些任务引入额外误差。表12全部 50 行的列均值已核对，与作者总表一致。</p>
+<h3>真机：成功率提升大，但只有三个固定桌面任务</h3>
+<div class="table-wrap" tabindex="0" aria-label="真机任务完整成功率"><table class="evidence-table law-table"><thead><tr><th>任务 / 语义阶段</th><th>LAW</th><th>π0.5</th><th>Fast-WAM</th></tr></thead><tbody><tr><td>Puzzle / 3</td><td>60%（12/20）</td><td>20%（4/20）</td><td>15%（3/20）</td></tr><tr><td>Domino / 5</td><td>70%（14/20）</td><td>40%（8/20）</td><td>20%（4/20）</td></tr><tr><td>Organize / 9</td><td>65%（13/20）</td><td>25%（5/20）</td><td>40%（8/20）</td></tr><tr><td>三任务平均</td><td>65%</td><td>28.33%</td><td>25%</td></tr></tbody></table></div>
+<p>图7报告以上成功率；括号次数由每任务 20 次试验换算。LAW 相比 π0.5 提高 36.67 个百分点，相比 Fast-WAM 提高 40 个百分点。训练则每任务采集 300 条遥操作轨迹，共 900 条，保留成功、部分完成与失败执行。平台是 Cobot Magic 双 PiPER 机械臂，机器人和相机位置固定，主要改变物体位置与平面朝向。它支持该平台、这些任务中的长程执行改善；并非从仿真直接零样本迁移到真机。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=12">[图7]</a> <a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=21">[附录B]</a></p>
+<p>作者另外报告按子任务完成比例计算的 Score：LAW 平均 84.06，π0.5 为 55.50，Fast-WAM 为 51.87。这说明未完成整条任务时，也往往推进得更远。但 Score 是部分进度，不能把 84.06 写成 84.06% 的完整成功率。每组仅 20 次也意味着一例成败会改变 5 个百分点，单任务小差距不宜过度解读；这里的大幅平均差距具有方向性价值，却仍缺少真机逐模块消融。</p>
+<h3>RoboDojo：相对更好，绝对成功率仍很低</h3>
+<p>表3在 Generalization、Precision、Long-Horizon、Memory、Open 五个维度报告 Score / 完整成功率，并取三个 seed 平均。LAW 的平均为 <strong>6.47 / 3.82%</strong>，Fast-WAM 为 3.48 / 2.03%；长程为 11.16 / 6.67%，记忆为 7.46 / 5.44%，Open 仅 1.53 / 1.00%。在作者列出的无额外具身预训练方法组中，LAW 各维度领先；但具身预训练的 X-WAM 平均 Score 为 7.69，平均成功率为 3.83%，长程成功率为 9.08%。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=11">[表3]</a></p>
+<p>所以更稳妥的判断是：框架在困难任务里改善了进度和部分成功，而可靠开放世界操作距离很远。也不能用 RoboTwin 的 94.21% 为 RoboDojo 的广泛能力背书，两者任务难度、训练分布和评价范围明显不同。</p>
+<h3 id="law-ablation">消融怎样支撑贡献归因</h3>
+<div class="table-wrap" tabindex="0" aria-label="组件与设计对照"><table class="evidence-table law-table"><thead><tr><th>问题与原文</th><th>结果</th><th>应怎样解读</th></tr></thead><tbody>
+<tr><td>整套组件累计增加（表5）</td><td>91.83 → 93.16（MoTE＋子任务）→ 93.80（加记忆）→ 94.21（加价值）</td><td>组合有效；后两步为 +0.64、+0.41 点，不能把累计增益视为各模块独立固定收益。</td></tr>
+<tr><td>独立增加组件（表5）</td><td>仅 MoTE 92.67%；仅子任务 92.68%</td><td>两者各有收益；完整提升并非全部来自价值模型。</td></tr>
+<tr><td>专家位置与共享性（表8）</td><td>Attn-MoE 91.85%；FFN-MoE 91.94%；MoTE 无共享 91.93%；完整 MoTE 92.67%</td><td>不只是增加参数。Attn-MoE、FFN-MoE 与完整 MoTE 匹配总参数和激活参数；无共享版总参数更多、激活参数相同，仍较差。</td></tr>
+<tr><td>10 个任务的阶段粒度（表9）</td><td>无子任务 92.4%；低层子任务 89.1%；语义子任务 95.8%</td><td>划分得更细并不总更好；稳定目标单位比步骤数量更重要。</td></tr>
+<tr><td>5 个多子任务的信用分配（表10）</td><td>无 value 88.20%；整任务监督 87.90%；局部监督 90.80%</td><td>支持局部奖励保留有效前缀；小任务子集不能替代全 50 任务的效应量。</td></tr>
+<tr><td>记忆组件（表11）</td><td>成功率 3.44 → 4.00 → 4.89 → 5.44%</td><td>RoboDojo Memory 上依次加近期、远期、边界记忆有增益；没有固定 token 预算对照，收益与信息量增加仍有混合。</td></tr>
+</tbody></table></div>
+<p>其中 MoTE 对照相对有说服力：它没有仅拿更大的模型与小模型比较，而是加入了参数匹配的位置对照，以及激活参数相同、总参数更多的“无共享”对照。不过无 MoE 基线未做参数匹配，成功率也未附置信区间，不能把每个 0.1 点的差异解释为确定规律。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=13">[§5.3]</a></p>
+<h3>专用 2B 优于大 VLM，实验具体比了什么</h3>
+<p>表7固定 WAM 和其他执行设置，三种 VLM 的<strong>value-guided fusion 全部关闭</strong>，只比较剩余子任务规划和完成评估。LAW VLM 达到 93.80%，Embodied-R1.5 为 88.8%，GPT-5.5 High 为 88.7%。这支持任务专门训练、角色分离的 2B 模型能更有效地对接这套机器人控制接口，不能外推成“2B 的通用推理能力超过大模型”，也不能说 value 模块击败了 GPT。替代模型是否具备同等监督适配与提示优化，论文没有给出充分对齐细节。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=13">[§5.2、表7]</a></p>
+<p>表4进一步显示，hybrid experts、失败负例和记忆逐步加入后，完成判断准确率从 85.78% 到 99.02%，召回率从 67.27% 到 97.13%；图8误报率从 11.4% 到 0.7%，漏报率从 32.7% 到 2.9%。剩余计划 exact match 为 99.64%，纯文本“指令＋已完成任务”基线为 70.10%。这说明视觉状态与专门化确有帮助，但测试仍是已知任务模板中的未见随机场景，不能据此认定开放任务分解已解决。</p>
+</section>
+<section id="limits" aria-labelledby="limits-title">
+<h2 id="limits-title">哪些结论还不能顺着标题外推</h2>
+<h3>局部完成的标签，依赖语义标注与运动代理</h3>
+<p>附录C不是直接从物体是否正确落位计算所有 completion 标签。作者先给定语义阶段区间，再累计位置、旋转、夹爪变化；各分量按该区间总变化归一化，过滤近静止分量后等权平均，取末尾连续满足进度 ≥ 0.995 的帧作为完成区。没有可用运动量时退回时间插值。14 维关节轨迹还使用关节运动代理，而非严格笛卡尔运动。<a class="law-source" href="https://arxiv.org/pdf/2610.23334v1#page=22">[附录C]</a></p>
+<p>作者明确说这只是端点容差，并非任务无关的物理成功标准。它能提供稳定的监督位置；但“机器人动作几乎走完”与“物体确实正确放好”并不等价。因此 99.02% 的完成分类准确率首先说明模型拟合该标注体系有效。要验证真实接触失败、物体滑落或反复重试时的完成判断，还需独立的物体状态真值与部署误切换统计。这是需要检验的外推边界，不能直接断言现有 detector 无效。</p>
+<h3>给候选打分，并不自动保证它们的均值安全有效</h3>
+<p>Value 训练只看记录动作，部署却评估 WAM 的随机候选。两种骨干上的收益提供了经验支持，但未报告候选分布上的校准误差、排序准确率或不确定性。合成失败主要来自漏抓、提前释放、错误放置、漏接触和错位操作；每任务选 1–3 种模式，再过滤无效或模糊样本，不能代表全部开放环境失败。</p>
+<p>更关键的是，真正执行的是 top-8 的融合结果，而不是其中某个已评分候选。如果高分轨迹分别从障碍物两侧绕行，它们的均值可能穿过障碍物；夹爪平均也可能落在不同开闭意图之间。这是<strong>动作分布多峰时的潜在风险</strong>，本文未报告它已造成的失败比例，也没有在算法中对融合结果再次评分或做显式约束验证。可澄清的实验应比较 top-1、无评分平均、top-K 融合及融合后复检，并固定候选数和推理预算。</p>
+<p>还有一个可直接从公式推出的性质：Q 是 [−0.01, 1.01] 上的分类期望，T = 1 时任意两个候选的未归一化权重比最多为 e<sup>1.02</sup> ≈ 2.77。即便 top-8 中一个在上界、其余都在下界，最高权重也约为 28.4%。这意味着<strong>默认融合不是接近硬选择</strong>，top-K 截断本身可能承担很大作用。该上界是本页按公式计算，不能代替作者未报告的温度、K 与融合策略消融。</p>
+<h3>局部价值可能遗漏跨阶段后果</h3>
+<p>在子任务边界切断回报能保留失败前缀，这是本文设计的优点；代价是 value 不直接惩罚“当前子任务完成了，却让下一步更难”的动作。例如完成放置，但位置不利于后续抓取。全局指令、planner 与闭环观测可以部分补偿，但本文没有比较纯局部 value 与局部—全局混合目标，也没有提供跨阶段代价的专门测试。因此该选择更适合语义阶段与后续可行性相对一致的任务。</p>
+<h3>运行代价和泛化范围仍需补证</h3>
+<p>论文报告 state 的约 60 ms 与 15% 吞吐提升，却未给出可完整重建的端到端延迟表、32 候选的评估成本、不同历史长度下的开销和相同硬件下的整体控制频率。不能把 60 ms 当作 LAW 的一次完整决策延迟。记忆保留的边界数量还会随任务推进增加，长到何处仍能维持吞吐需要额外测试。</p>
+<p>对泛化也应分别看：已有随机化场景和两个 WAM 骨干验证值得承认；任务定义、语义拆分和完成监督仍较强，真机仅三个任务、固定相机和单平台。更有针对性的下一步是未见子任务组合、遮挡与状态歧义、可恢复失败注入、固定 token 预算的记忆对照，以及完整耗时分解。论文结论也把跨机器人形态与自适应子任务分解列为未来工作。</p>
+<p class="law-note"><strong>这篇论文最值得带走的设计原则：</strong>以一个可检测、可评估的语义目标作为模块间接口，并让完成事件同时更新动作条件、价值终点和记忆保留策略。MoTE 是对动作骨干的增强；真正将整套系统组织起来的是“语义进度驱动控制”。现有结果足以支持这一工程与建模方向，但还需要更开放任务和真实失败恢复实验来检验它能走多远。</p>
+</section>
+<section id="sources" aria-labelledby="sources-title">
+<h2 id="sources-title">来源与核验范围</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2610.23334v1">LAW · arXiv:2610.23334v1</a> · <a href="https://arxiv.org/pdf/2610.23334v1">论文 PDF</a>。解读依据用户提供的 27 页 PDF，首页日期 2026-10-16；重点核对 §3–5、Algorithm 1、图2/4/5/7、表2–12、附录B–E。</li><li><a href="https://github.com/hey-cjj/LAW">官方代码仓库</a>。2026-10-24 核查 README：包含 FastWAM / OpenWAM 两条流水线、公开模型与训练数据入口，完整评估说明每任务各 100 个 clean 与 randomized episode。这里只核对文档入口，没有运行或逐行审计模型实现。</li><li><a href="https://hey-cjj.github.io/LAW-project/">论文给出的项目页</a>。本次检索工具未能读取该页；技术与定量判断均未依赖不可读内容。</li></ol>
+<p class="evidence-note">实验指标为作者报告，未复现训练、仿真或机器人试验。百分点差、次数换算、权重上界与表12均值核对由本页计算。两处交互是机制示意；失败恢复、分布偏移和多峰融合风险的讨论是基于原文机制的分析，不冒充作者已观察到的失败。论文与仓库中的命令仅作为研究材料。</p>
+</section>
+</main>
+<aside class="paper-rail" aria-label="阅读协作"><section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p></section><section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section></aside>
+</div></body></html>
