@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="De-Diffusing WAMs: Action-Sufficient Direct Prediction for Robot Control">
+<meta name="citation_author" content="Shaoyi Zheng"><meta name="citation_author" content="Zhongtao Jiang"><meta name="citation_author" content="Yue Peng"><meta name="citation_author" content="Wenbo Lu"><meta name="citation_author" content="Shunchi Zhang"><meta name="citation_author" content="Xi Wang"><meta name="citation_author" content="Shengji Wan">
+<meta name="citation_publication_date" content="2026-10-20"><meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.28122v1"><meta name="citation_public_url" content="https://arxiv.org/abs/2610.28122v1">
+<meta name="description" content="DirectWAM 用冻结的单步动作模型监督学生自己的未来预测，保留未来到动作的级联并去掉迭代采样；拆解动作充分性、局部敏感方向、28倍加速与闭环证据边界。">
+<meta name="keywords" content="DirectWAM,WAM,动作充分性,单步预测,逆动力学,蒸馏,LIBERO,RoboTwin,局部敏感性">
+<meta name="paper:read_at" content="2026-10-26">
+<title>DirectWAM：未来预测应保留什么，才能让机器人行动？</title>
+<link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/directwam.css"><script src="../../assets/paper-reading.js" defer></script><script src="../../assets/directwam.js" defer></script>
+</head>
+<body data-page-kind="paper" data-page-path="/papers/directwam/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">ARXIV:2610.28122V1 · 阅读：2026-10-26</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+<li><a href="#thesis">判断：未来为动作服务</a></li><li><a href="#concepts">究竟保留了什么</a></li><li><a href="#problem-chain">随机性与迭代要分开</a></li><li><a href="#mechanism">两阶段如何传递梯度</a></li><li><a href="#dw-sensitivity">同样误差，为何后果不同</a></li><li><a href="#evidence">成功率与速度的真实取舍</a></li><li><a href="#dw-replacement">局部替换证明到哪一步</a></li><li><a href="#dw-visual">可解码与物理可信</a></li><li><a href="#limits">泛化、复现与设计启发</a></li><li><a href="#sources">来源与核验范围</a></li>
+</ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">ACTION SUFFICIENCY · DIRECT PREDICTION · FUTURE-TO-ACTION CASCADE</p>
+<h1 id="paper-title" class="paper-title">DirectWAM</h1><p class="paper-subtitle">未来预测应保留什么，才能让机器人行动？</p>
+<div class="paper-byline"><span>Shaoyi Zheng、Zhongtao Jiang 等 7 位作者</span><span>ByteDance · NYU</span><span>2026-10-20 · arXiv v1 · 20 页</span></div>
+<p><strong>总体判断：</strong>这篇论文最有价值的地方，是把单步 WAM 的训练标准落到<strong>“这个预测未来会让动作模型做出什么”</strong>上。它保留显式未来表征和未来到动作的级联，将两个扩散预训练专家转换为确定性的单步预测器；通过冻结动作模型的目标对照、局部敏感方向替换和真实机器人实验，较有力地支持了“动作误差应直接指导未来预测”的设计。现有证据主要支持 LingBot-VA 这一骨干上的高效转换：模型延迟从 5,042 ms 降到 180 ms，但 RoboTwin 平均成功率仍从 90.7% 降至 85.4%。它没有证明所有机器人任务都不需要随机性，也没有证明预测未来已成为通用、物理可靠的世界模拟器。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=6">[§3.3–4，表2、7–9]</a></p>
+<p>理解全文时应抓住一个具体改动：<strong>原来动作专家在真实未来条件下学动作；现在先学好单步动作专家，再把学生自己预测的未来送进去，让动作错误反过来修正未来模型。</strong>单步不是直接截断扩散次数，而是重新学习从条件到最终输出的映射。局部 Jacobian 投影是验证该思路的诊断工具，不是部署模块，也不是训练时必须计算的损失。</p>
+<div class="research-purpose"><span class="research-purpose__label">研究问题</span><p>在每条流只能前向一次的预算下，如何保留对动作有用的未来信息，同时避免花费大量计算复现完整的扩散采样过程？</p></div>
+</section>
+<section id="concepts" aria-labelledby="concepts-title">
+<h2 id="concepts-title">仍然先预测未来，再根据未来决定动作</h2>
+<p>这里的 WAM 是世界—动作模型。本文研究其中的<strong>级联结构</strong>：视频专家先预测未来视觉表征，动作专家再结合当前上下文，把这一未来翻译成机器人动作。动作专家可理解为逆动力学模型（IDM）：给定现在和目标未来，推断应采取什么动作。它与“给定动作，预测下一状态”的前向动力学方向相反。</p>
+<p>图1中，上下文 h 包括视觉历史、过去动作和指令。未来预测器 F 输出一个未来潜变量块 ẑ；潜变量是视频编码器中的压缩表示，可以解码为可查看的图像，但动作通路读取的是该表示。动作预测器 G 同时读取 ẑ 和 h，输出长度为 K 的动作块。执行后获得新的真实观测，继续下一轮预测。因此它保留在线未来条件化，而不是只在训练时加一个视频辅助任务。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=2">[图1、式2]</a></p>
+<p>以论文的“放茶壶”任务作直观理解：未来预测应给动作模型提供足以完成放置的关系，例如物体与目标位置如何对应。背景颜色即便有较大变化，也未必改变应执行的动作；一个较小的相对位置偏差却可能改变落点。这只是帮助理解的例子，论文没有把潜变量中的某几维直接标注为“茶壶位置”或“背景”。它通过动作误差自动学习哪些预测差异重要。</p>
+<p><strong>“Action-sufficient”是相对于当前动作模型和数据定义的。</strong>若某个未来表征通过 G 后产生接近示范的动作，它就满足本文的训练标准。这里并没有一个信息论意义上的最小充分统计量证明，也没有证明所有物理状态都被正确恢复。G 还直接接收 h，所以 ẑ 也不是整套策略唯一的信息瓶颈。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=9">[§5]</a></p>
+<div class="dw-table-wrap" tabindex="0" aria-label="不同加速路线的区别"><table class="evidence-table dw-table"><thead><tr><th>路线</th><th>如何处理未来与推理</th><th>与本文的区别</th></tr></thead><tbody>
+<tr><td>完整 LingBot-VA 教师</td><td>先迭代预测未来，再迭代生成动作</td><td>保留扩散预训练能力及多步推理成本。</td></tr>
+<tr><td>直接截成 1/1</td><td>两条流各只跑一步</td><td>没有重新学好单步映射，控制明显下降。</td></tr>
+<tr><td>Flash-WAM</td><td>对视频和动作采用模态专门的一致性蒸馏，达到 1/1</td><td>与本文部署预算接近，但学习单步映射的目标不同。</td></tr>
+<tr><td>Fast-WAM</td><td>保留视频协同训练，部署不显式预测未来</td><td>改变在线接口；本文仍让预测未来参与动作生成。</td></tr>
+<tr><td>DirectWAM</td><td>单步未来 → 单步动作；动作误差监督学生未来</td><td>保留级联，改变训练标准和部署计算过程。</td></tr>
+</tbody></table></div>
+<p class="dw-mini">路线描述来自本文 §1–2；本次未逐行审计这些方法的官方实现，不据此声称已完成独立首创性核验。</p>
+</section>
+<section id="problem-chain" aria-labelledby="problem-chain-title">
+<h2 id="problem-chain-title">采样变化不重要，不代表迭代计算可以直接删除</h2>
+<h3>第一步：单独改变视频噪声，动作究竟变多少？</h3>
+<p>作者固定上下文和动作侧输入，只重采样视频噪声。RoboTwin 使用 237 个上下文、每个 32 个未来样本；LIBERO 使用 64 个上下文、每个 16 个样本。所有未来都交给同一个冻结的单步动作模型。RoboTwin 中，采样引起的上下文内方差占总方差的比例，在视觉空间为 6.6%，在动作空间为 0.030%；LIBERO 为 1.6% 与 0.25%。这说明所测读出模型把多数视频采样变化压小了，但相关系数仍分别为 0.69 和 0.80，动作并非完全忽略未来。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=12">[表1、4，附录A.1]</a></p>
+<p>正文还给出动作距离 / 视频距离比 0.025。<strong>不能将它直接解释为“只有 2.5% 的视觉信息传到了动作”。</strong>两个空间的坐标尺度和归一化会改变这个比值，附录明确提示了这一点；方差占比和闭环干预才是更有意义的补充证据。离线分析用的也是学得的单步动作头，而非教师原生的多步动作采样器。</p>
+<h3>第二步：把随机性压掉，闭环是否受损？</h3>
+<p>在 RoboTwin Clean 的 50 个任务上，每个设置共 500 次试验。教师标准采样成功率 91.6%；三种固定视频噪声的平均为 91.2%；每次将四个未来取平均后输入动作模型为 92.0%。各项配对干预的成功率变化绝对值至多 2.4 个百分点，McNemar 检验 p ≥ 0.12，bootstrap 95% 区间包含零。正确结论是<strong>未检测到重采样的系统性收益</strong>，不是已经证明严格等效。固定一个正常采样的噪声张量，也不是把输入替换为全零。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=13">[附录A.3、表5]</a></p>
+<p>作者还挑选有较强未来分支迹象的 30 个场景—指令组合，各运行 8 次。25 个组合全部成功，4 个成功与失败混合，1 个全部失败；轨迹公共前缀的归一化位置离散度中位数约 2%。这支持“所测视频随机性没有形成显著不同的执行策略”，但不是完整动作分布等价证明，也不能忽视少数场景中结果会改变。附录的多模态检验只在选定的降维空间和 32 个样本下几乎未检出多峰，不等于全局单峰。</p>
+<h3>第三步：删掉迭代，会发生什么？</h3>
+<p>图3的步数扫描中，RoboTwin 从完整教师的 91.6% 降到 2/2 的 87.4%，再降到 1/1 的 57.6%；LIBERO-Long 对应 98.2%、97.6%、88.6%。随机性可以固定，而多步计算中形成的精细映射仍然有用。因此必须把这个映射重新学成单步函数。<strong>随机输入的必要性，与迭代计算的必要性，是两个独立问题。</strong><a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=5">[§3.2、图3a]</a></p>
+<p>只学习视觉匹配仍不够。作者固定模型初始化、数据、优化预算和单步动作专家，只改变未来学习目标：匹配教师未来得到 76.0%，匹配真实未来得到 78.2%。它们明显优于直接截断，但仍留下控制差距。这推动作者进一步问：视觉误差中的每一个方向，是否真的同样影响动作？</p>
+<p class="dw-note">数字口径提醒：图3等辅助评估使用每任务 10 次；表2主结果使用每任务 50 次，并报告 Clean / Rand. 及其平均。因此 91.6% 与 90.7%、57.6% 与 54.9% 不应混在同一条主表提升计算里。</p>
+</section>
+<section id="mechanism" aria-labelledby="mechanism-title">
+<h2 id="mechanism-title">先固定一个会读未来的动作模型，再让它教未来模型</h2>
+<h3>阶段一：把动作专家改成直接回归</h3>
+<p>两条流从已发布、已后训练的 LingBot-VA checkpoint 初始化。第一阶段冻结视频通路，用示范未来 z* 和上下文 h 作为条件训练动作专家 Gψ，直接最小化最终预测动作与示范动作 a* 的均方误差。它沿用教师强制（teacher forcing）的条件接口：训练时提供正确未来，而非让 G 先适应尚未学好的学生未来。训练后得到一个单次前向就能读出动作块的 G。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=6">[§3.3]</a></p>
+<h3>阶段二：冻结动作专家，用自己的预测承担动作后果</h3>
+<p>随后 Fθ 从 h 生成自己的未来 ẑ = Fθ(h)，把 ẑ 交给冻结的 Gψ。若产生的动作与示范不符，误差穿过 G 对未来输入的导数，更新 F。这里“端到端”描述的是从动作损失到未来模型的梯度路径；<strong>G 的参数不更新，但其输入导数仍然参与反向传播。</strong>如果把整个 G 的前向都放进阻断梯度的环境，就无法实现这条学习链。</p>
+<div class="formula-card"><div class="formula-card__label">预测未来是否足以支持示范动作？</div><div class="formula-card__equation dw-formula">L<sub>ASD</sub>(θ) = E<sub>D</sub>[‖G<sub>ψ</sub>(F<sub>θ</sub>(h), h) − a*‖²]<br>L<sub>train</sub> = L<sub>ASD</sub> + λ<sub>v</sub> E<sub>D</sub>[‖F<sub>θ</sub>(h) − z*‖²]</div><p class="formula-card__caption">依据式2–3。动作项按原文采用均方误差；这里用平方范数表达其回归关系，具体维度平均省略。阶段二 ψ 固定，只优化 θ。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>h、D</dt><dd>当前条件上下文与示范数据集；监督来自示范动作，不是在线奖励。</dd></div><div class="formula-legend__row"><dt>Fθ、Gψ</dt><dd>单步未来预测器与单步动作读出模型；前者的输出是后者的条件之一。</dd></div><div class="formula-legend__row"><dt>a*、z*</dt><dd>对应的真实示范动作块与示范未来潜变量块。</dd></div><div class="formula-legend__row"><dt>λv</dt><dd>可选重建锚点的权重；λv = 0 时只通过动作监督未来。</dd></div></dl><div class="formula-card__intuition">学生无需逐步模仿教师怎样去噪；它需要生成一种未来，使既有动作接口能输出正确动作。重建锚点用于限制未来偏离真实视觉结构。</div></div>
+<div class="dw-demo" data-dw-stages>
+<p class="read-guide"><strong>交互 1｜切换训练与部署，观察输入和梯度路径。</strong>依据图1、§3.3、附录B。绿色框表示当前更新的模块；文字同时说明状态。</p>
+<div class="dw-controls" data-dw-controls hidden><button type="button" data-dw-stage="action" aria-pressed="false">1 训练动作模型</button><button type="button" data-dw-stage="future" aria-pressed="true">2 训练未来模型</button><button type="button" data-dw-stage="deploy" aria-pressed="false">3 部署执行</button></div>
+<div class="dw-flow"><div class="dw-node" data-dw-node="future" data-active="true"><strong data-dw-field="future">Fθ：训练单步未来模型</strong><span data-dw-field="futureDetail">从上下文 h 产生自己的未来 ẑ；可选 z* 重建锚点。</span></div><div class="dw-node" data-dw-node="action" data-active="false"><strong data-dw-field="action">Gψ：权重冻结，梯度穿过</strong><span data-dw-field="actionDetail">读取学生预测 ẑ 与 h，动作误差反传到 Fθ。</span></div></div>
+<p class="dw-path" data-dw-field="forward">上下文 h → Fθ（1 次）→ 学生未来 ẑ → Gψ（1 次）→ 动作 â → a* 监督</p><p class="dw-path dw-gradient" data-dw-field="gradient">动作误差 → 穿过 Gψ 对输入的导数 → 更新 θ；ψ 保持不变。</p><p class="dw-status" data-dw-field="status" aria-live="polite">阶段 2 对齐训练与部署的未来接口。冻结 G 的参数不等于切断通过 G 的梯度。</p>
+<noscript><p>静态读法：阶段一用真实未来训练 G；阶段二固定 G，用学生未来计算动作误差来更新 F；部署无监督，每条流各运行一次。</p></noscript>
+</div>
+<p>这一设计同时改变了<strong>训练输入分布</strong>和<strong>优化标准</strong>：未来模型必须在自己的输出上接受动作检验，而不能仅依靠真实未来条件下动作模型表现好；未来好坏也不再只由视觉距离决定。仍应注意，训练上下文本身来自示范数据，本文没有用在线环境回报训练 F，也没有证明消除了整条闭环轨迹的分布偏移。文中“从自己的未来在线解码动作”应理解为训练前向内即时计算，而不是机器人一边部署一边自我学习。</p>
+<p>“蒸馏”在这里是广义模型转换：继承扩散预训练权重，把最终映射学为单步函数；主要动作监督来自真实示范。它不要求学生拟合完整去噪轨迹，也不是把教师动作输出当成唯一标签。图1保留固定的视频和动作噪声输入，所以“确定性”指无部署时的随机重采样，不必理解成网络接口中已删除一切噪声张量。</p>
+<p>附录B给出的 LIBERO-Long 配方是：第一阶段 600 步、有效 batch 16；第二阶段 400 步、有效 batch 8、λv = 0，两阶段约 21 分钟。RoboTwin 则为 8,000 步（约 3.5 小时）加 6,500 步（约 6 小时），学习率均为 10<sup>−5</sup>，第二阶段 λv = 0.01。训练使用 FSDP、每 GPU batch 1、AdamW，β = (0.9, 0.95)，weight decay 0.1。这里是<strong>已有后训练 checkpoint 的转换代价</strong>，不包含从零预训练成本；附录也没有给出足够完整的所有套件训练资源配置。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=16">[附录B、C.1]</a></p>
+<h3 id="dw-sensitivity">为什么同样大小的视觉误差，会造成不同动作误差？</h3>
+<p>在一个固定上下文和预测点附近，可以把动作模型局部线性化：δa ≈ Jδz，其中 J = ∂G/∂z。视觉匹配看的是 ‖δz‖²，而局部动作误差看的是 δzᵀJᵀJδz。若某个方向经过 J 会被放大，那个方向上的小偏差就可能非常重要。动作损失反传相当于让 F 感受到这种不均匀的代价；这是一种解释，不表示实际网络是全局线性函数。</p>
+<div class="dw-demo" data-dw-toy>
+<p class="read-guide"><strong>交互 2｜保持误差大小不变，只转动方向。</strong>二维玩具模型 J = diag(10, 1)，δz = (cos α, sin α)。横轴方向对动作更敏感；不对应真实潜变量维度，也不预测机器人成功率。</p>
+<div class="dw-toy"><figure class="svg-figure concept-visual"><svg viewBox="0 0 320 300" role="img" aria-labelledby="dw-toy-title dw-toy-desc"><title id="dw-toy-title">固定长度的表征误差向量</title><desc id="dw-toy-desc">向量在第一象限旋转，长度始终为一。水平高敏感方向放大十倍，垂直方向放大一倍。</desc><defs><marker id="dw-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#a65b36"/></marker></defs><path d="M55 40V245H270" fill="none" stroke="#7c8981" stroke-width="2"/><path d="M55 65A180 180 0 0 1 235 245" fill="none" stroke="#c4d1c7" stroke-dasharray="5 5"/><line data-dw-vector x1="55" y1="245" x2="235" y2="245" stroke="#a65b36" stroke-width="4" marker-end="url(#dw-arrow)"/><circle data-dw-dot cx="235" cy="245" r="5" fill="#a65b36"/><text x="65" y="35" font-size="14">低敏感方向 ×1</text><text x="100" y="280" font-size="14">高敏感方向 ×10</text><text x="34" y="264" font-size="13">0</text><text x="130" y="145" font-size="14" fill="#526457">‖δz‖² = 1</text></svg></figure>
+<div><div data-dw-slider-wrap hidden><label for="dw-angle">误差方向：<output data-dw-angle>0°</output></label><input id="dw-angle" type="range" min="0" max="90" step="1" value="0"></div><p>高敏感方向能量：<strong data-dw-energy>100.0%</strong></p><p>动作误差平方和：<strong data-dw-error>100.00</strong></p><div class="dw-meter" aria-hidden="true"><span data-dw-bar style="width:100%"></span></div><p class="dw-mini">‖δa‖² = 100 cos²α + sin²α。0° 时为 100；90° 时为 1。表征误差平方和始终为 1。</p></div></div>
+<p data-dw-toy-status aria-live="polite">表征误差大小相同，沿不同方向会产生不同的动作误差。此处为数学示意，不是论文实验。</p>
+</div>
+<p>论文进一步用 32 个动作输出方向 u，将 Jᵀu 映回未来空间，再正交化成 Q，构造 P = QQᵀ。对一个预测差异 Δz，可以只加回 PΔz，或只加回 (I−P)Δz，观察动作误差和闭环表现如何变化。<strong>P 是当前上下文、当前预测点附近、至多秩 32 的探针</strong>；它既不保证覆盖所有动作敏感方向，也不必等于 J 的主奇异向量空间。训练目标没有显式限制 F 只能改变 P 内的分量。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=18">[附录C.2–C.3]</a></p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title">
+<h2 id="evidence-title">控制收益、计算收益和机制证据，要分别读</h2>
+<h3>主表：高效转换成立，完全无损不成立</h3>
+<div class="dw-table-wrap" tabindex="0" aria-label="主实验成功率"><table class="evidence-table dw-table"><thead><tr><th>方法</th><th>视频 / 动作步数</th><th>RoboTwin Clean / Rand. / 平均</th><th>LIBERO 四套件平均</th></tr></thead><tbody>
+<tr><td>完整教师</td><td>25 / 50；LIBERO 为 20 / 50</td><td>91.2 / 90.2 / 90.7%</td><td>96.6%</td></tr><tr><td>直接截断</td><td>2 / 1</td><td>76.2 / 71.5 / 73.9%</td><td>95.3%</td></tr><tr><td>直接截断</td><td>1 / 2</td><td>67.8 / 68.0 / 67.9%</td><td>90.5%</td></tr><tr><td>直接截断</td><td>1 / 1</td><td>57.3 / 52.4 / 54.9%</td><td>86.4%</td></tr><tr><td>Flash-WAM</td><td>1 / 1</td><td>82.1 / 74.2 / 78.2%</td><td>95.1%†</td></tr><tr class="evidence-table__emphasis"><td>DirectWAM</td><td>1 / 1</td><td>87.0 / 83.7 / 85.4%</td><td>97.1%</td></tr>
+</tbody></table></div>
+<p>表2中 RoboTwin 覆盖 50 个任务、每任务 50 次评估；LIBERO 每任务 100 次。† Flash-WAM 的 LIBERO 数字引用其论文，作者说明没有对应 checkpoint，<strong>不能视为严格匹配复现</strong>。DirectWAM 的 LIBERO Long / Goal / Object / Spatial 分别为 97.2 / 96.6 / 96.2 / 98.5%；并非每个套件都超过教师，例如 Long 低 1.0 点、Object 低 1.0 点。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=7">[表2]</a></p>
+<p>最直接的比较是相同 1/1 预算下，RoboTwin 平均由 Flash-WAM 的 78.2% 升到 85.4%，即 <strong>+7.2 个百分点</strong>；随机化部分增加 9.5 点，Clean 增加 4.9 点。对直接截断的改善为 +30.5 点。这支持学习方法的价值，但对完整教师仍低 5.3 点，尤其 Rand. 从 90.2% 降到 83.7%。因此合理定位是把单步级联的性能—效率取舍显著改善，而不是在所有条件下无损替代教师。</p>
+<h3>28 倍是模型侧延迟，不是整套机器人快 28 倍</h3>
+<p>完整教师模型延迟 5,042 ms，DirectWAM 为 180 ms，比例约 28.0。论文用同种 80 GB GPU，在单卡上预热 500 次后计时 500 次，报告中位数；给出了标称计算规格，但没有直接写明 GPU 型号。180 ms 的倒数约为 5.6 次模型调用 / 秒，这是本页计算，不是作者报告的机器人伺服频率。动作块执行、相机采集、传输和机器人控制周期的总延迟没有被完整拆解，不能将该数字当成端到端控制时延。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=7">[§4.1–4.2、图4]</a></p>
+<p>同图 Flash-WAM 约为 26.0 倍加速，说明 DirectWAM 相对它的主要改善是<strong>相近速度下控制更好</strong>。图中 Fast-WAM 0/1 更快但成功率较低，Faster-WAM 成功率较高但更慢；这些在线接口不同，属于经验效率前沿的背景比较。DIDO 因没有可做匹配计时的公开 checkpoint 未纳入，不能把“在已测配置上处于 Pareto 前沿”改写成所有 WAM 的全局最优。</p>
+<h3 id="dw-replacement">最有解释力的实验：固定动作模型，只替换未来的局部分量</h3>
+<p><strong>第一组针对教师差异。</strong>令 Δz = zT − zB，即完整教师未来与较弱预测的差异。图3b中，视觉监督学生的敏感分量仅占差异能量 0.85%，却恢复了教师可提供的离线动作误差改进的 34.0%；占 99.15% 的补空间恢复 24.8%。这里的分母是“换成教师未来能减少多少误差”，不是总动作误差；34% 也不是成功率提升。附录C.3加入第四种预测器后范围为 0.31–0.85% 能量、16.3–34.0% 恢复，而图3的三种展示是 0.63–0.85% 与 19.8–34.0%。</p>
+<p><strong>第二组针对学出来的差异。</strong>令 zV 为视觉监督学生未来，zA 为 DirectWAM 未来，固定同一个 G，只替换 zV 中来自 zA − zV 的分量。离线 64 个 RoboTwin 上下文中，完整替换把动作 L2 距离从 0.257 降至 0.216；只替换 1.9% 的差异能量，误差已降到 0.224，恢复约 80% 的改进。同范数随机子空间和高斯扰动仅恢复 1–2%，说明收益依赖方向，而不只是加了一个相同大小的扰动。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=18">[表7]</a></p>
+<div class="dw-table-wrap" tabindex="0" aria-label="闭环局部替换实验"><table class="evidence-table dw-table"><thead><tr><th>给同一动作模型的未来</th><th>迁移的差异能量</th><th>闭环成功率</th></tr></thead><tbody><tr><td>视觉监督学生 zV</td><td>0%</td><td>78.2%</td></tr><tr><td>zV + P(zA − zV)</td><td>1.4%</td><td>87.3%</td></tr><tr><td>完整替换为 zA</td><td>100%</td><td>87.0%</td></tr></tbody></table></div>
+<p>表8使证据从离线动作误差进一步走到闭环控制：局部修正几乎恢复全部收益。不过 87.3% 与 87.0% 之差没有给出足够统计依据，不能据此认定局部版本优于完整 DirectWAM。它还需要同时获得两个预测及 Jacobian，所以是<strong>机制干预</strong>，不是额外提出了一种廉价部署方法。这里恢复的是两个已学模型之间的改进，与第一组“朝教师纠错”的百分比有不同参照。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=19">[表8、附录C.2]</a></p>
+<p>这组实验比简单展示相关性更有说服力，因为下游模型保持不变，变化只来自送入的未来。但 P 的构造本就偏向敏感方向，所以重要结果不是“敏感方向更敏感”这个定义，而是<strong>沿这些方向迁移实际学得差异，真的降低示范动作误差并改善闭环</strong>。补空间仍有收益，且局部探针不完整，因此不能推出其余 98.6% 信息都是噪声，也不能把能量占比当成可删除的 token 或参数比例。</p>
+<h3 id="dw-visual">未来没有明显塌缩，但可解码不是物理正确性证明</h3>
+<p>只用动作监督时，一个风险是 F 把未来表征变成 G 能读懂、却不再像未来图像的编码。作者用图4的可视化和附录C.4的定量指标检查了这一点。RoboTwin 使用来自 2,500 条 clean 示范的 4,739 个有效上下文，真实历史写入 KV cache，每次独立预测下一块，用 Wan2.2 VAE 解码并按相机平均；这是<strong>真实历史条件下的离线短块预测</strong>。</p>
+<div class="dw-table-wrap" tabindex="0" aria-label="视觉预测质量"><table class="evidence-table dw-table"><thead><tr><th>模型</th><th>PSNR ↑ / SSIM ↑</th><th>LPIPS ↓</th><th>FID ↓ / KID×10³ ↓</th></tr></thead><tbody><tr><td>25 步教师</td><td>30.37 / 0.938</td><td>0.051</td><td>2.8 / 0.56</td></tr><tr><td>1 步教师</td><td>25.80 / 0.885</td><td>0.123</td><td>17.4 / 10.24</td></tr><tr><td>Flash-WAM</td><td>26.62 / 0.928</td><td>0.077</td><td>10.5 / 4.11</td></tr><tr><td>DirectWAM</td><td>31.79 / 0.949</td><td>0.052</td><td>5.9 / 2.06</td></tr></tbody></table></div>
+<p>DirectWAM 的参考重建指标 PSNR、SSIM 甚至高于教师，感知距离 LPIPS 接近教师，说明未来仍保留了丰富视觉结构。分布指标 FID、KID 则明显不如完整教师，不能说它在所有视觉维度都更好。表9也不足以证明闭环长程预测、接触几何或罕见物理分支可靠；没有公开动作敏感区域的单独误差统计。RoboTwin 使用重建锚点，因此不能把全部视觉保真归因于纯动作监督。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=20">[表9]</a></p>
+<h3>真机：大幅优于单步基线，但教师差异样本很小</h3>
+<p>平台是 Galaxea A1 单臂、夹爪、外部 RealSense D435 与腕部 D405。三个任务各用 50 条示范训练，每种方法每任务测试 20 次。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=9">[§4.3、表3]</a></p>
+<div class="dw-table-wrap" tabindex="0" aria-label="真实机器人成功次数"><table class="evidence-table dw-table"><thead><tr><th>方法</th><th>抓香蕉</th><th>倒水</th><th>放茶壶</th></tr></thead><tbody><tr><td>完整教师</td><td>19/20（95%）</td><td>9/20（45%）</td><td>12/20（60%）</td></tr><tr><td>DirectWAM</td><td>19/20（95%）</td><td>11/20（55%）</td><td>12/20（60%）</td></tr><tr><td>Flash-WAM</td><td>18/20（90%）</td><td>2/20（10%）</td><td>8/20（40%）</td></tr></tbody></table></div>
+<p>倒水从 2 次成功到 11 次，是最显著的单步方法差距；抓香蕉接近饱和，区分力弱。相对教师，倒水只多成功 2 次，另外两项相同，适合说“小规模任务中接近教师”，不宜说已经统计证明超越教师或完全等效。任务专门训练与固定单平台也不支持零样本跨任务、跨本体泛化。</p>
+</section>
+<section id="limits" aria-labelledby="limits-title">
+<h2 id="limits-title">核心结论可信，但它依赖什么仍要说清楚</h2>
+<h3>动作充分性取决于这个 G，而非任意下游控制器</h3>
+<p>F 是通过固定 G 的梯度优化的，可能学出特别适合该读出模型的表示。已有局部替换和多任务结果支持这一接口内的有效性，却没有证明替换动作头、改变动作空间或迁移机器人后仍保持同样收益。更有针对性的验证是冻结 F 后训练或迁移另一种动作读出器，比较与纯视觉监督表示的适配速度与成功率。G 还读取上下文 h；通过打乱未来、替换成常量或阻断未来条件的对照，可以进一步量化最终模型究竟多依赖预测未来。当前替换实验说明未来有因果影响，但尚未完整回答未来模块是否在所有场景都必要。</p>
+<h3>确定性单步在这些任务有效，不等于多模态决策不需要采样</h3>
+<p>随机性实验主要操控视频噪声，动作侧被固定或配对；它回答的是所测级联中视频采样的作用。动作回归采用 MSE，若同一观测对应多条有效但不兼容的轨迹，确定性模型有输出折中动作的潜在风险。现有任务并未证明这种风险普遍发生，也没有专门覆盖强多峰绕障、部分可观测或罕见分支。更好的测试是构造同一上下文下必须保留不同策略的任务，并比较成功率、候选多样性和失败恢复，而不是仅增加普通测试次数。</p>
+<h3>重建锚点与预训练先验分别贡献多少，仍缺直接消融</h3>
+<p>LIBERO-Long 的 λv = 0 和 RoboTwin 的 λv = 0.01 说明两个设置都能学，但跨基准比较不能隔离锚点作用。论文没有给出 RoboTwin 上充分的 λv 扫描，以及相同预算下冻结 G 与联合微调 G 的完整对照。训练曲线中动作损失下降、加权重建损失近似平稳，支持两者并非同步改善，却不能推出锚点对优化没有作用。要隔离其贡献，应在同一数据、初始化和预算下，比较无锚点、不同锚点强度，并同时观察控制与可解码性。</p>
+<h3>总体结果充分，复现细节和统计覆盖仍有缺口</h3>
+<p>主表评估覆盖较多任务，但未报告训练随机种子之间的方差或主表置信区间；真机每项只有 20 次。相同每流调用数也不是所有方法训练预算、参数量和实现优化完全一致的证明。原文未完整说明 GPU 数量、所有 LIBERO 套件转换配置、动作块长度 K、部署固定噪声的具体选择与逐阶段延迟。本次未确认到官方 DirectWAM 代码或 checkpoint 链接，因而不把论文公式当作已经核验的代码行为。</p>
+<p>附录A还披露多模态分析从 256 个上下文中剔除了 19 个历史潜变量与指令错配样本；离线传播统计来自原始存储，多模态检验来自单独审计的子集，二者都出现 237 不能直接视为相同样本。作者也说明标准采样的全局视频随机数未设种子，Avg-4 的教师 checkpoint 通过记录的来源匹配而非保存的哈希核对。这些说明提升了可审查性，同时限制了精确重现噪声实验的能力，不应扩大为对全部控制结果的否定。<a class="dw-source" href="https://arxiv.org/pdf/2610.28122v1#page=12">[附录A.1、A.3–A.4]</a></p>
+<p class="dw-note"><strong>最值得迁移的研究思路：</strong>当一个预测模块服务于下游决策时，既要检查预测像不像真值，也要让它在<strong>自己的输出</strong>上接受下游决策检验。DirectWAM 的增量在于把这条原则用于扩散预训练级联的单步转换，并用冻结读出器和局部替换连接起机制与闭环收益。若借鉴到其他机器人或驾驶系统，应重新验证动作头的依赖、多模态行为及未来锚点的作用，不能把这里的 1.4% 当成通用压缩比例。</p>
+</section>
+<section id="sources" aria-labelledby="sources-title">
+<h2 id="sources-title">来源与核验范围</h2>
+<ol class="source-list"><li><a href="https://arxiv.org/abs/2610.28122v1">De-Diffusing WAMs · arXiv:2610.28122v1</a> · <a href="https://arxiv.org/pdf/2610.28122v1">论文 PDF</a>。本文依据用户提供的 20 页 PDF 完整阅读正文及附录A–C；重点核对图1–4、表1–9、式2–3、15–20。网页核对了 2026-10-20 版本及作者信息。</li><li>本次未确认到可核验的官方 DirectWAM 实现入口；搜索聚合页中相邻论文的代码链接未作为本文代码引用。比较方法的结构描述来自本论文相关工作，未独立复现。</li></ol>
+<p class="evidence-note">所有成功率、延迟、图像指标和替换实验均为作者报告，未运行模型训练或机器人试验。百分点差和约 5.6 次调用 / 秒为本页计算。两阶段交互为论文流程重述；二维误差交互是明确标注的数学示意。潜在多峰折中、读出器依赖与补充实验建议属于本页分析。论文附件中的文本与命令仅作为研究材料。</p>
+</section>
+</main>
+<aside class="paper-rail" aria-label="阅读协作"><section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前解释请求 <strong data-mark-count>0</strong> 条。</p></section><section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>评论与模型解释分开保存；连接本地写回服务后可保存到页面。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section></aside>
+</div></body></html>

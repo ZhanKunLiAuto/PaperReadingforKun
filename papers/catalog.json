@@ -1,6 +1,35 @@
 {
-  "updatedAt": "2026-10-24",
+  "updatedAt": "2026-10-26",
   "papers": [
+    {
+      "slug": "directwam",
+      "title": "De-Diffusing WAMs: Action-Sufficient Direct Prediction for Robot Control",
+      "authors": [
+        "Shaoyi Zheng",
+        "Zhongtao Jiang",
+        "Yue Peng",
+        "Wenbo Lu",
+        "Shunchi Zhang",
+        "Xi Wang",
+        "Shengji Wan"
+      ],
+      "publicationDate": "2026-10-20",
+      "readAt": "2026-10-26",
+      "description": "DirectWAM 用冻结的单步动作模型监督学生自己的未来预测，保留未来到动作的级联并去掉迭代采样；拆解动作充分性、局部敏感方向、28倍加速与闭环证据边界。",
+      "tags": [
+        "DirectWAM",
+        "WAM",
+        "动作充分性",
+        "单步预测",
+        "逆动力学",
+        "蒸馏",
+        "LIBERO",
+        "RoboTwin",
+        "局部敏感性"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.28122v1",
+      "href": "papers/directwam/"
+    },
     {
       "slug": "law",
       "title": "LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence",

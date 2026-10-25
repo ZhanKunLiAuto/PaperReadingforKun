@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **DirectWAM**：DirectWAM 用冻结的单步动作模型监督学生自己的未来预测，保留未来到动作的级联并去掉迭代采样；拆解动作充分性、局部敏感方向、28倍加速与闭环证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/directwam/) · [GitHub 源码](papers/directwam/index.html)
+
 - **LAW**：详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/law/) · [GitHub 源码](papers/law/index.html)
 - **DriveWLA**：详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/drivewla/) · [GitHub 源码](papers/drivewla/index.html)
 - **VPP2**：VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/video-prediction-policy-2/) · [GitHub 源码](papers/video-prediction-policy-2/index.html)
@@ -46,6 +48,7 @@
 
 | 论文 | 解读主线 |
 | --- | --- |
+| [De-Diffusing WAMs: Action-Sufficient Direct Prediction for Robot Control](papers/directwam/) | DirectWAM 用冻结的单步动作模型监督学生自己的未来预测，保留未来到动作的级联并去掉迭代采样；拆解动作充分性、局部敏感方向、28倍加速与闭环证据边界。 |
 | [LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence](papers/law/) | 详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。 |
 | [DriveWLA: Unifying Future Dynamics and Scene Semantics through World-Language-Action Modeling for Autonomous Driving](papers/drivewla/) | 详细解读 DriveWLA 的三专家结构、世界—语言双向注意力、仅轨迹监督的联合适配和 Flow-GRPO；用交互图核对信息流与训练阶段，分析 NAVSIM、HUGSIM 和开环迁移结果，以及未来预测、零样本与实时性的证据边界。 |
 | [Video Prediction Policy 2: Predict Better, Act Better](papers/video-prediction-policy-2/) | VPP2 通过完整事件与详细描述学好操作视频预测，再蒸馏为单步视觉规划器、接入动作专家；区分零样本真机、后训练基准与因果证据边界。 |
@@ -97,7 +100,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 用未来特征回答“去哪里”，用二维点轨迹回答“怎么去”。 |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 通过 OAPM 场景记忆与 A3D-RoPE 动作几何提升世界—动作建模。 |
 
-当前共收录 50 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 51 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
