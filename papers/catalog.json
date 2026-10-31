@@ -1,6 +1,743 @@
 {
-  "updatedAt": "2026-10-26",
+  "updatedAt": "2026-10-31",
   "papers": [
+    {
+      "slug": "psi-0-6",
+      "title": "Ψ-0.6: Adaptive Streams of Thought in a Unified Vision-Language World Model",
+      "authors": [
+        "Khai Loong Aw",
+        "Klemen Kotar",
+        "Baihan Zhang",
+        "Yifan Liu",
+        "Lilian Chen",
+        "Atlas Kazemian",
+        "Rahul Venkatesh",
+        "Daniel Yamins"
+      ],
+      "publicationDate": "2026-10-23",
+      "readAt": "2026-10-31",
+      "description": "解释统一视觉语言世界模型的指针token、可组合预测、反事实光流和GRPO表示选择；区分能力统一、推理增益、内容联合优化及机器人控制的证据。",
+      "tags": [
+        "Psi-0.6",
+        "多模态推理",
+        "Streams of Thought",
+        "世界模型",
+        "几何",
+        "GRPO",
+        "自适应计算"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.32177v1",
+      "href": "papers/psi-0-6/"
+    },
+    {
+      "slug": "just-action-models",
+      "title": "Vision-Language-Action or World-Action? Just Action Models",
+      "authors": [
+        "Yonghao Yu",
+        "Lang Huang",
+        "Runyi Li",
+        "Toshihiko Yamasaki"
+      ],
+      "publicationDate": "2026-10-27",
+      "readAt": "2026-10-31",
+      "description": "详细解读 JAM 如何拆开骨干初始化、未来监督和推理模块，固定架构实验、冻结目标选择、缓存训练成本及证据边界。",
+      "tags": [
+        "世界模型",
+        "VLA",
+        "未来表征",
+        "模仿学习",
+        "机器人"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.37219v1",
+      "href": "papers/just-action-models/"
+    },
+    {
+      "slug": "route-or-adapt",
+      "title": "To Route or to Adapt? Multi-Expert Diffusion Planners in Unseen Regions",
+      "authors": [
+        "Yun Li",
+        "Ehsan Javanmardi",
+        "Simon Thompson",
+        "Jiachen Gong",
+        "Qunli Zhang",
+        "Zifan Zeng",
+        "Shiming Liu",
+        "Peng Wang",
+        "Yidu Zhang",
+        "Manabu Tsukada"
+      ],
+      "publicationDate": "2026-10-22",
+      "readAt": "2026-10-31",
+      "description": "用 oracle 选择余量判断路由瓶颈，并比较地域权重混合、共享适配器修复与少量目标域回放；保留横向偏移下降但闭环退化的反例。",
+      "tags": [
+        "扩散规划",
+        "多专家",
+        "域适配",
+        "LoRA",
+        "经验回放",
+        "开环闭环差异"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.31095v1",
+      "href": "papers/route-or-adapt/"
+    },
+    {
+      "slug": "thinkjev",
+      "title": "ThinkJev: One Thought, Every Budget for Calibrated Typed Decisions",
+      "authors": [
+        "Xiaolu Ding",
+        "Kai Yang",
+        "Dongdong Liu"
+      ],
+      "publicationDate": "2026-10-27",
+      "readAt": "2026-10-31",
+      "description": "详细解读 ThinkJev 的 typed decision、共享缓存、单条思考前缀、预算校准和风险门控，重点分析节省计算的实测收益与预设目标失败。",
+      "tags": [
+        "推理预算",
+        "校准",
+        "风险控制",
+        "选择性预测",
+        "Typed Decision"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.37732v1",
+      "href": "papers/thinkjev/"
+    },
+    {
+      "slug": "terratransfer-plus-plus",
+      "title": "TerraTransfer++: Demonstration-Free End-to-End Planner",
+      "authors": [
+        "Zikang Xiong",
+        "Weixin Li",
+        "Zhouchonghao Wu",
+        "Akshay Rangesh",
+        "Saarth Bonde",
+        "Grantland Hall",
+        "Chen Tang",
+        "Yihan Hu",
+        "Wei Zhan"
+      ],
+      "publicationDate": "2026-10-21",
+      "readAt": "2026-10-31",
+      "description": "通过多智能体自博弈学决策、轨迹蒸馏补规划接口，再用动作分布和低秩关系对齐视觉；区分免行为示范、状态标注依赖和测试场景适配。",
+      "tags": [
+        "自博弈",
+        "端到端驾驶",
+        "特权蒸馏",
+        "低秩对齐",
+        "TerraZero",
+        "HUGSim",
+        "NAVSIM"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.30319v1",
+      "href": "papers/terratransfer-plus-plus/"
+    },
+    {
+      "slug": "state-world-models",
+      "title": "State World Models: Execute the Rules, Generate the Pixels",
+      "authors": [
+        "Chan Yan Ki",
+        "Yanran Zhang",
+        "Wenzhao Zheng",
+        "Xiaofeng Wang",
+        "Zheng Zhu",
+        "Lei Chen",
+        "Jie Zhou",
+        "Jiwen Lu"
+      ],
+      "publicationDate": "2026-10-19",
+      "readAt": "2026-10-31",
+      "description": "把可执行规则、持久语义状态和空间布局放在冻结视频模型之外，区分规则结算、画面遵从与视频反馈；核对 50 对反事实及多回合证据。",
+      "tags": [
+        "世界模型",
+        "Stateful Harness",
+        "显式状态",
+        "规则执行",
+        "反事实",
+        "视频生成"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.26811v1",
+      "href": "papers/state-world-models/"
+    },
+    {
+      "slug": "progress-probes-p2",
+      "title": "Progress Probes P²: Lightweight Runtime Monitoring for Vision-Language-Action Models",
+      "authors": [
+        "Atiksh Bhardwaj",
+        "Edward W. Duan",
+        "Junwon Seo",
+        "Prithwish Dan",
+        "Wei-Chiu Ma",
+        "Andrea Bajcsy",
+        "Preston Culbertson"
+      ],
+      "publicationDate": "2026-10-22",
+      "readAt": "2026-10-31",
+      "description": "P² 用成功示范的归一化剩余时间训练线性探针，再以进度滞后触发失败报警；拆解监测成本、任务泛化、报警时机与真机表格的口径问题。",
+      "tags": [
+        "P2",
+        "运行时监测",
+        "线性探针",
+        "任务进度",
+        "π0.5",
+        "失败检测"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.31613v1",
+      "href": "papers/progress-probes-p2/"
+    },
+    {
+      "slug": "ebench-frontier-agent",
+      "title": "Profiling a Frontier Agent with EBench: From Direct Control to Harness with Policy",
+      "authors": [
+        "Yifei Yao",
+        "Yude Zou",
+        "Guanbo Jiao",
+        "Xing Gao",
+        "Ning Gao",
+        "Yukai Wang",
+        "Jiantong Chen",
+        "Zihou Zhu",
+        "Xinyu Li",
+        "Ningyu Yan",
+        "Shuai Wang",
+        "Jianming Ma",
+        "Haoyu Guo",
+        "Weinan Zhang",
+        "Chunhua Shen"
+      ],
+      "publicationDate": "2026-10-26",
+      "readAt": "2026-10-31",
+      "description": "解读 GPT-6 Astra 在 EBench 中的直接控制与混合策略实验，区分语义能力、接触精度、控制权交接及成功率和 token 成本的证据。",
+      "tags": [
+        "具身智能",
+        "EBench",
+        "Harness",
+        "混合控制",
+        "闭环评估"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.35832v1",
+      "href": "papers/ebench-frontier-agent/"
+    },
+    {
+      "slug": "perception-action-binding-gap",
+      "title": "Perceives but Doesn't Brake: A Perception-Action Binding Gap in Reasoning Driving VLAs",
+      "authors": [
+        "Matteo Cercola",
+        "Katie Z Luo",
+        "Simone Formentin",
+        "Marco Pavone"
+      ],
+      "publicationDate": "2026-10-20",
+      "readAt": "2026-10-31",
+      "description": "用匹配反事实拆开危险可解码性、动作表达能力与感知对动作的实际影响，核对冻结 Alpamayo 的引导修复和跨域门控边界。",
+      "tags": [
+        "Alpamayo",
+        "驾驶VLA",
+        "感知动作绑定",
+        "反事实",
+        "流匹配",
+        "安全引导"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.28184v1",
+      "href": "papers/perception-action-binding-gap/"
+    },
+    {
+      "slug": "inverse-scaling-vlm",
+      "title": "On the Limits of Scale: Inverse Scaling in Vision-Language Models",
+      "authors": [
+        "Rohit Saxena",
+        "Alessandro Suglia",
+        "Marek Rei",
+        "Pasquale Minervini"
+      ],
+      "publicationDate": "2026-10-19",
+      "readAt": "2026-10-31",
+      "description": "19 个 VLM 的配对翻转分析：375 个候选、16 个全空间校正后的强反例，以及 CoT、视觉编码器和人工审计揭示的证据边界。",
+      "tags": [
+        "逆缩放",
+        "视觉语言模型",
+        "评测",
+        "统计检验",
+        "多模态",
+        "模型选型"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.27360",
+      "href": "papers/inverse-scaling-vlm/"
+    },
+    {
+      "slug": "model-aware-driving-scenes",
+      "title": "Model-Aware Generation of Safety-Critical Scenes for Robust End-to-End Driving via Distilled Planner Surrogates",
+      "authors": [
+        "Khaled M. Seyam",
+        "Julian Wiederer",
+        "Samar Fathalah",
+        "Markus Braun",
+        "Bin Yang"
+      ],
+      "publicationDate": "2026-10-26",
+      "readAt": "2026-10-31",
+      "description": "通过保留目标规划头的 BEV 替身搜索对抗场景，几何求解逃生标签后才渲染；核对 50 场景微调、定向收益、替身误差与闭环边界。",
+      "tags": [
+        "端到端驾驶",
+        "安全场景生成",
+        "规划器蒸馏",
+        "MAP-Elites",
+        "MagicDriveV2",
+        "NeuroNCAP"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.35448v1",
+      "href": "papers/model-aware-driving-scenes/"
+    },
+    {
+      "slug": "video-point-model",
+      "title": "Learning the 4D World through Point Trajectory Forecasting",
+      "authors": [
+        "Byungwoo Jeon",
+        "Sunghwan Hong",
+        "Dohyeon Kim",
+        "Jonghoon Lee",
+        "Jungwoo Park",
+        "Inhee Lee",
+        "Doosan Baek",
+        "Jinil Kim",
+        "Taehyun Lim",
+        "Hanbyul Joo",
+        "Marc Pollefeys",
+        "Saining Xie",
+        "Jinwoo Shin"
+      ],
+      "publicationDate": "2026-10-20",
+      "readAt": "2026-10-31",
+      "description": "用跨视角持续三维点轨迹监督多视角未来视频，并扩展到动作生成；解释几何、对应关系、动作收益与真实任务半分计分和推理成本边界。",
+      "tags": [
+        "VPM",
+        "世界模型",
+        "4D",
+        "点轨迹",
+        "多视角",
+        "几何监督",
+        "机器人动作"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.28594v1",
+      "href": "papers/video-point-model/"
+    },
+    {
+      "slug": "ngc-latent-manifold",
+      "title": "Latent World Models Should Plan with Distances Along the Latent Manifold",
+      "authors": [
+        "Zunzhi You",
+        "Linwei Tao",
+        "Siyu Xu",
+        "Yunke Wang",
+        "Chang Xu"
+      ],
+      "publicationDate": "2026-10-18",
+      "readAt": "2026-10-31",
+      "description": "NGC 冻结世界模型，只用邻域图最短路替换终点代价；从伪低谷、锚定消融和 oracle 预测器解释收益，同时核对图捷径、接触动力学与训练分布内评测的边界。",
+      "tags": [
+        "NGC",
+        "LeWM",
+        "潜空间几何",
+        "流形距离",
+        "规划",
+        "世界模型",
+        "邻域图",
+        "CEM"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.25013v1",
+      "href": "papers/ngc-latent-manifold/"
+    },
+    {
+      "slug": "law",
+      "title": "LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence",
+      "authors": [
+        "Jiajun Cao",
+        "Kai Tang",
+        "Bohua Zhang",
+        "Zezhong Qian",
+        "Ying Li",
+        "Xiaozhu Ju",
+        "Xiaobao Wei",
+        "Jiaming Liu",
+        "Yang Ding",
+        "Sixiang Chen",
+        "Yiding Sun",
+        "Siyuan Qian",
+        "Tinghao Wang",
+        "Jixian Wu",
+        "Yichen Guo",
+        "Yi Zhang",
+        "Shilong Zou",
+        "Zhiyuan Qin",
+        "Yong Dai",
+        "Jian Tang",
+        "Shanghang Zhang"
+      ],
+      "publicationDate": "2026-10-16",
+      "readAt": "2026-10-31",
+      "description": "基于 v2 更新 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。",
+      "tags": [
+        "LAW",
+        "VLM-WAM",
+        "语义子任务",
+        "MoTE",
+        "分层记忆",
+        "局部价值学习",
+        "RoboTwin",
+        "RoboDojo",
+        "长程操作"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.23334v2",
+      "href": "papers/law/"
+    },
+    {
+      "slug": "coc-cfg",
+      "title": "How Much Should a VLA Trust Its Reasoning? Step-Level Guidance as a Measured Action-Value Function",
+      "authors": [
+        "Dabin Seo",
+        "Eunhyek Joa"
+      ],
+      "publicationDate": "2026-10-29",
+      "readAt": "2026-10-31",
+      "description": "CoC-CFG 将推理对动作的影响变为逐步可控的引导强度，以确定性分支测量价值再训练小型控制器；核对开环、闭环与 Waymo 成绩的证据范围。",
+      "tags": [
+        "CoC-CFG",
+        "推理动作绑定",
+        "Classifier-free guidance",
+        "Alpamayo",
+        "Q-adaptive",
+        "驾驶VLA"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.40002v1",
+      "href": "papers/coc-cfg/"
+    },
+    {
+      "slug": "harness2",
+      "title": "Harness²: Recursive Agent Harnessing for an Open World",
+      "authors": [
+        "Ruiyao Xu",
+        "Yanfei Chen",
+        "Zhongying CuiZhu",
+        "Bhavana Dalvi Mishra",
+        "Yifei Ming",
+        "Han Yu",
+        "Rujun Han",
+        "Chen-Yu Lee",
+        "Tomas Pfister"
+      ],
+      "publicationDate": "2026-10-09",
+      "readAt": "2026-10-31",
+      "description": "详细解读 Harness² 的 Propose–Probe–Compose、任务内与跨任务两层改进、无评测反馈实验以及额外计算和选择偏差的边界。",
+      "tags": [
+        "智能体",
+        "Harness",
+        "递归改进",
+        "经验库",
+        "测试时计算"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.14224v1",
+      "href": "papers/harness2/"
+    },
+    {
+      "slug": "astra-visuotactile",
+      "title": "GPT-6 Astra Is a Native Visuo-Tactile Policy for Contact-Rich Manipulation",
+      "authors": [
+        "Chen Yang",
+        "Linzhe Shi",
+        "Hang Zhang",
+        "Mu Xu",
+        "Jiansheng Fan",
+        "Chen Wang"
+      ],
+      "publicationDate": "2026-10-19",
+      "readAt": "2026-10-31",
+      "description": "把触觉 RGB 直接送入通用视觉接口，通过少样本交互记忆闭环控制；区分触觉增益、视觉替代线索、历史基线、修改成功标准和真实部署成本。",
+      "tags": [
+        "视觉触觉",
+        "接触操作",
+        "GPT-6 Astra",
+        "上下文学习",
+        "RoboICL",
+        "UniVTAC",
+        "OpenViTac"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.26846v1",
+      "href": "papers/astra-visuotactile/"
+    },
+    {
+      "slug": "fast-harness",
+      "title": "FastHarness: Experience-Driven Review Scheduling for Vision-Language-Action Policies",
+      "authors": [
+        "Tao Lin",
+        "Yuxin Du",
+        "Haoxiao Wang",
+        "Zile Zhong",
+        "Bo Zhao"
+      ],
+      "publicationDate": "2026-10-22",
+      "readAt": "2026-10-31",
+      "description": "FastHarness 用阶段记忆与已审查结果安排复核频率，保留每块动作的新观测反馈；解释错误记忆、恢复验证、token下降与非配对外部基线的限制。",
+      "tags": [
+        "FastHarness",
+        "harness",
+        "复核调度",
+        "记忆",
+        "π0.5",
+        "错误恢复"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.31427v1",
+      "href": "papers/fast-harness/"
+    },
+    {
+      "slug": "echo",
+      "title": "Echo: Coupled Action and Task Status Signal Denoising for Vision Language Action Models",
+      "authors": [
+        "Yufeng Liu",
+        "Bohao Fan",
+        "Juntu Zhao",
+        "Xinyi Wang",
+        "Hang Yu",
+        "Wenzhuan Luo",
+        "Yingzhi Wang",
+        "Qinghai Li",
+        "Yingdong Hu",
+        "Junliang Guo",
+        "Richard Wang",
+        "Dequan Wang",
+        "Yang Gao",
+        "Cheng Ma"
+      ],
+      "publicationDate": "2026-10-22",
+      "readAt": "2026-10-31",
+      "description": "ECHO 将停止与失败信号加入动作块，通过四类轨迹监督和异步去噪，让任务状态既用于监测也用于纠正；拆解标签、注意力方向与真实机器人证据。",
+      "tags": [
+        "ECHO",
+        "任务状态",
+        "失败信号",
+        "异步去噪",
+        "π0.5",
+        "机器人恢复"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.31569v1",
+      "href": "papers/echo/"
+    },
+    {
+      "slug": "e0-5",
+      "title": "E0.5: From Reconstructive to Future-Predictive 3D Foundations for Robotic World-Action Modeling",
+      "authors": [
+        "X-Era AI Lab Team",
+        "Jianhao Lai",
+        "Zhihao Zhan",
+        "Zhiquan Liao",
+        "Qichang Li",
+        "Shubin Chen",
+        "Zhiyuan Liu",
+        "Hongsen Lei",
+        "Jianman Lin",
+        "Xiaoxin Lin",
+        "Ke Gong",
+        "Baiyue Gu",
+        "Shiming Chen",
+        "Junlin He",
+        "Longqi Yang",
+        "Junrong Xiao",
+        "Haolin Luo",
+        "Xiaojuan Su",
+        "Jianfeng Li",
+        "Yu Luo",
+        "Xu Sun",
+        "Likui Zhang",
+        "Jusheng Zhang",
+        "Qinhan Lyu",
+        "Tianshui Chen",
+        "Liang Lin",
+        "Guangrun Wang"
+      ],
+      "publicationDate": "2026-10-26",
+      "readAt": "2026-10-31",
+      "description": "详细解读 E0.5 的几何原生骨干、未来终点监督、动作注意力、C2R 与真实机器人证据，以及训练集诊断和反事实预测的边界。",
+      "tags": [
+        "世界模型",
+        "3D基础模型",
+        "几何预测",
+        "机器人",
+        "VLA"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.36011v1",
+      "href": "papers/e0-5/"
+    },
+    {
+      "slug": "drivemind",
+      "title": "DriveMind: Mind-Evolving Belief Tracking for Closed-Loop Autonomous Driving",
+      "authors": [
+        "Yan Shi",
+        "Kehua Chen",
+        "Jiarui Qi",
+        "Yihong Tang",
+        "Haicheng Liao",
+        "Yinhai Wang"
+      ],
+      "publicationDate": "2026-10-23",
+      "readAt": "2026-10-31",
+      "description": "用加权自然语言假设跨帧传播与重评分，为异步扩散规划器提供条件；分析信念权重、语义平均、闭环收益和迟到更新的限制。",
+      "tags": [
+        "自动驾驶",
+        "信念跟踪",
+        "多假设推理",
+        "扩散规划",
+        "异步VLA",
+        "Bench2Drive"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.32069v1",
+      "href": "papers/drivemind/"
+    },
+    {
+      "slug": "dexplicit",
+      "title": "DeXplicit: Making Physical State Explicit in Dexterous Manipulation World Models",
+      "authors": [
+        "Adam Lee",
+        "Mutian Xu",
+        "Yukang Cao",
+        "Shulin Tian",
+        "Ziwei Liu"
+      ],
+      "publicationDate": "2026-10-22",
+      "readAt": "2026-10-31",
+      "description": "拆解关节感知动作编码、物体全局运动与局部形变、外观搬运和两步因果渲染；核对运动点误差、静态点反例、57倍加速的比较条件。",
+      "tags": [
+        "DeXplicit",
+        "显式三维",
+        "灵巧操作",
+        "物体动力学",
+        "外观传输",
+        "因果视频"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.30781v1",
+      "href": "papers/dexplicit/"
+    },
+    {
+      "slug": "evolife",
+      "title": "Ask to Evolve: A Unified Harness for Lifelong Embodied Navigation with Hybrid Action Space and Persistent Memory",
+      "authors": [
+        "Kai Sheng",
+        "Liuyi Wang",
+        "Jinlong Li",
+        "Haojie Dai",
+        "Chengju Liu",
+        "Qijun Chen"
+      ],
+      "publicationDate": "2026-10-29",
+      "readAt": "2026-10-31",
+      "description": "解读 EvoLife 的混合动作接口、具有特权信息的交互向导、持久地点记忆与多基准实验，解释高成功率的条件和再访收益。",
+      "tags": [
+        "具身导航",
+        "Harness",
+        "持久记忆",
+        "混合动作空间",
+        "交互问询"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.39446v1",
+      "href": "papers/evolife/"
+    },
+    {
+      "slug": "aw-0",
+      "title": "Agentic World Action Models",
+      "authors": [
+        "Zhuoyang Liu",
+        "Dantong Niu",
+        "Botong Zhang",
+        "Boning Shao",
+        "Jing Wang",
+        "Ruijie Zheng",
+        "Yuvan Sharma",
+        "Runyu Lu",
+        "Jiaming Liu",
+        "Renrui Zhang",
+        "Roei Herzig",
+        "Yutong Bai",
+        "Ken Goldberg",
+        "Danfei Xu",
+        "Yuke Zhu",
+        "Guanzhi Wang",
+        "Linxi \"Jim\" Fan",
+        "Trevor Darrell"
+      ],
+      "publicationDate": "2026-10-21",
+      "readAt": "2026-10-31",
+      "description": "解读 AW-0 的代码—视频—动作三专家、联合去噪、自动技能标注和混合执行；保留随机化退化、rubric 分数、不同示范及代码有效性边界。",
+      "tags": [
+        "AW-0",
+        "Agentic WAM",
+        "代码规划",
+        "技能复用",
+        "联合去噪",
+        "RoboTwin",
+        "机器人"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.30136v1",
+      "href": "papers/aw-0/"
+    },
+    {
+      "slug": "augustus",
+      "title": "AUGUstus: Autonomous Driving VLA Model with Unified Generation and Understanding",
+      "authors": [
+        "Yuqi Ye",
+        "Caigao Jiang",
+        "Zhuonan Wang",
+        "Congyuan Pei",
+        "Chao Qu",
+        "Changhao Peng",
+        "Junhong Lin",
+        "Qize Yu",
+        "Zetian Song",
+        "Guangzhao Fu",
+        "Chongruo Wu",
+        "Shiyu Huang",
+        "Shuchang Zhou",
+        "Honggou Yang",
+        "Wei Gao"
+      ],
+      "publicationDate": "2026-10-12",
+      "readAt": "2026-10-31",
+      "description": "在同一Transformer内先生成连续动作、后监督结构化预测文本，部署跳过CoT；拆解注意力与梯度、单步x0、联合GRPO、分数与延迟条件。",
+      "tags": [
+        "驾驶VLA",
+        "CoT",
+        "流匹配",
+        "动作优先",
+        "GRPO",
+        "NAVSIM",
+        "单步推理"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.16985v1",
+      "href": "papers/augustus/"
+    },
+    {
+      "slug": "alps",
+      "title": "ALPS: Visual State Encoders for World Models",
+      "authors": [
+        "Yanqing Liu",
+        "Letian Zhang",
+        "Chengzhi Liu",
+        "Zijun Wang",
+        "Jieru Mei",
+        "Hongliang Fei",
+        "Yuyin Zhou",
+        "Cihang Xie"
+      ],
+      "publicationDate": "2026-10-21",
+      "readAt": "2026-10-31",
+      "description": "拆解 ALPS 的四目标图文预训练和跨裁剪自蒸馏，核对冻结表示的状态探针、语言、重建与规划取舍，区分编码器能力与世界模型能力。",
+      "tags": [
+        "ALPS",
+        "视觉编码器",
+        "状态表征",
+        "自蒸馏",
+        "世界模型",
+        "语言对齐",
+        "像素重建"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.30120v1",
+      "href": "papers/alps/"
+    },
     {
       "slug": "directwam",
       "title": "De-Diffusing WAMs: Action-Sufficient Direct Prediction for Robot Control",
@@ -29,48 +766,6 @@
       ],
       "sourceUrl": "https://arxiv.org/abs/2610.28122v1",
       "href": "papers/directwam/"
-    },
-    {
-      "slug": "law",
-      "title": "LAW: Unifying Language, Action, and World Modeling for Agentic Physical Intelligence",
-      "authors": [
-        "Jiajun Cao",
-        "Kai Tang",
-        "Bohua Zhang",
-        "Zezhong Qian",
-        "Ying Li",
-        "Xiaozhu Ju",
-        "Xiaobao Wei",
-        "Jiaming Liu",
-        "Yang Ding",
-        "Sixiang Chen",
-        "Yiding Sun",
-        "Siyuan Qian",
-        "Tinghao Wang",
-        "Jixian Wu",
-        "Yichen Guo",
-        "Yi Zhang",
-        "Shilong Zou",
-        "Yong Dai",
-        "Jian Tang",
-        "Shanghang Zhang"
-      ],
-      "publicationDate": "2026-10-16",
-      "readAt": "2026-10-24",
-      "description": "详细解读 LAW 如何用语义子任务进度连接 VLM 与 WAM：混合频率闭环、MoTE、双流记忆、局部价值学习，以及 RoboTwin、RoboDojo 和真机实验的证据边界。",
-      "tags": [
-        "LAW",
-        "VLM-WAM",
-        "语义子任务",
-        "MoTE",
-        "分层记忆",
-        "局部价值学习",
-        "RoboTwin",
-        "RoboDojo",
-        "长程操作"
-      ],
-      "sourceUrl": "https://arxiv.org/abs/2610.23334v1",
-      "href": "papers/law/"
     },
     {
       "slug": "drivewla",
