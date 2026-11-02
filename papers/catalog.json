@@ -1,6 +1,34 @@
 {
-  "updatedAt": "2026-10-31",
+  "updatedAt": "2026-11-02",
   "papers": [
+    {
+      "slug": "supermimic",
+      "title": "SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model",
+      "authors": [
+        "Qiayuan Liao",
+        "Yiyang Shao",
+        "Junfeng Long",
+        "Kevin Zakka",
+        "Roberto Horowitz",
+        "Pieter Abbeel",
+        "Koushil Sreenath"
+      ],
+      "publicationDate": "2026-10-20",
+      "readAt": "2026-11-02",
+      "description": "解读 SuperMimic 如何以共享可微动力学、短时域解析梯度和 critic 降低人形全身控制训练成本；核对千倍 GPU 时比较、训练动作零失败、受控 PPO 对照与真机迁移边界。",
+      "tags": [
+        "SuperMimic",
+        "人形机器人",
+        "可微世界模型",
+        "BPTT",
+        "解析策略梯度",
+        "全身控制",
+        "Unitree G1",
+        "SONIC"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.28480v1",
+      "href": "papers/supermimic/"
+    },
     {
       "slug": "psi-0-6",
       "title": "Ψ-0.6: Adaptive Streams of Thought in a Unified Vision-Language World Model",

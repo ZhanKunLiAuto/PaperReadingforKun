@@ -1,0 +1,30 @@
+.sm-explainer { margin: 2rem 0; padding: 1.35rem; border: 1px solid #bdcec6; border-radius: 10px; background: #f6f8f4; }
+.sm-explainer h3 { margin-top: 0; }
+.sm-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; align-items: center; }
+.sm-controls[hidden], .sm-explainer [hidden] { display: none !important; }
+.sm-controls button { font: inherit; padding: .5rem .75rem; border: 1px solid #9baea4; border-radius: 5px; background: white; color: #243e32; cursor: pointer; }
+.sm-controls button[aria-pressed="true"] { background: #245b48; color: white; border-color: #245b48; }
+.sm-explainer :is(button,input):focus-visible { outline: 3px solid #b47723; outline-offset: 3px; }
+.sm-flow { display: grid; grid-template-columns: 1fr; gap: .45rem; margin: 1rem 0; }
+.sm-node { border: 1px solid #adc2b6; border-left: 4px solid #245b48; background: white; padding: .85rem 1rem; border-radius: 5px; }
+.sm-node strong, .sm-node span { display: block; }
+.sm-node span { font-size: .9rem; color: #52665b; margin-top: .25rem; }
+.sm-arrow { text-align: center; font-size: .88rem; color: #355b78; font-weight: 650; }
+.sm-gradient { border: 1px dashed #a56530; background: #fff4e7; padding: .8rem 1rem; color: #794b25; border-radius: 5px; }
+.sm-explainer .sm-note { font-size: .88rem; color: #56635d; line-height: 1.7; }
+.sm-state { border-top: 1px solid #cfdbd4; padding-top: .85rem; margin-bottom: 0; }
+.sm-horizon-chart { margin: 1rem 0; }
+.sm-scale { display: flex; justify-content: space-between; font-size: .8rem; color: #52665b; }
+.sm-time-track { height: 36px; border-radius: 4px; background: #e3e8e2; position: relative; margin: .35rem 0 1rem; }
+.sm-time-fill { height: 100%; background: #346c57; min-width: 2px; border-radius: 4px; }
+.sm-time-fill--fit { background: #648aa1; }
+.sm-critic { padding: 1rem; border: 2px solid #b27a30; background: #fff3df; border-radius: 5px; }
+.sm-critic[data-active="false"] { border-style: dashed; background: #f0f1ed; border-color: #8d9990; }
+.sm-explainer label { display: flex; align-items: center; gap: .5rem; }
+.sm-explainer input[type="checkbox"] { width: 1.2rem; height: 1.2rem; accent-color: #245b48; }
+.sm-proof { padding: .75rem 1rem; border-left: 3px solid #b27a30; background: #fcf5e9; }
+.sm-equation { font-size: 1.08rem; line-height: 1.9; overflow-wrap: anywhere; }
+.sm-schematic { width: 100%; max-width: 650px; display: block; margin: auto; }
+.sm-section-ref { font-size: .86em; color: #5f7168; }
+@media (max-width: 600px) { .sm-explainer { padding: .9rem; } .sm-controls button { flex: 1 1 44%; } .sm-explainer h3 { font-size: 1.12rem; } }
+@media print { .sm-controls { display: none; } .sm-explainer { break-inside: avoid; } }

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model">
+  <meta name="citation_author" content="Qiayuan Liao">
+  <meta name="citation_author" content="Yiyang Shao">
+  <meta name="citation_author" content="Junfeng Long">
+  <meta name="citation_author" content="Kevin Zakka">
+  <meta name="citation_author" content="Roberto Horowitz">
+  <meta name="citation_author" content="Pieter Abbeel">
+  <meta name="citation_author" content="Koushil Sreenath">
+  <meta name="citation_publication_date" content="2026-10-20">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2610.28480v1">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2610.28480v1">
+  <meta name="description" content="解读 SuperMimic 如何以共享可微动力学、短时域解析梯度和 critic 降低人形全身控制训练成本；核对千倍 GPU 时比较、训练动作零失败、受控 PPO 对照与真机迁移边界。">
+  <meta name="keywords" content="SuperMimic, 人形机器人, 可微世界模型, BPTT, 解析策略梯度, 全身控制, Unitree G1, SONIC">
+  <meta name="paper:read_at" content="2026-11-02">
+  <title>SuperMimic：让共同的身体动力学，为十几万段动作提供梯度</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/supermimic.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+  <script src="../../assets/supermimic.js" defer></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/supermimic/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">CoRL 2026 · arXiv:2610.28480v1 · 解读于 2026-11-02</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">READING MAP</p><ol class="paper-map">
+  <li><a href="#thesis">值得留下的判断</a></li><li><a href="#concepts">它控制什么，输入什么</a></li><li><a href="#problem-chain">为什么多学一个模型更省</a></li><li><a href="#mechanism">交互：三阶段与真机</a></li><li><a href="#gradient">梯度怎样穿过模型</a></li><li><a href="#horizon">交互：为什么只看 32 步</a></li><li><a href="#evidence">拆开效率与零失败</a></li><li><a href="#downstream">速度接口学到了什么</a></li><li><a href="#limits">哪些结论还不能外推</a></li><li><a href="#sources">原文与核验范围</a></li>
+</ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+  <p class="paper-kicker">SHARED DYNAMICS → ANALYTIC POLICY GRADIENTS</p>
+  <h1 id="paper-title" class="paper-title">SuperMimic</h1>
+  <p class="paper-subtitle">让共同的身体动力学，为十几万段动作提供梯度</p>
+  <div class="paper-byline"><span>Qiayuan Liao、Yiyang Shao、Junfeng Long 等</span><span>UC Berkeley</span><span>用户提供的 19 页 PDF，含完整附录</span></div>
+  <div class="research-purpose"><span class="research-purpose__label">总体判断</span><p>这篇论文最有价值的贡献，是把<strong>学习到的可微动力学、短时域策略优化和可部署的人形全身控制</strong>连成一个足够高效的训练系统。多种动作共享同一身体的物理规律，世界模型既让轨迹生成更快，也让策略直接获得“动作怎样影响未来回报”的梯度。受控 PPO 对照、世界模型内的优化器对照和真实 G1 演示共同支撑了这条路线。最需要保留的边界是：千倍算力差来自不同训练管线的预算比较，零失败来自训练动作集上的确定性仿真，尚不能推出任意环境、任意未见动作都可靠。</p></div>
+  <p>它的核心问题很具体：给定大量人类动作经重定向得到的机器人参考轨迹，怎样训练<strong>一个</strong>策略，让真实机器人跟着做，而不用为每段动作单独训练专家，也不用花费集群级资源。本文的世界模型预测机器人状态转移，任务目标是动作跟踪；它没有从图像或语言生成开放世界视频，也不在真机上每一步运行世界模型搜索动作。<span class="sm-section-ref">[§1、§3、Appendix A–C]</span></p>
+  <p>建议沿三条线理解：先看共享动力学为何能摊薄大量动作的学习成本，再看“冻结世界模型却仍反向传播”的机制，最后把<strong>学习效率、训练集覆盖和真实迁移</strong>作为三个不同的证据问题。论文在前两项有较完整的定量证据，真实部署主要依靠多种高难动作的展示。</p>
+</section>
+
+<section id="concepts" aria-labelledby="concepts-title">
+  <h2 id="concepts-title">它把参考动作变成 29 个关节的控制量</h2>
+  <p><strong>动作跟踪</strong>不等于直接播放关节角序列。参考动作描述“希望机器人怎样运动”，但机器人必须根据当前姿态、速度和接触状态，产生能维持平衡并逼近参考的控制。以侧滚为例，同一参考时间点，身体可能偏低或侧倾更多；策略需要改变关节输出，而不是机械重复同一个动作。侧滚涉及躯干、四肢与地面接触，也是本文真机展示之一。<span class="sm-section-ref">[§4.4；Fig.6]</span></p>
+  <div class="table-wrap" role="region" aria-label="训练与部署输入输出" tabindex="0"><table class="evidence-table"><thead><tr><th>对象</th><th>具体内容</th><th>为什么区分它</th></tr></thead><tbody>
+    <tr><td>策略的本体观测 o</td><td>29 维关节位置偏差、29 维关节速度、3 维基座角速度、3 维重力投影、29 维上一动作；使用最近 10 帧</td><td>每帧 93 维（本页相加）；包含传感噪声，面向可部署传感器</td></tr>
+    <tr><td>参考目标 g</td><td>未来 K=10 帧参考动作，由动作编码器处理</td><td>为当前控制提供短期动作意图；目标不是世界模型对未来的预测</td></tr>
+    <tr><td>策略动作 a</td><td>29 维归一化关节设定值；q<sub>sp</sub>=αa+q<sub>0</sub></td><td>交给底层 PD；低 PD 增益使设定值更像力矩控制代理，不等于最终关节位置</td></tr>
+    <tr><td>世界模型 f 与 critic V</td><td>访问仿真状态 s 和上下文 ξ；ξ 包含摩擦、关节标定偏差、躯干质心偏移</td><td>这些训练期信息没有直接泄漏给真机 actor；策略仍从带噪观测行动</td></tr>
+  </tbody></table></div>
+  <p>策略结构也并不神秘：动作编码器把参考序列映射成 <strong>32 维、经过 tanh 限幅的潜变量 z</strong>；共享解码器将 z 与观测历史合并后输出控制量。编码器和解码器都使用隐藏宽度为 2048、1024、512、256 的 MLP。动力学网络是三个 2048 宽度隐藏层的 MLP，critic 是 256、128 的 MLP。这里的规模化首先发生在动作数据和训练效率上，不能把标题里的 world model 自动理解成视觉生成基础模型。<span class="sm-section-ref">[Tables A.1、A.4；Eq.A.1]</span></p>
+  <p><strong>“一个世界模型”的准确含义：</strong>在同一个机器人的训练中，不同动作、以及所研究的目标接口共享动力学函数。它并未证明同一组权重不经适配就能控制不同机器人；不同数据规模实验也不能被读成“一个预训练检查点冻结后覆盖全部新增数据”。</p>
+</section>
+
+<section id="problem-chain" aria-labelledby="problem-title">
+  <h2 id="problem-title">为什么多训练一个模型，反而减少总成本？</h2>
+  <p>模型自由 PPO 从仿真中采样动作，观察哪些动作带来更好的回报，再提高这些动作的概率。它可以学出很强的策略，但优化器把状态转移当作黑箱：不会直接使用“把膝关节控制量增大一点，下一时刻的身体姿态会怎样变”的局部导数。动作库扩大后，训练仍要通过大量试错建立控制规律。专家训练后再蒸馏还增加了训练阶段和压缩损失；单一大策略则可能消耗大量并行资源。<span class="sm-section-ref">[§1–2、§3.3]</span></p>
+  <p>SuperMimic 的切入点是：跳跃、走路和翻滚的目标不同，但由相同的关节、质量、几何与接触动力学产生。<strong>目标进入奖励和策略，身体规律进入共享的动力学模型。</strong>学到这套规律后，一次世界模型训练可以服务于许多动作；过去策略收集的转移仍可用于拟合动力学，因为收集策略改变并不意味着物理规律改变。需要注意，数据仍可能只覆盖有限的状态与动作区域，旧数据可用不等于模型在任何地方都正确。<span class="sm-section-ref">[§3.1–3.2]</span></p>
+  <p>收益有两个来源。其一，MLP 预测一个 50 Hz 控制步，比刚体仿真求解四个 5 ms 子步便宜。其二，模型可微，能沿着整段想象轨迹把奖励变化传回策略；同样一条轨迹提供的不仅是“这次动作好不好”，还包括“沿什么局部方向修改动作可能更好”。代价是引入模型偏差，必须持续用仿真数据校正，并避免在很长的预测链上无限放大误差。<span class="sm-section-ref">[§3.3、Fig.5]</span></p>
+  <p><strong>新意应定位在规模与部署闭环。</strong>论文明确承认 SuperTrack、ControlVAE、MoConVQ、SuperDyno 已使用学习动力学和解析梯度；短时域 actor–critic 也借鉴 SHAC。因此它不是首次提出“通过世界模型反传”。有价值的增量是：将这条路线做成持续更新、支持域随机化和带噪观测、能扩到大动作库并迁移到真实 G1 的系统，同时给出效率来源的实验分解。<span class="sm-section-ref">[§2、Table 1]</span></p>
+</section>
+
+<section id="mechanism" aria-labelledby="mechanism-title">
+  <h2 id="mechanism-title">一个循环里的三次操作，更新不同的参数</h2>
+  <p>本文没有先独立预训练并永久冻结一个世界模型。每轮都按<strong>采集仿真转移 → 拟合动力学 → 在模型内改进策略</strong>交替进行。模型跟着当前策略的访问分布不断校正，策略又利用新模型得到更好的动作。这条反馈回路是理解算法的起点。<span class="sm-section-ref">[Fig.2；Algorithm A.1]</span></p>
+  <div class="sm-explainer" data-sm-stages>
+    <h3>交互一：切换阶段，看数据与梯度分别走哪里</h3>
+    <p class="sm-note">点击四个阶段。蓝色箭头表示前向数据，橙色虚线框说明反向梯度；“冻结权重”不表示切断输入导数。图据 Fig.2、§3、Appendix A–D 简化重绘。</p>
+    <div class="sm-controls" aria-label="训练与部署阶段" hidden><button type="button" data-sm-stage="collect" aria-pressed="true">① 仿真采集</button><button type="button" data-sm-stage="fit" aria-pressed="false">② 拟合模型</button><button type="button" data-sm-stage="improve" aria-pressed="false">③ 改进策略</button><button type="button" data-sm-stage="deploy" aria-pressed="false">④ 真机部署</button></div>
+    <div data-sm-panel="collect"><div class="sm-flow"><div class="sm-node"><strong>参考 g + 当前观测 o → 策略 π<sub>θ</sub></strong><span>采集阶段不更新策略参数</span></div><div class="sm-arrow">↓ 动作 a + 探索噪声 ε</div><div class="sm-node"><strong>MuJoCo Warp 物理仿真</strong><span>生成下一状态、奖励、终止标签和无噪声观测</span></div><div class="sm-arrow">↓ 记录实际执行的带噪动作及上下文 ξ</div><div class="sm-node"><strong>回放缓冲区 B</strong><span>固定容量，新数据替换最旧数据</span></div></div><div class="sm-gradient">没有梯度穿过仿真器。它提供监督数据。</div></div>
+    <div data-sm-panel="fit"><div class="sm-flow"><div class="sm-node"><strong>缓冲区：初始状态 s₀ + 8 步记录动作 + ξ</strong><span>记录的后续状态作为训练标签</span></div><div class="sm-arrow">↓ 初始真状态只负责启动；后续使用预测状态</div><div class="sm-node"><strong>世界模型 f<sub>ω</sub> 自回归展开 8 步</strong><span>ŝ₁ → ŝ₂ → … → ŝ₈</span></div><div class="sm-arrow">↓ 预测与记录标签对比</div><div class="sm-node"><strong>状态、奖励、观测和终止损失 L<sub>WM</sub></strong><span>解析计算的 head 不设置对应学习损失</span></div></div><div class="sm-gradient">反向：预测误差 → 展开的世界模型 → 更新 ω。记录动作无需被策略重新生成。</div></div>
+    <div data-sm-panel="improve"><div class="sm-flow"><div class="sm-node"><strong>缓冲区起点 s₀、ξ + 参考目标 g</strong><span>模型提供无噪声观测；再加入传感噪声</span></div><div class="sm-arrow">↓ 当前策略闭环生成每一步动作</div><div class="sm-node"><strong>π<sub>θ</sub> → 动作 a → 固定权重的 f<sub>ω</sub> → 下一状态</strong><span>重复 32 个想象步；保留 ∂f/∂a 与 ∂f/∂s</span></div><div class="sm-arrow">↓ 累积带存活权重的奖励</div><div class="sm-node"><strong>窗口内回报 + 末端 critic V</strong><span>critic 用想象轨迹的固定 λ-return 目标另行拟合</span></div></div><div class="sm-gradient">反向：回报 → 状态／动作 Jacobian → 策略 θ。ω 本轮不更新，输入导数仍传递。</div></div>
+    <div data-sm-panel="deploy"><div class="sm-flow"><div class="sm-node"><strong>未来 10 帧参考 → 动作编码器 → z</strong><span>最近 10 帧本体观测同时输入解码器</span></div><div class="sm-arrow">↓ 共享策略解码器</div><div class="sm-node"><strong>29 维动作 → 关节设定值 → 底层 PD</strong><span>以 50 Hz 控制步执行</span></div><div class="sm-arrow">↓ 机器人运动；传感器返回新观测</div><div class="sm-node"><strong>真实 Unitree G1 闭环控制</strong><span>部署链中没有世界模型、critic 或轨迹搜索</span></div></div><div class="sm-gradient">部署只做策略前向；世界模型承担的是训练期的动力学与梯度供给。</div></div>
+    <p class="sm-state" data-sm-stage-status aria-live="polite">静态总览：前三阶段循环更新模型与策略；真机仅运行策略。四幅流程图在脚本未运行时均可直接阅读。</p>
+  </div>
+  <h3>第一步：让世界模型看到当前策略附近的动作</h3>
+  <p>仿真采集使用当前确定性策略，但执行动作时加每维标准差 0.1 的高斯噪声，缓冲区保存<strong>实际执行的带噪动作</strong>。噪声的作用是扩宽世界模型看到的动作范围，不能把结果状态错配给原始无噪动作。默认每张 GPU 运行 4096 个仿真环境，缓冲区每环境保存 1000 步。<span class="sm-section-ref">[§3.1；Table A.5]</span></p>
+  <p>重置也经过设计：把动作时间轴切成 1 秒小段，50% 的重置均匀采样，40% 倾向当前回报低的小段，10% 按历史难度权重采样。这使困难部分获得更多训练，又让已经学会的困难动作保留练习机会。它属于系统配方的一部分；论文没有单独消融它对全部收益的贡献。<span class="sm-section-ref">[Appendix D.1]</span></p>
+  <h3>第二步：把动力学与可知的随机因素分开</h3>
+  <p>世界模型的动力学函数为 ŝ<sub>t+1</sub>=f<sub>ω</sub>(ŝ<sub>t</sub>,a<sub>t</sub>,ξ)。ξ 明确给出每个 episode 的物理参数，因此模型不必从相同输入中猜测“为什么这次滑得更远”。摩擦在 [0.3,1.2] 随机化，关节零位偏差在 ±0.01 rad，躯干质心也随机偏移。传感噪声则在世界模型外重新采样：先预测无噪声观测，再加噪声给 actor。<strong>模型学条件确定性动力学，策略学在噪声下控制。</strong><span class="sm-section-ref">[§3.2；Tables A.1、A.3]</span></p>
+  <div class="formula-card" aria-label="世界模型训练目标"><div class="formula-card__label">8 步自回归监督 · Eq.1</div><div class="formula-card__equation sm-equation">L<sub>WM</sub> = E<sub>B</sub> ∑<sub>j=1…8</sub> [ ‖ŝ<sub>j</sub>−s<sub>j</sub>‖² + (r̂<sub>j</sub>−r<sub>j</sub>)² + ‖ô̄<sub>j</sub>−ō<sub>j</sub>‖² + BCE(d̂<sub>j</sub>,d<sub>j</sub>) ]</div><p class="formula-card__caption">问的是：从一个记录状态出发，沿着记录动作连续预测，能否复现仿真轨迹？</p><dl class="formula-legend"><div class="formula-legend__row"><dt>ŝ、r̂、ô̄、d̂</dt><dd>预测的状态、奖励、无噪声观测和终止概率；不带帽的是仿真记录。</dd></div><div class="formula-legend__row"><dt>BCE 与解析 head</dt><dd>BCE 是二元交叉熵。论文允许奖励、观测、终止 head 学习或解析计算；解析 head 不加入对应拟合损失，不能默认所有输出都由神经网络猜测。</dd></div></dl><div class="formula-card__intuition">只在起点使用真实状态，此后把预测喂回自身，因此训练会暴露误差累积。它比只拟合单步更贴近实际展开，但不提供无限时域稳定性的数学保证。</div></div>
+  <p>论文声称这种自回归训练让模型可以在实践中长时间稳定 rollout；实验证据主要是 8 步预测误差与演示。因此更稳妥的读法是：短窗口训练足以支撑本文的控制优化，不能据此认定所有接触切换和任意长轨迹都预测准确。<span class="sm-section-ref">[§3.3、§4.2]</span></p>
+
+  <h3 id="gradient">第三步：冻结参数，同时让梯度穿过模型</h3>
+  <p>这一点最容易误解。固定 ω 意味着策略优化时不改变世界模型的权重，<strong>不意味着把 f 的输出 detach</strong>。动作 a 仍然是策略参数 θ 的函数，下一状态仍然是动作的函数；利用链式法则，未来奖励就能反向影响当前动作和策略。若把整个模型计算放进 no-grad，恰恰会丢掉本文最关键的信号。<span class="sm-section-ref">[§3.3；Algorithm A.1]</span></p>
+  <figure class="svg-figure"><svg class="sm-schematic" viewBox="0 0 640 355" role="img" aria-labelledby="sm-grad-title sm-grad-desc"><title id="sm-grad-title">前向动作与反向梯度</title><desc id="sm-grad-desc">策略参数产生动作，固定权重的世界模型预测下一状态，奖励由状态决定。梯度从奖励经状态和动作返回策略参数；世界模型自身参数不更新。</desc><defs><marker id="sm-a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="#3b6b86"/></marker><marker id="sm-b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="#9e622d"/></marker></defs><rect width="640" height="355" rx="8" fill="#f8f8f3"/><text x="320" y="34" text-anchor="middle" font-size="18" fill="#294b3b">前向：参数 → 动作 → 预测状态 → 奖励</text><g fill="#edf4ee" stroke="#7b9c88"><rect x="32" y="62" width="260" height="70" rx="6"/><rect x="348" y="62" width="260" height="70" rx="6"/><rect x="348" y="192" width="260" height="70" rx="6"/><rect x="32" y="192" width="260" height="70" rx="6"/></g><g text-anchor="middle" font-size="19" fill="#254835"><text x="162" y="91">策略 πθ 产生 aₜ</text><text x="162" y="118" font-size="15">θ 是本轮更新对象</text><text x="478" y="91">世界模型 fω</text><text x="478" y="118" font-size="15">固定 ω，保留输入导数</text><text x="478" y="222">预测状态 ŝₜ₊₁</text><text x="478" y="248" font-size="15">再供下一步策略使用</text><text x="162" y="222">奖励与末端价值</text><text x="162" y="248" font-size="15">汇总成目标 Ĵ</text></g><g stroke="#3b6b86" stroke-width="2" fill="none" marker-end="url(#sm-a)"><path d="M294 96H344"/><path d="M478 135V188"/><path d="M344 228H296"/></g><path d="M162 188V137" stroke="#9e622d" stroke-width="3" stroke-dasharray="5 4" marker-end="url(#sm-b)"/><text x="320" y="303" text-anchor="middle" font-size="18" fill="#9e622d">反向：∂Ĵ/∂s · ∂f/∂a · ∂π/∂θ</text><text x="320" y="332" text-anchor="middle" font-size="15" fill="#5b6e62">示意省略多步与状态依赖项；求的是学习模型下的梯度</text></svg><figcaption class="read-guide">模型提供局部敏感度：动作稍微改变，预测状态和回报怎样变化。这个梯度对代理模型可精确求导，但未必等于真实物理系统的梯度。</figcaption></figure>
+  <p>用侧滚直觉理解：若某个腿部动作使模型预测的身体姿态在稍后更接近参考，回报梯度就会鼓励这个局部方向。PPO 主要依靠采样动作及优势估计得到更新信号；BPTT（随时间反向传播）则显式利用 ∂f/∂a、∂f/∂s。代价是<strong>对学习模型的依赖更直接</strong>：预测值接近，并不自动保证接触附近的导数正确。本文的仿真评估证明这些导数在所测任务上有实用价值，但没有给出真实梯度误差的系统测量。</p>
+  <div class="formula-card" aria-label="短时域策略目标"><div class="formula-card__label">用短展开估计长期回报 · Eq.2</div><div class="formula-card__equation sm-equation">Ĵ(θ) = E [ ∑<sub>t=0…H−1</sub> γ<sup>t</sup> ĉ<sub>t</sub> r̂<sub>t+1</sub> + γ<sup>H</sup> ĉ<sub>H</sub> V<sub>ψ</sub>(ŝ<sub>H</sub>,g<sub>H</sub>,ξ) ]<br>ĉ<sub>0</sub>=1，ĉ<sub>t+1</sub>=ĉ<sub>t</sub>(1−d̂<sub>t+1</sub>)</div><p class="formula-card__caption">前半项计算窗口内回报，末项让窗口末端之后的后果也影响当前决策。</p><dl class="formula-legend"><div class="formula-legend__row"><dt>H、γ</dt><dd>默认 H=32，控制周期 0.02 秒，即展开 0.64 秒（本页换算）；折扣 γ=0.99。</dd></div><div class="formula-legend__row"><dt>ĉ、d̂</dt><dd>ĉ 是累计软存活权重，d̂ 是终止概率。把仿真的硬终止转成连续权重后，未来奖励会随预测终止风险平滑减少。</dd></div><div class="formula-legend__row"><dt>V<sub>ψ</sub></dt><dd>critic 估计末端状态之后还能获得多少回报，输入包含状态、目标和仿真上下文。它避免策略只关心 0.64 秒以内。</dd></div></dl><div class="formula-card__intuition">策略不需要把遥远未来全部展开；短期由世界模型算，远期由价值函数补。但两者都是估计，缩短展开也没有消除模型偏差与价值误差。</div></div>
+  <p>critic 的学习目标从想象轨迹反向递推：R̂<sub>t</sub>=r̂<sub>t+1</sub>+γ(1−d̂<sub>t+1</sub>)[(1−λ)V<sub>t+1</sub>+λR̂<sub>t+1</sub>]，末端 R̂<sub>H</sub>=V<sub>H</sub>，λ=0.95。一次 rollout 算好目标后，在拟合 critic 的若干轮更新中保持目标固定。它没有 EMA 目标网络，且价值学习数据来自想象转移；因此“有 critic”应理解为补偿短时域的机制，不能理解成引入独立真实长期真值。<span class="sm-section-ref">[Eq.3；§3.3；Table A.5]</span></p>
+
+  <div class="sm-explainer" data-sm-horizon id="horizon">
+    <h3>交互二：改变想象长度，观察 critic 补在哪里</h3>
+    <p class="sm-note">选择 H 并切换 critic。条长只按 50 Hz 换算物理时域，文字结果来自 Fig.4 与 §4.3；没有插值出成功率或伪造训练时间。</p>
+    <div class="sm-controls" aria-label="想象步数" hidden><button type="button" data-sm-steps="8" aria-pressed="false">H = 8</button><button type="button" data-sm-steps="16" aria-pressed="false">H = 16</button><button type="button" data-sm-steps="32" aria-pressed="true">H = 32</button><button type="button" data-sm-steps="64" aria-pressed="false">H = 64</button><button type="button" data-sm-steps="128" aria-pressed="false">H = 128</button></div>
+    <div class="sm-controls" hidden><label><input type="checkbox" data-sm-critic-toggle checked> 加入末端 critic</label></div>
+    <div class="sm-horizon-chart"><div class="sm-scale"><span>0 秒</span><span>统一尺度：2.56 秒</span></div><p>模型拟合窗口：8 步 / 0.16 秒（固定）</p><div class="sm-time-track"><div class="sm-time-fill sm-time-fill--fit" style="width:6.25%"></div></div><p>策略想象窗口：<strong data-sm-duration>32 步 × 0.02 秒 = 0.64 秒</strong></p><div class="sm-time-track"><div class="sm-time-fill" data-sm-time-fill style="width:25%"></div></div><div class="sm-critic" data-sm-terminal data-active="true">第 32 步 → critic V：估计展开之后的长期回报。</div></div>
+    <p class="sm-proof" data-sm-horizon-status aria-live="polite">默认 H=32 配合 critic，在这组消融中最快达到训练回报 0.82。</p>
+    <p class="sm-note">静态结论：H=8 两种版本均未达标；无 critic 的 H=16 未达标；有 critic 的 H=16 可匹配无 critic 的 H=32；默认 32 步最快；长至 128 步的成本上升且最终回报下降。训练回报受重置分布影响，与完整片段评估回报不同。</p>
+  </div>
+  <p><strong>critic 的价值还体现在恢复行为。</strong>在仿真 T-pose 静止目标上施加 0.5–4 m/s 的速度扰动，有 critic 的策略在 0.5–2.4 秒内稳定；没有 critic 的版本在 0.5 m/s 时仍持续踉跄，在 4 m/s 时摔倒。即使名义跟踪回报相近，长期平衡行为也可以不同。不过这是一组指定姿态下的仿真扰动，不能替代真实机器人全动作库的扰动测试。<span class="sm-section-ref">[§4.3]</span></p>
+</section>
+
+<section id="evidence" aria-labelledby="evidence-title">
+  <h2 id="evidence-title">效率提升有证据，但几个倍数属于不同口径</h2>
+  <p>先统一指标：论文的归一化回报，是完整 episode 的逐步奖励之和（不加折扣）除以这段 episode 理论可达到的最大总和；提前终止会拉低分数。它同时反映跟踪质量和完成程度，不是分类准确率，也不能把 0.90 直接解释为 90% 动作成功。下文会明确区分完整片段的评估回报与受训练重置分布影响的训练回报。<span class="sm-section-ref">[§4 开头；Fig.4 图注]</span></p>
+  <h3>1．SONIC 比较说明管线成本差距，不能直接当同硬件算法倍数</h3>
+  <div class="table-wrap" role="region" aria-label="SONIC 与 SuperMimic 的预算和失败数" tabindex="0"><table class="evidence-table"><thead><tr><th>方法／检查点</th><th>训练预算</th><th>训练数据</th><th>失败片段 / 129,514</th></tr></thead><tbody><tr><td>SONIC 发布检查点</td><td>128 L40 × 168 h<br>约 21,000 GPU-h</td><td>611 h</td><td>179</td></tr><tr><td>SuperMimic</td><td>1 H100 × 3 h<br>3 GPU-h</td><td>264.56 h</td><td>25</td></tr><tr><td>SuperMimic</td><td>2 H100 × 9.8 h<br>19.6 GPU-h（乘算）</td><td>同上</td><td>0</td></tr></tbody></table></div>
+  <p>3 小时包括仿真采集、世界模型拟合、策略与 critic 更新的<strong>完整训练循环</strong>，不是在已训练模型上的策略微调时间；训练后的检查点评估不计入。按预算乘算，128×168÷3=7168，论文写约 7200 倍、保守宣传为超过 1000 倍；墙钟时间 168÷3=56 倍。两张卡 9.8 小时的零失败检查点又是另一个预算，不能与 3 小时结果混为一谈。<span class="sm-section-ref">[§4.1；Fig.3；Table A.8]</span></p>
+  <p>差异确实巨大，但 SONIC 使用 L40、更多动作数据，并非作者用同硬件同训练量重跑得到的对照。作者以 H100/L40 峰值吞吐和 2.3 倍数据差说明这些因素不足以直观解释数量级差距；这个论证合理地提示差距值得重视，却不能把峰值硬件比直接换算成真实训练 FLOPs 或价格比。GPU-hours、钱、能耗和算法效率是不同量，且数据准备、重定向和全部研究试验成本不在 3 小时口径内。</p>
+  <h3>2．更有说服力的效率证据，是受控 PPO 与模型内 PPO</h3>
+  <div class="table-wrap" role="region" aria-label="效率证据分解" tabindex="0"><table class="evidence-table"><thead><tr><th>比较</th><th>报告结果</th><th>能隔离什么／不能隔离什么</th></tr></thead><tbody>
+    <tr><td>LAFAN1，40 片段、2.45 h；SuperMimic 对 PPO-Sim</td><td>SuperMimic 单卡 1.2 h 达评估回报 0.82；PPO 在 18 h 内未达到；1/4/8 GPU 最终为 0.60/0.70/0.72</td><td>匹配动作、观测、奖励、终止、域随机化、网络大小和评估协议；支持整套方法有效，仍是对指定 PPO 配方的比较</td></tr>
+    <tr><td>LAFAN1 的 walk/run/sprint 子集；SuperMimic 对 PPO-WM</td><td>达到 PPO-WM 最佳训练回报所需想象步数少约 64 倍；PPO-WM 比了四组 batch，16k×32 最好</td><td>两者都在世界模型中 rollout，说明优势不只来自便宜轨迹；64 倍是步数，不是端到端墙钟加速</td></tr>
+    <tr><td>H100 上世界模型对 MuJoCo Warp 的 rollout 吞吐</td><td>实际使用的 2k–16k 并行规模下 &gt;10 倍；64k 时最高 62 倍</td><td>一个控制步对应仿真四个子步，模型用 TF32；这里只测 rollout，不包含拟合与反向优化总成本</td></tr>
+  </tbody></table></div>
+  <p>这三项证据组合起来，才解释了“为什么世界模型值得训练”：便宜的预测降低一次轨迹成本，解析梯度降低达到某个回报所需的轨迹数量，而受控仿真比较表明加入模型训练开销后仍有总收益。<strong>不能把 10× 与 64× 机械相乘来证明 640× 总加速</strong>，因为它们来自不同实验、任务子集和计量范围。<span class="sm-section-ref">[Fig.4a、Fig.5；§4.1–4.2]</span></p>
+  <h3>3．“零失败”很有含金量，但要读完整定义</h3>
+  <p>评估的 129,514 个片段来自双方都训练过的 BONES-SEED 动作。每段从第一帧播放一次，物理确定性、足底摩擦固定为 1.0，关闭域随机化与观测噪声；每个策略保留自身的执行器增益、动作缩放和观测构造。统一用 SuperMimic 的终止条件计失败：根部高度误差超过 0.25 m，或倾斜误差超过 0.8；后者是两套根部坐标中重力方向 z 分量的差，不是“0.8 rad”。不按末端误差终止。<span class="sm-section-ref">[Appendix A、F.1]</span></p>
+  <p>因此零失败意味着<strong>这些已知参考片段在这套条件下均没有触发该终止规则</strong>。它仍可能有位置误差、速度误差和关节动作不够平滑，更不是训练集之外的泛化率。SONIC 自己的成功标准包含根部及末端高度偏差、但没有方向项；本文为双方用了统一标准，所以比较有意义，同时指标选取会影响失败数。</p>
+  <p>平均成功率已接近饱和，按动作类别看更能理解进步：SONIC 的 44 段翻转和 22 段侧滚全部失败；SuperMimic 单卡 3 小时分别剩 1 段和 2 段失败，双卡较长训练后均为 0。SONIC 的 24 段远跳失败 15 段，SuperMimic 在两个预算下均为 0。这说明改善覆盖了困难全身动作，并非只靠大量容易步行动作拉高均值。附录还评估 SONIC v1.1，失败 239 段；主表的 179 来自原发布检查点，二者不能混用。<span class="sm-section-ref">[Table A.8；Appendix F.2]</span></p>
+  <p>数据预处理同样决定范围：原始 142,220 段先按名称去掉楼梯、椅子、箱子等相关片段，剩 129,667；再用前向运动学过滤高处支撑、穿地、静止悬空双足等不适合平地 G1 的轨迹，得到 129,514。过滤使任务更物理可行，也明确限定了“全动作库”是筛选后的平地动作库。论文没有用它证明机器人能复现任意人类动作。<span class="sm-section-ref">[Appendix E；Table A.7]</span></p>
+  <h3>4．数据扩大 264 倍，模型为什么没有明显变差？</h3>
+  <p>数据规模扫过 1、7、40、264 小时，世界模型 8 步状态预测误差保持在 0.007–0.011。误差按预设名义误差归一化，并在策略在线 rollout 上计算；不是毫米单位，也不是 0.7%–1.1% 的通用物理误差。同时到目标回报所需 GPU-hours 增长较慢，支持<strong>同一身体的动力学可以跨动作复用</strong>。<span class="sm-section-ref">[Fig.3b/c；Appendix F.3]</span></p>
+  <p>证据尚不足以建立普遍 scaling law。这里只有四档数据规模，数据时长也不等于接触模式或任务难度的独立增长；在线误差的状态分布会随策略而变。更强的验证是固定留出的状态—动作测试集，另测新增接触类型、长时 rollout 与局部导数误差。这里提出的是后续验证建议，不是论文已完成的实验。</p>
+  <h3>5．真机展示让方法走出仿真，但可靠性仍待统计</h3>
+  <p>同一个通用 tracker 在 Unitree G1 上展示了跳步、侧滚、90° 翻转和原地 360° 翻转，作者称没有逐动作调参。这比单纯字符动画实验多了一条关键证据：学习模型给出的梯度能导向可迁移的真实控制，且接触不只发生在足底。<span class="sm-section-ref">[§4.4；Fig.6]</span></p>
+  <p>正文没有给出每种动作的重复试验次数、成功率与置信区间，也没有完整的真实地面变化和外力扰动矩阵。故应肯定其部署可行性，同时把“真实系统长期稳定”和“13 万动作都在真机通过”留在未证明范围。训练世界模型的转移全部来自仿真，文中也没有进行真实数据自适应校正。<span class="sm-section-ref">[§6]</span></p>
+
+  <h3 id="downstream">6．速度接口：用任务奖励挑选技能，而不是只复现参考</h3>
+  <p>作者还研究了从“跟完整动作”转向“按速度指令走”。目标变成 (v<sub>x</sub>,v<sub>y</sub>,ω<sub>z</sub>)，速度编码器结合观测历史输出同一 32 维 z，再复用共享解码器和动力学。所谓 distillation 基线在本文里用的是<strong>从参考动作读取速度指令，再以动作跟踪奖励训练接口</strong>，不能简单等同于对教师动作做 MSE 的普通行为克隆。RL 版本直接优化速度跟踪奖励，并在参考指令 rollout 上加权重 0.1 的潜变量对齐项。<span class="sm-section-ref">[§4.5；Appendix B、G]</span></p>
+  <p>672 个阶跃指令，每个从站立开始保持 5 秒，做四次试验；用最后 2 秒平均速度误差的范数除以指令范数，在未摔倒试验中取中位数。RL 在 650 个指令上误差更低，distillation 在 15 个上更低；整体中位相对误差为 0.16 对 0.49。distillation 在七个高速转向指令上四次都摔倒，这些区域的动作库数据很少；RL 没有这些摔倒。两种策略各只有一个训练种子。<span class="sm-section-ref">[Fig.7；Appendix G.2]</span></p>
+  <p><strong>关键限制藏在梯度路由里：</strong>速度奖励通过解码器传到速度编码器，但停止更新解码器权重；解码器仍只由动作跟踪目标训练。于是该实验支持“在已学运动接口中，用任务目标优化编码器比受参考轨迹约束更有效”，并没有证明多个任务共同改造了底层控制器。作者在 §6 也明确说，并发训练的必要性尚未验证；若让速度任务也更新共享解码器，能否更好仍未知。</p>
+</section>
+
+<section id="limits" aria-labelledby="limits-title">
+  <h2 id="limits-title">最值得采用的思想，以及最应谨慎的外推</h2>
+  <p><strong>第一，模型预测与模型梯度应分别验证。</strong>训练损失主要约束预测值，可微结构本身不保证导数符合真实接触动力学。持续采集和短展开降低了风险，64 倍想象步数优势也证明该信号在实验中确实有用。若将方法迁移到新任务，最有针对性的检查是：在相同初始状态下，小幅改变动作，比较模型预测的回报变化方向与高保真仿真的变化方向；再检查策略是否利用模型薄弱区域。这是本文未提供的机制验证，而非已发现其模型必然被利用。</p>
+  <p><strong>第二，平地同本体的复用，不等于跨环境物理泛化。</strong>世界模型显式条件化摩擦等已知参数，但不从视觉识别未知环境。本文训练还去掉了根部速度突变扰动，因为确定性模型无法在未提供扰动信息时预测这类突变；这和后来用扰动测试恢复能力是两个层次。换成地形、物体交互或另一具身体，状态表示、接触分布与可观测性都会改变，需要新的数据与验证。作者也把地形和物体交互列为未来工作。<span class="sm-section-ref">[Appendix A；§6]</span></p>
+  <p><strong>第三，密集跟踪奖励是重要前提。</strong>每一时刻都有身体位置、姿态、线速度、角速度等误差作为信号，BPTT 能持续获得局部改善方向。稀疏任务奖励、离散策略选择或长程探索未被本实验覆盖。不能由全身跟踪成功直接推断它会同样加速视觉导航、灵巧操作或语言任务。世界模型可以复用的潜力值得研究，但实验范围必须跟上。</p>
+  <p><strong>第四，统计与预算比较仍有补强空间。</strong>作者表示运行多个随机种子且训练稳定，但主图没有给出种子间波动；速度接口明确只有单种子。PPO-Sim 已尽力控制大量设置，这应得到承认；它仍采用一套继承的 PPO 超参数，没有展示与 SuperMimic 对等的超参数搜索预算。结论可以是“在报告设置中效率显著改善”，不宜升级为“任何 PPO 实现都差这么多”。</p>
+  <p><strong>这篇论文真正改变的判断：</strong>对同本体、可获得密集任务信号、动作种类很大的控制问题，学习动力学的额外成本可能被更便宜的 rollout 与更有效的梯度更新共同抵消。评估世界模型时，除了预测误差，还应该问：它能否减少达到同一真实评估回报的总训练时间？SuperMimic 给出了很有分量的肯定案例。接下来最关键的是把这一案例扩展到新接触分布，并量化真实可靠性，而不是单纯扩大标题中的动作数量。</p>
+</section>
+
+<section id="sources" aria-labelledby="sources-title">
+  <h2 id="sources-title">原文、证据位置与核验范围</h2>
+  <ol class="source-list">
+    <li>主要依据：用户提供的 <em>SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model</em>，19 页。读取正文与 Appendix A–G，并视觉核对方法图、公式、曲线、架构表与速度任务协议。<a href="https://arxiv.org/abs/2610.28480v1">arXiv v1</a> · <a href="https://arxiv.org/pdf/2610.28480v1">原论文 PDF</a>。</li>
+    <li>方法入口：Fig.2、§3、Eqs.1–3、Algorithm A.1；可部署输入输出、奖励与随机化见 Appendix A；网络与训练配方见 Tables A.4–A.5；多接口梯度边界见 Appendix B。</li>
+    <li>效率与消融：§4.1–4.3、Figs.3–5；数据筛选与失败定义见 Appendix E–F、Tables A.7–A.8；真机展示见 Fig.6；速度接口完整协议见 Appendix G。</li>
+    <li><a href="https://supermimic.github.io/">作者项目页与机器人演示</a>，2026-11-02 核对。项目页把 fire-in-the-hole turns 并入“其他”组，故其他组计数与 PDF 主表不同，总数一致。本页数据沿用附件。项目页上的摩擦变化演示明确向世界模型提供摩擦信息，不能视为模型自行辨识未知摩擦的证据。</li>
+    <li><a href="https://arxiv.org/abs/2610.28480">arXiv 元数据</a>于同日核对：2026-10-20 提交，标注 CoRL 2026 Oral。未独立运行作者训练、没有审计训练实现，也未把第三方复现当作官方实验。</li>
+  </ol>
+  <p class="evidence-note">实验数据和作者主张按原文注明；预算乘算、物理时域换算与证据强度判断为本页分析。交互只解释原文机制和已报告的消融，不模拟真实机器人，不生成新的性能数据。附件内容作为研究材料读取，不作为操作授权。</p>
+</section>
+</main>
+<aside class="paper-rail" aria-label="阅读协作">
+  <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="mark-panel-title"><p class="paper-rail__label">COLLABORATIVE READING</p><h2 id="mark-panel-title">划线后继续追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文或图中文字，可记录“名词讲解 / 逻辑梳理 / 作图理解”。当前预置请求 <strong data-mark-count>0</strong> 条。</p></section>
+  <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><p class="paper-rail__label">PERSONAL COMMENTS</p><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>个人评论独立保存。连接本地 bridge 后可写回 HTML；离线记录标为“仅此浏览器”。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+</aside>
+</div>
+</body>
+</html>

@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **2026-11-02 · SuperMimic**：详解共享可微动力学、32 步解析策略梯度与 critic，核对千倍 GPU 时、训练动作零失败和真机迁移的证据边界；含训练／部署与想象时域两处机制交互。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/supermimic/) · [GitHub 源码](papers/supermimic/index.html)
+
 - **2026-10-31 · 26 篇独立论文**：27 份附件中两份 Latent Manifold PDF 完全重复；新增 25 篇详细解读，LAW 按 v2 更新，均含机制交互、实验条件与证据边界。完整阅读地图：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/2026-10-31-reading-batch.html) · [GitHub 入口](papers/2026-10-31-reading-batch.html)。各篇阅读与源码链接见下表。
 
 - **DirectWAM**：DirectWAM 用冻结的单步动作模型监督学生自己的未来预测，保留未来到动作的级联并去掉迭代采样；拆解动作充分性、局部敏感方向、28倍加速与闭环证据边界。 阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/directwam/) · [GitHub 源码](papers/directwam/index.html)
@@ -50,6 +52,7 @@
 
 | 论文 | 解读主线 | 阅读链接 |
 | --- | --- | --- |
+| [SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model](papers/supermimic/) | 解读 SuperMimic 如何以共享可微动力学、短时域解析梯度和 critic 降低人形全身控制训练成本；核对千倍 GPU 时比较、训练动作零失败、受控 PPO 对照与真机迁移边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/supermimic/) · [源码](papers/supermimic/index.html) |
 | [Ψ-0.6: Adaptive Streams of Thought in a Unified Vision-Language World Model](papers/psi-0-6/) | 解释统一视觉语言世界模型的指针token、可组合预测、反事实光流和GRPO表示选择；区分能力统一、推理增益、内容联合优化及机器人控制的证据。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/psi-0-6/) · [源码](papers/psi-0-6/index.html) |
 | [Vision-Language-Action or World-Action? Just Action Models](papers/just-action-models/) | 详细解读 JAM 如何拆开骨干初始化、未来监督和推理模块，固定架构实验、冻结目标选择、缓存训练成本及证据边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/just-action-models/) · [源码](papers/just-action-models/index.html) |
 | [To Route or to Adapt? Multi-Expert Diffusion Planners in Unseen Regions](papers/route-or-adapt/) | 用 oracle 选择余量判断路由瓶颈，并比较地域权重混合、共享适配器修复与少量目标域回放；保留横向偏移下降但闭环退化的反例。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/route-or-adapt/) · [源码](papers/route-or-adapt/index.html) |
@@ -127,7 +130,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/fomovla/) · [源码](papers/fomovla/index.html) |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/egogenesis/) · [源码](papers/egogenesis/index.html) |
 
-当前共收录 76 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 77 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
