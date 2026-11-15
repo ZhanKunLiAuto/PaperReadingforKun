@@ -1,0 +1,180 @@
+.vision-recipes {
+  --vision-border: #6c9aab;
+  --vision-bg: #e8f2f4;
+  --vision-ink: #194b5b;
+  --wire: #8d9b98;
+  font-family: var(--font-sans);
+  container-type: inline-size;
+}
+
+.vision-recipes [hidden] {
+  display: none !important;
+}
+
+.vision-recipes__controls {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.vision-recipes__controls > span {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--ink-soft);
+  font-size: .82rem;
+}
+
+.vision-recipes__buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+@container (min-width: 30rem) {
+  .vision-recipes__buttons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.vision-recipes__buttons button {
+  min-height: 42px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: .85rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.vision-recipes__buttons button[aria-pressed="true"] {
+  border: 2px solid var(--vision-ink);
+  background: var(--vision-bg);
+  color: var(--vision-ink);
+  font-weight: 750;
+}
+
+.vision-recipes__buttons button:focus-visible {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
+.vision-recipes__map {
+  width: min(100%, 36rem);
+  margin-inline: auto;
+  padding: 18px clamp(9px, 3vw, 24px);
+  font-size: .86rem;
+  line-height: 1.5;
+}
+
+.vision-recipes__inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(8px, 2vw, 20px);
+}
+
+.vision-recipes__lane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  text-align: center;
+}
+
+.vision-recipes__lane::before {
+  content: "";
+  position: absolute;
+  inset: 4px 50% -13px auto;
+  border-left: 1px solid var(--wire);
+}
+
+.vision-recipes__lane::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -15px;
+  border: 4px solid transparent;
+  border-bottom-width: 0;
+  border-top: 6px solid var(--wire);
+  transform: translateX(-50%);
+}
+
+.vision-recipes__source,
+.vision-recipes__node,
+.vision-recipes__prior {
+  position: relative;
+  z-index: 1;
+  display: block;
+  max-width: 100%;
+}
+
+.vision-recipes__source {
+  padding-inline: 6px;
+  background: #fbfaf6;
+  font-weight: 700;
+}
+
+.vision-recipes__node {
+  width: 100%;
+  padding: 7px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.vision-recipes__node--dedicated {
+  border-color: var(--vision-border);
+  background: var(--vision-bg);
+  color: var(--vision-ink);
+  font-weight: 700;
+}
+
+.vision-recipes__prior {
+  padding: 4px 8px;
+  border: 1px dashed var(--accent-dark);
+  border-radius: 4px;
+  background: #fff1e8;
+  color: var(--accent-dark);
+  font-size: .75rem;
+}
+
+.vision-recipes__backbone {
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #f2f2eb;
+  text-align: center;
+}
+
+.vision-recipes__backbone > strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.vision-recipes__early {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.vision-recipes__early > .vision-recipes__node {
+  flex: 1 1 0;
+}
+
+.vision-recipes__next {
+  display: block;
+  margin-top: 8px;
+  font-size: .8rem;
+}
+
+.vision-recipes__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}

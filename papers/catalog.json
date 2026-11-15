@@ -1,6 +1,38 @@
 {
-  "updatedAt": "2026-11-02",
+  "updatedAt": "2026-11-15",
   "papers": [
+    {
+      "slug": "unbundling-multimodal-vision-encoding",
+      "title": "Unbundling Multimodal Vision Encoding",
+      "authors": [
+        "Ellis Brown",
+        "Chris Hoang",
+        "Shengyi Qian",
+        "Shang-Wen Li",
+        "Mike Lewis",
+        "Marjan Ghazvininejad",
+        "Luke Zettlemoyer",
+        "Lucas Beyer",
+        "Mengye Ren",
+        "Jakob Verbeek",
+        "Saining Xie",
+        "Hu Xu"
+      ],
+      "publicationDate": "2026-11-12",
+      "readAt": "2026-11-15",
+      "description": "拆开视觉预训练、视觉专用参数与融合位置，在相同训练算力下检验四种架构，解释早层视觉分支的问答收益、首 token 延迟与高分辨率反例。",
+      "tags": [
+        "多模态语言模型",
+        "视觉编码器",
+        "视觉问答",
+        "早期融合",
+        "视觉预训练",
+        "缩放规律",
+        "首 token 延迟"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2611.17334v1",
+      "href": "papers/unbundling-multimodal-vision-encoding/"
+    },
     {
       "slug": "supermimic",
       "title": "SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model",

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="Unbundling Multimodal Vision Encoding">
+  <meta name="citation_author" content="Ellis Brown">
+  <meta name="citation_author" content="Chris Hoang">
+  <meta name="citation_author" content="Shengyi Qian">
+  <meta name="citation_author" content="Shang-Wen Li">
+  <meta name="citation_author" content="Mike Lewis">
+  <meta name="citation_author" content="Marjan Ghazvininejad">
+  <meta name="citation_author" content="Luke Zettlemoyer">
+  <meta name="citation_author" content="Lucas Beyer">
+  <meta name="citation_author" content="Mengye Ren">
+  <meta name="citation_author" content="Jakob Verbeek">
+  <meta name="citation_author" content="Saining Xie">
+  <meta name="citation_author" content="Hu Xu">
+  <meta name="citation_publication_date" content="2026-11-12">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2611.17334v1">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2611.17334v1">
+  <meta name="description" content="拆开视觉预训练、视觉专用参数与融合位置，在相同训练算力下检验四种架构，解释早层视觉分支的问答收益、首 token 延迟与高分辨率反例。">
+  <meta name="keywords" content="多模态语言模型, 视觉编码器, 视觉问答, 早期融合, 视觉预训练, 缩放规律, 首 token 延迟">
+  <meta name="paper:read_at" content="2026-11-15">
+  <title>Unbundling Multimodal Vision Encoding · 视觉编码器的哪一部分值得保留？</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/unbundling-vision-encoding.css">
+  <script src="../../assets/paper-reading.js" defer></script>
+  <script src="../../assets/unbundling-vision-encoding.js" defer></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/unbundling-multimodal-vision-encoding/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">arXiv v1 · 2026-11-12</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">阅读地图</p><ol class="paper-map">
+  <li><a href="#thesis">视觉编码器留下了什么</a></li>
+  <li><a href="#concepts">跟着一个图块走</a></li>
+  <li><a href="#problem-chain">怎样算一笔公平的账</a></li>
+  <li><a href="#mechanism">四种架构与视觉分支</a></li>
+  <li><a href="#evidence">预训练与专用参数</a></li>
+  <li><a href="#placement">同样参数放在哪层</a></li>
+  <li><a href="#scale">换规模与语言底座</a></li>
+  <li><a href="#latency">首 token 能快多少</a></li>
+  <li><a href="#limits">两组会改变判断的对照</a></li>
+  <li><a href="#sources">原文与证据索引</a></li>
+</ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+  <p class="paper-kicker">Unbundling Multimodal Vision Encoding</p>
+  <h1 id="paper-title" class="paper-title">视觉编码器的哪一部分值得保留？</h1>
+  <p class="paper-subtitle">把“先学视觉”“给图像留参数”和“先编码再融合”拆开检验</p>
+  <div class="paper-byline"><span>Ellis Brown、Chris Hoang 等</span><span>Meta FAIR · 纽约大学</span><span>2026 年 11 月预印本</span></div>
+  <div class="research-purpose"><span class="research-purpose__label">总体判断</span><p><strong>在同一图像池、同一笔训练算力下，最值得保留的是早期只服务于图像的计算。</strong>一个随机初始化的视觉 Transformer 可以和多模态主干一起学，做到与先单独预训练相近的视觉问答成绩。进一步，把相近数量的视觉专用参数搬进主干前几层，成绩仍然接近。直接删掉这部分容量，再把同样多的参数平摊给图文，视觉问答会落后，读文字和图表尤其明显。结论的力度来自受控比较，适用范围也随比较条件而定。</p></div>
+  <p>长训练下，1.7B 主干配前置视觉编码器得 <strong>48.9</strong> 分，配主干内视觉分支得 <strong>49.2</strong>，仅做图块投影得 <strong>44.8</strong>。到 4B，三者是 54.5、54.3、51.7。视觉计算放在主干内外的名次互换，移除它的代价却在两档规模都存在。这比单独引用最高分更能说明论文的贡献。<small>〔表 26〕</small></p>
+</section>
+<section id="concepts" aria-labelledby="concepts-title">
+  <h2 id="concepts-title">跟着一个图块，看“编码”到底发生在哪里</h2>
+  <p>设想给模型看一张柱状图，问“五月的销量是多少？”它要读出月份和刻度，找到对应柱子，再把数值写成答案。这个例子用来解释计算路径；论文报告的是整组图表与文字识别任务的成绩。预训练时，一张 224 × 224 图像切成边长 14 像素的图块，排成 16 × 16 的网格，即 256 个视觉 token。图块只是带位置的一块像素，一个图块可能只包含半个数字。</p>
+  <p>常规的<strong>前置编码器</strong>让这 256 个位置先通过只处理图像的网络，汇集其他位置的信息，然后线性投影到语言主干的向量维度。<strong>直接投影</strong>则把各图块线性映射，加入位置信息，经归一化与可学习标量门控就送入主干。它仍有输入映射，也能在主干里聚合图块；论文所说的 encoder-free，指省去了那一大块视觉专用计算。<small>〔§2.1、附录 A.1〕</small></p>
+  <p><strong>融合边界</strong>是图文 token 第一次可以相互建立注意力关系的层。这里仍遵守序列掩码：同一图中的图块可以双向聚合，后面的文本可以读取前方图像和文本。模型只对文本位置计算预测下一个 token 的损失。当它根据柱子和刻度生成答案时，文本损失的梯度能沿注意力路径回到视觉参数；视觉分支由此获得与下游语言输出相关的训练信号。<small>〔§2.1、式 2–3〕</small></p>
+</section>
+<section id="problem-chain" aria-labelledby="problem-title">
+  <h2 id="problem-title">比较两种架构，先算清它们各自花掉的 FLOPs</h2>
+  <p>直接比较两个已发布模型时，其中一个可能用过规模庞大的图文对齐预训练，另一个可能用了更好的描述、更高分辨率或更长的训练。即使最后问答分数不同，也难以把差异归给编码器。作者自训所有对照组件，包括仿 Qwen3 的稠密语言主干。主实验用 1.7B 和 4B 主干，前置视觉网络采用同一款 27 层、约 0.4B 参数的 ViT。<small>〔§2、表 4〕</small></p>
+  <p><strong>全程训练算力</strong>把上游视觉预训练、可能存在的纯文本预训练、多模态训练相加。固定这笔 FLOPs，架构每处理一个 token 的成本不同，实际读到的 token 数也会不同。论文中的 token-equivalents 是“相同算力够同规模纯文本模型处理多少 token”的换算量。比如 1.11T 指预算等价量，不能解读为各模型都看到相同的 1.11 万亿个训练 token。后文的 TPP 是把等价 token 数除以主干的非嵌入参数数。统一的下游指令微调单列在预算外。<small>〔式 1、表 12〕</small></p>
+  <p>多模态阶段按<strong>序列数</strong>混合 70% 纯文本与 30% 图文，图文来自英文 MetaCLIP 1.2，统一使用 Qwen2.5-VL-32B 重写的描述。上游编码器使用同一图像池，涉及文字的上游目标默认使用原始网页替代文本。相同数据来源控制了“哪组多拿一套图片”，没有强求所有阶段见过完全相同的文本、样本次数或 token。<small>〔§2.2、附录 A.4〕</small></p>
+  <p>论文有两把尺。<strong>Avg. VQA</strong> 在 Cambrian-7M 上做三轮统一指令微调，默认把图像提到 448 × 448（1,024 个视觉 token），再等权汇总通用问答、知识、OCR 与图表、视觉感知四类共 16 项基准。<strong>Avg. Text</strong> 直接评估指令微调前的主训练检查点，将 12 项语言基准先按四类求均值，再平均。两列分数刻画的是各自协议下的能力。<small>〔§2.5、附录 B.1–B.3〕</small></p>
+</section>
+<section id="mechanism" aria-labelledby="mechanism-title">
+  <h2 id="mechanism-title">保留图文共享计算，同时给图块一条额外路径</h2>
+  <p>四种配方沿着三个问题排列。<strong>预训练 ViT</strong> 先单独学视觉，再接入主干联合更新。<strong>从零 ViT</strong> 保持完全相同的前置结构，从第一步就跟主干一起优化。<strong>直接投影</strong> 让图块尽早进入全共享网络。<strong>融合内分支（in-fusion）</strong> 也让图块从第一层进入主干，但在早期层给视觉 token 增加专用权重。由此，可以先比较“先学过没有”，再比较“视觉参数该留多少、放在哪里”。<small>〔图 1、表 1、图 4〕</small></p>
+<figure class="svg-figure vision-recipes" data-vision-recipes aria-label="四种视觉编码配方的计算路径">
+  <div class="vision-recipes__controls" data-recipe-controls hidden>
+    <span id="vision-recipes-prompt">切换配方，沿图像和文本两条路径找到专用参数。</span>
+    <div class="vision-recipes__buttons" role="group" aria-labelledby="vision-recipes-prompt">
+      <button type="button" data-recipe="prior" aria-pressed="false">预训练 ViT</button>
+      <button type="button" data-recipe="scratch" aria-pressed="false">从零 ViT</button>
+      <button type="button" data-recipe="free" aria-pressed="false">纯共享主干</button>
+      <button type="button" data-recipe="inside" aria-pressed="true">融合内专用层</button>
+    </div>
+  </div>
+  <div class="vision-recipes__map">
+    <div class="vision-recipes__inputs">
+      <div class="vision-recipes__lane">
+        <span class="vision-recipes__source">图像切块</span>
+        <span class="vision-recipes__node vision-recipes__node--dedicated" data-show-recipes="prior scratch" hidden>
+          27 层视觉专用 ViT
+          <span class="vision-recipes__prior" data-show-recipes="prior" hidden>载入上游预训练权重</span>
+          <span data-show-recipes="scratch" hidden>（随机初始化）</span>
+        </span>
+        <span class="vision-recipes__node" data-show-recipes="prior scratch" hidden>视觉特征线性投影</span>
+        <span class="vision-recipes__node" data-show-recipes="free inside">图块直接嵌入</span>
+      </div>
+      <div class="vision-recipes__lane">
+        <span class="vision-recipes__source">文本分词</span>
+        <span class="vision-recipes__node">词元嵌入</span>
+      </div>
+    </div>
+    <div class="vision-recipes__backbone">
+      <strong>主干前 8 层</strong>
+      <div class="vision-recipes__early">
+        <span class="vision-recipes__node">共享注意力与 FFN<br><small>图像、文本均使用</small></span>
+        <span data-show-recipes="inside" aria-hidden="true">＋</span>
+        <span class="vision-recipes__node vision-recipes__node--dedicated" data-show-recipes="inside">视觉增量投影与 FFN<br><small>仅图像使用</small></span>
+      </div>
+      <span class="vision-recipes__next">↓ 后续共享层 → 预测下一个文本词元</span>
+    </div>
+  </div>
+  <figcaption class="read-guide">
+    <strong>图 1 · 计算路径示意。</strong>
+    <span data-recipe-note data-show-recipes="prior" hidden>图像先经过单独预训练的 ViT，再进入图文主干。主对照在多模态阶段继续更新 ViT。</span>
+    <span data-recipe-note data-show-recipes="scratch" hidden>图像的前向路径与预训练 ViT 相同。两者的区别在训练起点，这个 ViT 从随机权重开始与主干共同训练。</span>
+    <span data-recipe-note data-show-recipes="free" hidden>图块嵌入后直接进入共享层。此后图像和文本使用同一组注意力和 FFN 参数。</span>
+    <span data-recipe-note data-show-recipes="inside">图块直接进入主干。前八层给视觉词元的投影和 FFN 输出分别加上专用分支的结果，图像和文本仍共用一次注意力计算。</span>
+    <span>示意对应 1.7B 主干，依据论文表 1、图 4 与公式（2）–（3）。</span>
+  </figcaption>
+  <span class="vision-recipes__status" data-recipe-status aria-live="polite" aria-atomic="true"></span>
+</figure>
+  <h3>一个视觉 token 在早期层中究竟多算了什么？</h3>
+  <div class="formula-card" aria-label="视觉专用分支的计算">
+    <div class="formula-card__label">融合内路由 · 式 2–3</div>
+    <p class="formula-card__equation">P(z) = W<sub>P</sub>z + m · ΔW<sub>P</sub>z</p>
+    <p class="formula-card__equation">h′ = h + F(N(h)) + m · ΔF(N(h))</p>
+    <p class="formula-card__caption">每个位置都经过共享投影和共享前馈网络。m 由该位置的模态直接确定，图块为 1，文本为 0。</p>
+    <p class="formula-card__intuition">第一式用于 Q、K、V、O 四个注意力投影。z 是相应投影的输入。第二式中 h 是残差流，N 是归一化，F 和 ΔF 同时读取归一化后的 h。图块取两条分支之和，文字只走共享分支。</p>
+  </div>
+  <p>以图中某个刻度为例，它的 key 和 value 可以带上视觉专用投影的修正，后续提问里的文字仍用共享 query 在同一次注意力计算中读取它。模型无需为图文再做第二次独立注意力，也无需学习一个路由器来猜 token 的模态。额外注意力投影和视觉 FFN 的输出投影都从零初始化，训练开始时额外路径的贡献为零，之后可随文本监督逐渐学出作用。纯文本请求跳过视觉分支，但联合训练仍会更新共享权重。<small>〔§5.1、附录 E.1〕</small></p>
+  <p>论文还有一个 <strong>FFN-only</strong> 变体，只添加视觉前馈分支。它让作者先固定约 0.4B 的额外参数，集中检验加在哪几层，随后再问给注意力分配一部分预算有无帮助。另一个对照 MoT 为不同模态分别使用一套权重；融合内方案保留每个图像 token 经过共享权重的路径。<small>〔图 4–5、表 23、25〕</small></p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title">
+  <h2 id="evidence-title">三组对照，分别回答先验、专用容量和位置</h2>
+  <h3>一、视觉必须先单独学吗？</h3>
+  <p>固定 1.7B 主干和 1.04 × 10²² FLOPs 总预算，拿出约 15% 先训练同一款视觉编码器。整机的 Avg. VQA 分别是：从零联合训练 <strong>49.0</strong>，图文对比学习 MetaCLIP <strong>47.5</strong>，视觉自监督 WebSSL <strong>49.3</strong>，两种描述生成目标 Cap 与 CapPa 为 <strong>48.3、47.2</strong>。把 MetaCLIP 冻住则得 45.5。WebSSL 在视觉感知类高于从零训练（55.5 对 51.1），在 OCR 与图表类低于它（39.8 对 43.4）。上游目标能改变擅长的任务，但这组结果没有给出稳定的平均问答优势。<small>〔图 2、表 16〕</small></p>
+  <p>也可能只是预训练挤占了联合训练预算。作者因此固定多模态阶段为 2.7 × 10²¹ FLOPs，把 MetaCLIP 上游计算当成免费。上游从 1.4 增到 9.0 × 10²¹ FLOPs 时，冻结编码器的 ImageNet 线性探针准确率从 80.4% 升到 84.4%，整机 Avg. VQA 两个端点却是 43.2 和 41.6，从零训练为 43.5。一个表征让线性分类器更容易认出物体，不足以预测它能否为语言模型保留问答需要的细节。<small>〔图 8、表 18〕</small></p>
+  <h3>二、拿回编码器的参数，直接扩大主干可以补上吗？</h3>
+  <div class="table-wrap" role="region" aria-label="表 2 等全程算力对照" tabindex="0"><table class="evidence-table"><thead><tr><th>1.7B 基础主干 · 表 2</th><th>Avg. VQA ↑</th><th>OCR 与图表 ↑</th><th>Avg. Text ↑</th></tr></thead><tbody>
+    <tr><td>从零 ViT，增加 0.4B 视觉参数</td><td>44.4</td><td>38.2</td><td>49.7</td></tr>
+    <tr><td>图块直接投影，无额外主干参数</td><td>39.0</td><td>25.2</td><td>50.7</td></tr>
+    <tr><td>直接投影，主干加宽 0.4B</td><td>38.6</td><td>29.3</td><td>51.3</td></tr>
+    <tr><td>直接投影，主干加深 0.4B</td><td>38.7</td><td>26.3</td><td>51.2</td></tr>
+  </tbody></table></div>
+  <p>各行同为 2.6 × 10²¹ FLOPs。视觉专用与直接投影相差 <strong>5.4 个 VQA 分数点</strong>，OCR 与图表相差 <strong>13.0 点</strong>。共享主干加宽以后，文字和图表子类有所恢复，语言总分也提高，视觉总分仍未追上。把 0.4B 参数用于每个文字位置，会改变计算如何分摊；单凭总参数量无法解释视觉差距。与其用混合验证损失概括模型好坏，不如单独检验任务：附录 D.4 的一个对照里，混合损失几乎相同，VQA 仍差 4.8 点。<small>〔表 2、图 15〕</small></p>
+  <h3 id="placement">三、为什么强调早层，而且只给图像？</h3>
+  <p>在同一 1.7B 主干、同一 0.4B 预算下，作者只移动额外视觉 FFN。放在 <strong>28 层中的前 8 层得 45.0</strong>；放到末 8 层得 <strong>35.1</strong>，均匀选 8 层得 <strong>37.6</strong>，拆窄铺遍全部层得 <strong>39.4</strong>。再固定前 8 层，允许所有 token 都用额外分支得 42.3，单纯加宽共享 FFN 得 40.1。前置 ViT 在这笔预算下为 44.4。这组对照同时说明，靠近原始图块、集中参数、限定服务对象都会影响结果。<small>〔表 3〕</small></p>
+  <p>一种合理解释是，图块在早层要把分散的字形、边缘和布局组织成后面可读的特征。更晚才投入专用计算，后续层利用这些特征的机会也变少。作者观察到融合内模型的视觉表示在早层变化较大，经过专用层后趋于稳定；直接投影模型的变化延伸到更多共享层。探针提供了与解释一致的观察，无法单凭这些变化确定模型学到了哪种字形算法。前 8 层是主消融找到的配置，更大主干的缩放实验会调整层数。<small>〔附录 E.4、G〕</small></p>
+  <h3 id="scale">换主干、延长训练，或者从已训练好的语言模型开始</h3>
+  <p>在 1.11T token-equivalents 的长预算下，从零 ViT、融合内完整分支和直接投影分别取得开篇列出的两组三个数字。1.7B 的融合内分支领先前置 ViT 0.3 点，4B 时落后 0.2 点。更短预算下二者可以拉开距离，例如 4B 的 31 TPP 对照中，前置为 47.8、融合内为 45.5。“接近”描述长预算结果和整体趋势，各个检查点仍有差别。<small>〔图 6、表 26–27〕</small></p>
+  <p>作者还单独训练了 0.6B 到 6.4B 的五档主干，视觉参数随主干一起扩展，并用模型规模和等价 token 数拟合 VQA。以其中 1.7B 至 6.4B 各档的 64 TPP 为参考点，拟合曲线估计，直接投影达到前置 ViT 同一 VQA 需要 <strong>2.6–3.1 倍训练 FLOPs</strong>，融合内约为 <strong>1.0–1.1 倍</strong>。纯文本损失的相应倍数都约为 1.0。这是特定拟合与参考点的等性能估计，不能直接换算为 GPU 小时或外推到更大模型。<small>〔图 7、表 29–31〕</small></p>
+  <p>更常见的工程起点是已经有一个语言模型。作者先用 1T 纯文本 token 训练 1.7B 主干，再继续训练至 1.33T 等价 token。融合内、从零 ViT、直接投影和免费 MetaCLIP 的 Avg. VQA 为 <strong>50.1、48.6、39.8、43.5</strong>。只复制前八层给视觉用的 MoT 达 48.5，复制全部层虽有 1.41B 视觉专用参数，却只有 43.3。即使起点是语言主干，早层视觉专用路径仍有价值；这项验证使用的是作者自训的一款底座。<small>〔图 9、表 33–34〕</small></p>
+  <h3 id="latency">移进主干，换来的是多久看到第一个输出 token</h3>
+  <p>一块 H200 上同时处理 16 个请求，每个请求有一张 448 × 448 图和 256 个文本 token。1.7B 主干配约 401M 视觉参数，前置 ViT 的首 token 延迟为 <strong>210 ms</strong>，完整融合内分支为 <strong>182 ms</strong>，仅 FFN 为 <strong>171 ms</strong>，对应约 13% 和 18% 的下降。直接投影最快，为 146 ms，但长预算 VQA 也最低。4B 的前置与完整融合内分别为 405 和 381 ms，降幅约 6%。<small>〔图 10、表 26、36〕</small></p>
+  <p>前置 ViT 先跑完一串较深的图像层，主干才能开始。融合内方案把视觉计算安排在较少、更宽的早层，缩短了这段串行路径。作者在同一套 eager 执行实现上取四次测量的中位数。首 token 之后的逐字生成、端到端完成时间，以及混合纯文本和图文请求时的连续批处理，都有各自的瓶颈；用这里的 13% 给所有请求估算加速会高估证据。<small>〔§6.3、附录 H.3〕</small></p>
+</section>
+<section id="limits" aria-labelledby="limits-title">
+  <h2 id="limits-title">两组能追平的对照，给“需要视觉容量”划出边界</h2>
+  <p><strong>共享计算花得更多，也能追上。</strong>附表 20 固定实际训练 token 数和恒定学习率，把预算约束放松。共享 FFN 增加 0.8B 参数、使用 6.3 × 10²¹ FLOPs，VQA 得 44.4；前置 ViT 增加 0.4B 参数、使用 4.7 × 10²¹ FLOPs，得 44.2。在这个设置里，专用计算提高的是达到相近分数的效率。直接投影模型完全可以通过更多共享资源学到有效视觉表示。<small>〔附录 D.2、表 20〕</small></p>
+  <p><strong>每个视觉 token 看见多少像素，也会改写结果。</strong>附表 21 固定输出 256 个视觉 token，使用该表的低分辨率指令微调协议。约 44M 的四层层次 MLP 将 640 × 640 输入逐级压缩成 16 × 16 网格，得到 40.2，与吃 224 × 224 输入的 401M 前置 ViT 持平；标准 224 输入的直接投影只有 36.9。OCR 与图表三者分别为 26.7、26.9、17.5。这组结果同时改了输入细节和压缩方式；MLP 自身也承担视觉专用计算。它说明轻量前端加高分辨率是一条可行路径，同像素、同 token 下应另行比较。<small>〔附录 D.3、表 21〕</small></p>
+  <p><strong>“视觉理解”在本文主要通过问答来测。</strong>在为图像匹配正确描述和困难负例的 SugarCrepe 对照上，多种方案的替换与交换子集均分接近。同图像池训练也特意排除了现成编码器带入额外数据知识的优势。结论最稳的范围，是以图像描述和文本训练的稠密主干，再经指令微调测静态图像问答。对超大稀疏 MoE、视频、多图交错、文字密集图像预训练，或直接采用已在更广数据上训练的编码器，这些实验都尚未给出同条件答案。<small>〔表 17、§8〕</small></p>
+</section>
+<section id="sources" aria-labelledby="sources-title">
+  <h2 id="sources-title">原文与证据索引</h2>
+  <p>本文数字据 53 页 arXiv v1 PDF 核对。不同表格使用不同预算或微调分辨率，文中差值按原表分数相减。计算路径图是依据论文重绘的机制示意，文中的柱状图问题用于说明 token 的作用。</p>
+  <ul class="source-list">
+    <li>Brown、Hoang 等，<em>Unbundling Multimodal Vision Encoding</em>，2026-11-12。<a href="https://arxiv.org/abs/2611.17334v1">论文记录</a> · <a href="https://arxiv.org/pdf/2611.17334v1">53 页原文</a> · <a href="https://unbundling.github.io/">作者项目页</a></li>
+    <li>训练协议、注意力掩码与预算口径见 §2、附录 A–B；专用分支的运算见 §5.1、式 2–3。<a href="https://arxiv.org/pdf/2611.17334v1#page=4">训练协议，第 4 页</a> · <a href="https://arxiv.org/pdf/2611.17334v1#page=8">融合内结构，第 8 页</a></li>
+    <li>同参数对照见表 2–3，上游探针见表 16–18，高分辨率与额外共享容量见表 20–21。<a href="https://arxiv.org/pdf/2611.17334v1#page=7">主对照</a> · <a href="https://arxiv.org/pdf/2611.17334v1#page=31">预训练目标</a> · <a href="https://arxiv.org/pdf/2611.17334v1#page=34">反例与对照设置</a></li>
+    <li>长预算、缩放、语言模型继续训练与首 token 延迟分别见表 26–27、30、33–34、36。<a href="https://arxiv.org/pdf/2611.17334v1#page=38">长预算</a> · <a href="https://arxiv.org/pdf/2611.17334v1#page=42">等性能计算</a> · <a href="https://arxiv.org/pdf/2611.17334v1#page=46">推理延迟</a></li>
+  </ul>
+</section>
+</main>
+<aside class="paper-rail" aria-label="阅读协作">
+  <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="marks-title"><h2 id="marks-title">划线追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文，可记录名词讲解、逻辑梳理或作图理解。当前标记 <strong data-mark-count>0</strong> 条。</p></section>
+  <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>连接本地写回服务后可保存到页面。离线评论仅存于当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+</aside>
+</div>
+</body>
+</html>
