@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **2026-11-16 · GR00T 2**　从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/groot-2/) · [源码](papers/groot-2/index.html)
+
 - **2026-11-15 · Unbundling Multimodal Vision Encoding**　对照四种图像编码路径，核对等算力的问答收益、免费预训练与高分辨率反例。[Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/unbundling-multimodal-vision-encoding/) · [源码](papers/unbundling-multimodal-vision-encoding/index.html)
 
 - **2026-11-02 · SuperMimic**：详解共享可微动力学、32 步解析策略梯度与 critic，核对千倍 GPU 时、训练动作零失败和真机迁移的证据边界；含训练／部署与想象时域两处机制交互。阅读：[ChatGPT Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/supermimic/) · [GitHub 源码](papers/supermimic/index.html)
@@ -54,6 +56,7 @@
 
 | 论文 | 解读主线 | 阅读链接 |
 | --- | --- | --- |
+| [GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation](papers/groot-2/) | 从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/groot-2/) · [源码](papers/groot-2/index.html) |
 | [Unbundling Multimodal Vision Encoding](papers/unbundling-multimodal-vision-encoding/) | 拆开视觉预训练、视觉专用参数与融合位置，在相同训练算力下检验四种架构，解释早层视觉分支的问答收益、首 token 延迟与高分辨率反例。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/unbundling-multimodal-vision-encoding/) · [源码](papers/unbundling-multimodal-vision-encoding/index.html) |
 | [SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model](papers/supermimic/) | 解读 SuperMimic 如何以共享可微动力学、短时域解析梯度和 critic 降低人形全身控制训练成本；核对千倍 GPU 时比较、训练动作零失败、受控 PPO 对照与真机迁移边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/supermimic/) · [源码](papers/supermimic/index.html) |
 | [Ψ-0.6: Adaptive Streams of Thought in a Unified Vision-Language World Model](papers/psi-0-6/) | 解释统一视觉语言世界模型的指针token、可组合预测、反事实光流和GRPO表示选择；区分能力统一、推理增益、内容联合优化及机器人控制的证据。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/psi-0-6/) · [源码](papers/psi-0-6/index.html) |
@@ -133,7 +136,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/fomovla/) · [源码](papers/fomovla/index.html) |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/egogenesis/) · [源码](papers/egogenesis/index.html) |
 
-当前共收录 78 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 79 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 

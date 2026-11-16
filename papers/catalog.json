@@ -1,6 +1,27 @@
 {
-  "updatedAt": "2026-11-15",
+  "updatedAt": "2026-11-16",
   "papers": [
+    {
+      "slug": "groot-2",
+      "title": "GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation",
+      "authors": [
+        "NVIDIA"
+      ],
+      "publicationDate": "2026-11",
+      "readAt": "2026-11-16",
+      "description": "从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。",
+      "tags": [
+        "GR00T 2",
+        "世界动作模型",
+        "跨本体迁移",
+        "灵巧操作",
+        "人类视频",
+        "机器人学习",
+        "强化学习"
+      ],
+      "sourceUrl": "https://research.nvidia.com/labs/gear/gr00t-2/",
+      "href": "papers/groot-2/"
+    },
     {
       "slug": "unbundling-multimodal-vision-encoding",
       "title": "Unbundling Multimodal Vision Encoding",

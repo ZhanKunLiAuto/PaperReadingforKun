@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="citation_title" content="GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation"><meta name="citation_author" content="NVIDIA">
+<meta name="citation_publication_date" content="2026-11"><meta name="citation_pdf_url" content="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf"><meta name="citation_public_url" content="https://research.nvidia.com/labs/gear/gr00t-2/">
+<meta name="description" content="从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。"><meta name="keywords" content="GR00T 2, 世界动作模型, 跨本体迁移, 灵巧操作, 人类视频, 机器人学习, 强化学习"><meta name="paper:read_at" content="2026-11-16">
+<title>GR00T 2：人手学来的技能，机器手怎样做出来？</title>
+<link rel="stylesheet" href="../../assets/site.css"><link rel="stylesheet" href="../../assets/groot-2.css">
+<script src="../../assets/paper-reading.js" defer></script><script src="../../assets/groot-2.js" defer></script>
+</head><body class="paper-page" data-page-kind="paper" data-page-path="/papers/groot-2/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">NVIDIA · 技术报告 · 2026 年 11 月</span></header>
+<div class="paper-doc"><nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">阅读地图</p><ol class="paper-map">
+<li><a href="#thesis">人手经验能迁移到哪一步</a></li><li><a href="#concepts">三种“没见过”</a></li><li><a href="#problem-chain">为什么动作不能照搬</a></li>
+<li><a href="#mechanism">动作怎样读取未来</a></li><li><a href="#training-mixture">三种数据与训练顺序</a></li><li><a href="#x-adapt-flow">交互：谁示范，谁执行</a></li>
+<li><a href="#post-training">接触纠错与高层代理</a></li><li><a href="#turbo-control">人形机器人的三个时钟</a></li><li><a href="#evidence">怎样读真机成功率</a></li><li><a href="#limits">能否推出部署可靠性</a></li><li><a href="#sources">对照原文</a></li>
+</ol></nav><main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title"><p class="paper-kicker">GR00T 2 · World-Action Models</p>
+<h1 class="paper-title" id="paper-title">人手学来的技能，机器手怎样做出来？</h1><p class="paper-subtitle">GR00T 2：用真实机器人检验未来视频预测的价值</p>
+<div class="paper-byline"><span>NVIDIA 技术报告</span><span>135 页 · 2026 年 11 月</span></div>
+<div class="research-purpose"><span class="research-purpose__label">总体判断</span><p><strong>GR00T 2 最有分量的贡献，是把“怎样做这项任务”和“这台机器人怎样运动”分开采集，再让机器人把两种经验合起来。</strong>人示范过怎样把滤纸装进漏斗，机器手只练过别的动作；经过对齐与联合训练，它在 20 次真机试验中有 13 次完成了从抓纸到放回水瓶的六个步骤。这比生成一段逼真的机器人视频多证明了一件事：来自人体的经验能改变机器人的实际操作结果。与此同时，做成过、能用几条示范学会、能在连续作业中自行恢复，是三个不同的门槛。本报告对前两个给出了直接证据；接近 97% 的长任务成绩还依赖纠正数据和外部代理。（§3.1–3.4，图 2、7、27）</p></div>
+</section>
+<section id="concepts"><h2>读任何一个“零样本”数字，先问缺的是哪种示范</h2>
+<p><strong>基础模型直接上机。</strong>在 Dexter-50，目标机器人是装有两只 22 自由度 Sharpa 手的 Tianji 双臂系统，简称 Dexter。测试任务在人的视频或 YAM 平行夹爪数据里出现过，却没由 Dexter 示范过。用预训练模型直接执行，测的是一个熟悉任务在新手上的迁移；加一条或五条 Dexter 示范微调，测的则是适应速度。（§3.1，附录 A.3）</p>
+<p><strong>为目标任务训练，但不遥操作目标机器人做这件事。</strong>这里允许人戴有传感器的手套演示新任务，也允许使用目标机器人做其他动作的数据。滤纸实验属于这个协议。它回答能否把昂贵的目标任务遥操作换成另一种采集途径；与“给基础模型一句话就能做”有不同的训练成本。（§3.2，附录 B.1）</p>
+<p><strong>策略只在仿真中学这个任务，再到真机测试。</strong>论文还从一段人的视频重建场景与动作，训练能访问仿真状态的专家，再用专家生成的轨迹训练看图像的策略。真实任务数据可以为零，但重建、训练专家和生成数据的成本仍在。三种协议的共同点是节省了某种真机示范，不宜把它们的成功率合并统计。（§4.4.4，附录 B.5）</p>
+</section>
+<section id="problem-chain"><h2>人和机器人共享物体的变化，却不共享手指的动作</h2>
+<p>把纸放进漏斗，看上去是一个技能。对于人和机器手，“纸沿贴进漏斗内壁”这个可观察结果相似；为了做到这点，手腕要转过多少、两指要张开多远，却取决于手的尺寸、关节结构和相机位置。互联网视频再多，也不会自动给出某台机器人每一步该发的电机指令。反过来，如果每换一种手，每项任务都重新遥操作一遍，采集成本又会随任务数和硬件种类一起增长。</p>
+<p>世界—动作模型（WAM）的办法，是把“接下来物体和手会怎样动”也设成学习目标。只有画面的轨迹能教未来的视觉变化；带身体状态和动作的轨迹还能教机器人如何产生变化。关键检验有两个：增加人的视频后，<em>真机</em>是否变好？人的任务示范和目标机器人的通用经验分开给，<em>缺失的组合</em>能否执行？图 10 和图 27 分别回答这两问。它们比单看预测视频更有说服力，却没有独立证明推理时必须生成每一个视觉 token。</p>
+</section>
+<section id="mechanism"><h2>一套模型怎样接上不同的身体</h2><h3 id="joint-prediction">一段动作怎样读到它所对应的未来画面？</h3>
+<p>以给玩具卡车装轮子为例（以下视角说明是对机制的示意）。头部相机能看到车身和车轮，腕部相机则提供夹爪附近的局部视角。每次预测时，模型读取最多四路相机过去 0.8 秒的图像（5 Hz，每路五帧，224 × 320 像素）、当前机器人自身状态和语言指令。冻结的 Wan 2.1 视频编码器压缩画面，每个视角的每个潜在时间帧得到 280 个视觉 token；视角标记告诉模型它们来自哪台相机。冻结的 Cosmos-Reason1 编码指令，通过交叉注意力给主模型提供条件。每种机器人有自己的小型编码器和动作解码器，因此能让不同关节数、不同夹爪的机器人共用一个从 Cosmos-Predict2.5-2B 初始化的主干。<small>（§2，附录 I.1）</small></p>
+<p>训练时，录像里接下来如何装轮子、操作者真正发出了哪些动作都已知。模型给未来视频的潜在表示和动作序列加噪，学习在不同噪声水平往真实样本移动的方向，这就是流匹配。视频 token 可以跨时间、跨相机读取彼此；动作 token 还可以读取正在去噪的未来视频 token。因此，表示“轮子正在靠近车轴”的视觉信息可以直接参与计算同一时段的夹爪动作。部署时未来画面尚未发生，模型从噪声联合生成这两类输出；典型设置做 1–2 次视频去噪、2–4 次动作去噪。需要观看时才把视频解码为像素，控制器直接取连续动作。机器人执行时，下一次预测再读取相机拍到的真实结果，手指滑开或轮子偏转才有机会被纠正。<small>（§2；附录 F 图 46、I 图 60）</small></p>
+<div class="formula-card" aria-label="联合训练损失的示意"><div class="formula-card__label">两种监督从哪里来</div><div class="formula-card__equation">L = λ<sub>v</sub> L<sub>video</sub> + m<sub>a</sub> λ<sub>a</sub> L<sub>action</sub></div><p class="formula-card__caption">这是对 §4.1 训练规则的简写。L<sub>video</sub> 和 L<sub>action</sub> 分别衡量视频、动作的流匹配误差，λ 是各自权重，m<sub>a</sub> 表示相应动作标签是否有效。缺少有效动作监督时，这部分不计入损失，视频仍提供学习信号。模型因此能从一次没记录机器指令的人类操作中，学到物体在接触后通常怎样移动。</p></div>
+<p>“动作能读未来”说明模型有这条信息通路。它对成功率的贡献究竟来自预训练时多了视觉监督，还是推理时确实需要生成未来，作者在 §5 仍列为开放问题。与 GR00T 1.7 的对照同时改变了主干和初始化，无法单独量出未来视频预测目标的因果效应。<small>（附录 B.1.5，§5）</small></p>
+
+<h3 id="training-mixture">三类示范，各自提供机器人缺少的哪一种信息？</h3>
+<ul>
+<li><strong>人的第一视角录像提供场景与交互的覆盖面。</strong>Human-1M 原始规模约 100 万小时，GR00T 2 采用其中 402,730 小时、约 1,375 万段，涉及超过 5.15 万名采集者和 12.3 万个场景。人类手部跟踪可以在标签可靠时提供手势轨迹。受控数据中约 3,000 小时专门匹配机器人的头部、腕部视角与动作速度，用更少的外观和节奏差异支持迁移。<small>（§4.2.1，附录 C.1）</small></li>
+<li><strong>手持夹爪 UMI 提供接近机器人格式的任务示范。</strong>人握着带腕部相机和张开宽度编码器的夹爪做事，系统能记录末端位姿和夹爪宽度。UMI-10K 共 10,184 小时、94.2 万段、2,897 个任务。它保留自然操作速度，也留下一个映射问题：人手实际到达的轨迹与机器人应该下发的指令不同；机器人负载及执行滞后会使两者分离。<small>（§4.2.2，附录 E.3，表 10、16）</small></li>
+<li><strong>机器人遥操作为可执行动作提供参照。</strong>23,500 小时、约 116 万段轨迹覆盖双臂 YAM 平行夹爪、多指 Sharpa 和 Wuji、G1 人形机与单臂 Franka。训练按来源采样；例如 Sharpa 与 Wuji 合占机器人数据约 18% 的时长，却得到约 35% 的机器人样本，让少数灵巧手数据在训练中有足够权重。<small>（§4.2.3，表 11）</small></li>
+</ul>
+<p>三阶段训练依次改变模型需要学会的事情。第一阶段每次看单个视角，用大量人类录像及辅助机器人录像预测未来，建立对抓取、倾倒、移动等过程的视觉先验。第二阶段加入按本体区分的状态与动作模块，尽可能使用多视角，在视频和有效动作上联合训练。第三阶段保留联合目标，提高机器人示范尤其是 YAM 的采样比重，让最终的输出更贴合机器人的控制空间。Flora 给人和机器录像切分动作时间段，并为各段配上带对象、手别和目标的语言指令，使语言监督能落在具体动作上。主预训练使用 1,024 块 GB300；后文“几条示范就能学会”的边际成本建立在这项预训练投入之上。<small>（§4.1–4.2、4.7.1，附录 C.4）</small></p>
+
+<h3 id="embodiment-transfer">为什么从未在 YAM 上示范装卡车，也能让 YAM 学装轮子？</h3>
+<p>作者把目标任务的示范与目标机器人的经验分开收集。人拿 UMI 做卡车装配，教给模型轮子该怎样对准车轴；在同一个 YAM 工位录制其他活动，则告诉模型 YAM 的夹爪长什么样、指令与真实位移之间有什么关系。用两种数据共同微调后，给模型同一张 YAM 起始照片，未来视频里出现的是 YAM 的机械臂；只用 UMI 示范微调时，未来视频却冒出人的手臂和手持夹爪。这验证了机器人经验会改变视觉预测。是否能把轮子装上，仍由独立的真机试验判定。<small>（图 14，附录 E.3.1–E.3.2）</small></p>
+<p>迁移还需要对齐两套设备的坐标。研究者把 UMI 的鱼眼腕部画面重投影至近似 YAM 的视野和方向，把动作换算到 YAM 夹爪的抓取点并统一开口尺度。取消这一步视角对齐后，玩具卡车装配和测试板拆解仍分别完成了平均 79% 和 76% 的子步骤，但两项都没有一次完整成功；采用对齐视角后，完整成功分别达到 60% 和 50%。机械臂能把手移到大致位置，却会在螺孔或螺母附近积累足以让整条任务失败的误差。<small>（附录 E.3，表 17）</small></p>
+<p>灵巧手用不同的途径建立对应关系。动捕手套路线上，先将人体腕部轨迹置于机器人坐标系，用逆运动学使机器手指尖保留人的捏合关系，再把转换后的任务示范与目标机器人做其他动作的轨迹按 1∶1 混合。与 XHAND 机械结构匹配的 DexUMI 外骨骼可以直接记录关节和指尖受力，该路线后训练可以只用外骨骼示范。策略把期望关节力矩随动作输出，用于调节手指柔顺性；部署时模型本身不读取触觉。换成结构不同的 Sharpa 手，又要重定向指尖、重投影腕部视图，这时只迁移位置标签。“一段人类视频”的途径则要先重建物体与手的运动，在仿真中训练专家，生成约 1,500 段仿真轨迹后微调 WAM。不同路线节省的都是目标任务的真机示范，所需的传感器、标定、通用真机数据与计算投入各不相同。<small>（§4.4，附录 B.1、B.3–B.5）</small></p>
+
+<figure class="svg-figure gr2-transfer" id="x-adapt-flow" aria-labelledby="gr2-flow-title">
+  <div class="gr2-transfer__header">
+    <h3 id="gr2-flow-title">谁演示了放滤纸，谁在测试时放滤纸？</h3>
+    <div class="gr2-transfer__controls" aria-label="切换 X-Adapt 阶段" role="group" hidden>
+      <button type="button" data-gr2-stage="train" aria-pressed="true" aria-controls="gr2-train">看训练数据</button>
+      <button type="button" data-gr2-stage="deploy" aria-pressed="false" aria-controls="gr2-deploy">看真机执行</button>
+    </div>
+  </div>
+  <div class="gr2-transfer__panel" id="gr2-train" data-gr2-panel="train">
+    <h4>后训练时，两种来源各提供一部分经验</h4>
+    <div class="gr2-transfer__pair">
+      <div class="gr2-transfer__node gr2-transfer__source">
+        <strong>人手 × 放滤纸</strong>
+        <span>100 条任务示范。头部和腕部相机拍下操作，手套和腕部追踪器记录运动。</span>
+      </div>
+      <div class="gr2-transfer__node gr2-transfer__robot">
+        <strong>机器手 × 其他操作</strong>
+        <span>通用遥操作数据记录这台 Tianji 的外观和动作，也让模型看到机器手运动时画面怎样变化。</span>
+      </div>
+    </div>
+    <div class="gr2-transfer__branch gr2-transfer__branch--merge" aria-hidden="true"></div>
+    <div class="gr2-transfer__middle">
+      <strong>按 1∶1 的概率采样，共同微调 GR00T 2</strong>
+      <span>人手画面保留原貌。离线校准把腕姿放入机器人基座坐标系，逆运动学把指尖目标转为机器手关节动作。</span>
+    </div>
+    <div class="gr2-transfer__note"><strong>训练中空缺的组合</strong>　机器手 × 放滤纸。目标机器人没有这项任务的遥操作轨迹。</div>
+  </div>
+  <div class="gr2-transfer__panel" id="gr2-deploy" data-gr2-panel="deploy">
+    <h4>测试时，由同一台 Tianji 在漏斗前执行</h4>
+    <div class="gr2-transfer__input">
+      <strong>机器手 × 放滤纸</strong>
+      <span>输入当前机器人视角、机器人状态及任务指令。人类演示只用于训练。</span>
+    </div>
+    <div class="gr2-transfer__arrow" aria-hidden="true">↓</div>
+    <div class="gr2-transfer__middle">
+      <strong>微调后的 GR00T 2 联合预测</strong>
+    </div>
+    <div class="gr2-transfer__branch gr2-transfer__branch--split" aria-hidden="true"></div>
+    <div class="gr2-transfer__pair">
+      <div class="gr2-transfer__node gr2-transfer__source">
+        <strong>未来画面</strong>
+        <span>预测机器手如何把纸放进漏斗。这一支展示模型预期的场景变化。</span>
+      </div>
+      <div class="gr2-transfer__node gr2-transfer__robot">
+        <strong>机器人动作</strong>
+        <span>腕部和手指动作送往真机。评分依据实际完成的有序步骤，人工接管计为失败。</span>
+      </div>
+    </div>
+    <div class="gr2-transfer__note"><strong>13 / 20 次成功（65%）</strong>　图 27 的滤纸任务真机结果。一次成功要求依次完成全部六步，包括润湿滤纸和放回水瓶。</div>
+  </div>
+  <figcaption class="read-guide">以传感器记录的人手示范迁移到 Tianji + Sharpa 为例。分合线表示后训练的数据来源或推理时的输出，成功率取自真机测试。见附录 B.1.1–B.1.5、图 26–28。</figcaption>
+  <span class="gr2-transfer__status" role="status" aria-live="polite" aria-atomic="true"></span>
+</figure>
+
+<p><strong>把最后那格交给真机检验。</strong>同样没有目标任务的遥操作示范，滤纸放置、滴管移液、棉签点触载玻片、传送带分拣抛投的成功率分别是 65%、30%、10%、50%，每项 20 次。滤纸做成 13 次，点触载玻片只做成 2 次，两者都算“迁移成功过”，距离可重复使用却很不同。拿掉人类任务示范，四项全是 0%；保留示范和后训练配方，只用目标机器人的数据预训练，则前三项仍是 0%，抛投 20%。这些对照表明任务示范和跨本体预训练都提供了有用信息；后一个对照同时改变了来源、动作多样性与数据规模。<small>（附录 B.1.4–B.1.5，图 27）</small></p>
+<h3 id="post-training">动作大体正确后，怎样让接触和长任务更可靠？</h3>
+<p>插头已经移到插座附近时，微小偏差就足以阻止插入。监督微调只告诉机器人示范者当时做了什么；实时交互还能告诉它某一次调整最终是否插好。作者在动作去噪的待执行坐标中加入探索噪声，视频去噪在给定初始潜变量后保持确定。对同一任务与初始布局重复尝试，用本组其他试验的结果和同一布局的历史成绩估算基准。即使这一组全失败，只要历史上有成功，这组尝试就会得到负的相对反馈。作者另试两条路线：固定基础策略，学习小幅残差纠偏；或者保留 GRPO 探索得到的成功轨迹，从与 GRPO 相同的监督微调起点重新学习这些轨迹。后一种自模仿把试错发现的有效动作变成新的训练示范。<small>（§3.3，附录 F.1，式 12、16）</small></p>
+<p>长任务还会出错在“接下来该做哪一步”。上层多模态代理可以查看相机、检查已装的零件、调用代码技能扶正零件，再把接触操作交还给 GR00T 2。另一种接口把抓取点、释放点和操作臂标在相机图像上，给模型一个具体的“哪里”。这种点条件通过额外训练获得，已有示范的夹爪状态自动提供标签；倾倒角度、物体最终朝向等要求仍须由语言和已有技能表达。这里有两套不同的系统能力：代理负责跨步骤的记忆、验证与重试，WAM 负责根据短时观测生成局部动作。<small>（§3.4，图 6–8，附录 G.1–G.2）</small></p>
+
+<h3 id="turbo-control">Turbo 减少了什么，人形机器人由谁维持平衡？</h3>
+<p>标准版用 Wan 2.1 将视频时间维压缩 4 倍、每个空间轴压缩 8 倍。Turbo 换成 Wan 2.2，把每个空间轴的压缩提高到 16 倍，因而同一画面的空间潜网格只剩四分之一。它仍用 20 亿参数主干联合预测未来视频与动作，动作规划长度也不因压缩而缩短。经过任务微调，两者在双臂 YAM 长任务上的平均成功率分别为 71.7% 与 65.0%，多指手长任务则是 68.6% 与 34.3%。这提示精细接触可能对视觉细节更敏感，模型间比较还不能隔离视觉分辨率本身的作用。<small>（§2、§5，表 1）</small></p>
+<p>在 G1 上，Turbo 约每秒规划一次 1.6 秒的全身运动，输出 80 个供 SONIC 使用的运动表示以及夹爪宽度。SONIC 在另一块板载计算单元上以 50 Hz 将运动表示和当前身体状态转换为关节目标，关节伺服再以 1,000 Hz 追踪目标。Jetson Thor（120 W）上报告的 124 毫秒是单次模型预测的中位耗时，既不同于端到端从采图到执行的延迟，也不同于上述几个控制频率。机械臂部署中，机器人还可在旧计划执行期间算新动作块，训练时对已承诺执行的动作前缀加噪，部署时提供干净前缀，让两段动作衔接并保留根据新画面纠错的空间。<small>（图 9、19、60，§4.6，表 27–28）</small></p>
+</section>
+<section id="evidence">
+  <h2>从看过一个任务，到换一双手也能做成，中间还差多少？</h2>
+  <h3>把人类视频放大，收益能在真机上测到</h3>
+  <p>图 10 固定 GR00T 2 架构和 Dexter 遥操作数据，改变 Human-1M 数据占比。在 72 项测试中，50 项未出现在 Dexter 自身的任务数据里（与下文 Dexter-50 重叠 47 项），另外 22 项改变指令类型。这里的 100% 指时间步过滤后约 8.44 万小时的多视角子集，不是主模型使用的全部 40.27 万小时。人类数据占比从 0%、1%、10% 增至 100% 时，真机成功率依次为 <strong>18%、27%、28%、41%</strong>。每项在真机上跑 3 次，由操作员判定是否成功。另一组评估让模型从录像起点生成后续视频，由视觉语言模型判断是否完成，成功率为 30%、33%、38%、51%。例如全量模型的视频成功率比真机高 10 个百分点。画面预测得像是完成了任务，手指在真实物体上仍可能失手。（§4.2.1，图 10）</p>
+  <p>按任务配对，真机成功率从 0% 组到全量组提高 23.1 个百分点（95% 置信区间 13.4–33.3），1% 到 10% 间的差异则落在噪声范围内。每档只训练一个模型，区间没有涵盖重复训练的波动。增加人类经验能在相同数量的机器人轨迹上带来收益，进一步分解其来源还需要等算力对照。（附录 C.1.5）三个非零组先从共同的人类视频预训练检查点出发，再各自训练约半个 epoch，数据越多，相应的训练步数也越多。0% 组连这个共同阶段都跳过。后续各组都训练三轮 Dexter 数据：非零组从各自的人类子集中采样，人类样本占 55%、Dexter 占 45%；零组只用 Dexter。真机测试固定按 0%、1%、10%、100% 顺序进行，工位相同，但顺序效应没有单独排除。四个点给出了这套配方的结果，对扩大一倍数据能换回多少真机成功率，还没有可外推的规律。</p>
+  <h3>五条示范的 95% 有一个事先要读的分母</h3>
+  <p>Dexter-50 中的 50 项任务在 YAM 平行夹爪遥操作或人类数据里出现过，却没有对应的 Dexter 任务示范。直接给语言指令，平均成功率为 <strong>40%</strong>，其中 40 项至少做成过一次。“40 项曾成功”反映覆盖面，“40% 的试验成功”反映重复执行的可靠性。改为每项各给 1 条、5 条 Dexter 遥操作轨迹后，成功率分别变为 <strong>71%、95%</strong>。作者按每条轨迹切出 100 个窗口，在冻结的预训练权重上用 LoRA 做任务级微调，并让原模型损失较大的窗口更常被采到。五条轨迹不到三分钟，一项微调在单张 RTX 5090 上约需半小时。（§3.1、附录 A.3，图 2、24–25）</p>
+  <p>图 2 注明作者<strong>只纳入五条示范后成功率至少达到 80% 的任务</strong>。因此，95% 回答的是模型已经可以快速学会的这类任务，给足五条后有多稳。该实验没有给出任意新任务进入这个集合的概率。揭开茶壶盖时，机器人零样本就会伸向盖子，却在抬起时失败。加入少量示范后完成任务，与少量本体数据补齐关键接触动作的解释一致。另一套 Dexter 评估覆盖 49 项操作和 22 项新指令，各模型交错运行、每项 3 次、操作员盲判。GR00T 2 零样本成功率为 49.8%，Turbo 为 36.6%，π₀.₅ 为 26.3%，GR00T 1.7 为 18.3%。（表 3）</p>
+  <h3>长任务要看最后一步，还要看它从哪里开始</h3>
+  <p>表 1 逐项平均，进度是一次试验中已完成多少分级步骤，成功率是整项达标的试验比例。两个数字均以 0–100 表示。下表为用目标任务数据后训练后的实机成绩，表中“其他模型”指作者比较的前代或外部基线，排除同系列 Turbo。</p>
+  <div class="table-wrap" tabindex="0" aria-label="横向可滚动的后训练对照表"><table class="evidence-table"><thead><tr><th scope="col">平台与任务</th><th scope="col">GR00T 2<br>进度 / 成功率</th><th scope="col">Turbo<br>进度 / 成功率</th><th scope="col">其他模型最高平均成功率</th></tr></thead><tbody>
+  <tr><th scope="row">YAM 平行夹爪，6 项</th><td>81.3 / 71.7%</td><td>77.9 / 65.0%</td><td>12.5%（π₀.₅）</td></tr>
+  <tr><th scope="row">Dexter 灵巧手，7 项</th><td>86.6 / 68.6%</td><td>62.0 / 34.3%</td><td>0.7%（GR00T 1.7）</td></tr>
+  </tbody></table></div>
+  <p>成绩说明基础模型经过目标任务训练，可以连贯完成此前基线常中途停下的装配。Turbo 在 YAM 上让出 6.7 个百分点，在 Dexter 上让出 34.3 个百分点。表里还有一处改变比较条件的例外。Dexter 拼卡车一项，GR00T 2 与 Turbo 使用了较容易的新版起始摆放，其中 GR00T 2 的进度 98、成功率 65%。在旧布局上，同一模型进度仍达 94，却只有 7/20 次完整成功。这一行高进度掩盖了末段困难，新版结果也不能与旧版基线作同条件比较。（表 1 及表注）</p>
+  <h3>真实试错和代理纠错，各补上哪类失败？</h3>
+  <p>先看单个接触动作。插网线时作者用网络是否连通判定成功，避免只看插头外观。每种方法每项测 50 次，真实交互的组相对策略优化（GRPO）将管件旋合、双销对孔、插网线、插充电器的成功率分别从 66/58/76/40% 提高到 86/72/92/94%。其中管件和充电器两项达到作者的双侧 Fisher 检验 5% 显著水平。另一种做法是把 GRPO 探索到的成功轨迹挑出来，从同一个监督微调起点重新模仿，无需为这次更新另采训练轨迹，四项达到 88/98/94/96%。特别是双销对孔从直接 GRPO 的 72% 升到 98%，显示探索找到的好轨迹也可以提供比二元成败更细的动作监督。（图 5、附录 F.1.1、F.4）</p>
+  <p>再看 24 步的 Hot Wheels 小车装配。预先摆好零件，监督微调策略有 85% 成功率。换成每回合由人把零件随机倒在桌上，成功率只剩 23/100。维持倒散起点，加入人在训练阶段、策略失误时示范的纠正轨迹（DAgger），升到 78/100。再加上监看画面、调用恢复程序并把控制交还给 GR00T 2 的代理，才达到 97/100。另两项玩具飞机和拖拉机装配同样每项每组测试 100 次，完整系统分别达到 98/100、97/100，有人出手帮忙就算失败。这组递进比较同时显示了学习接触动作和发现、修复中间错误各自的价值。三项最终仍失败的 8 次里，有 3 次螺丝只拧进去一部分，策略与代理却都把它判断为完成。（图 7、附录 G.1、§5）</p>
+  <p>代理也可以直接把“用哪只手、抓哪一个、放在哪里”画到观察图上。在 YAM 垃圾分类里，逐步语言引导有 0/20 次将五件物品全部正确分类，增加抓取点和释放点后为 17/20。Dexter 同类任务从 1/20 升至 9/20。点告诉策略要到哪个位置，翻转物件或倒出内容仍依赖训练过的操作能力。作者也指出 YAM 长任务的三种配置没有全都在相同工位和操作员下评测。按三组长任务等权平均，语言与语言加点的全程成功率为 1.7% 和 53.3%。（§3.4、图 8、表 22）</p>
+  <h3>走动的人形机器人还有另一层控制器</h3>
+  <p>在人形 G1 上，Turbo 约每秒决定一次接下来的 1.6 秒全身运动，SONIC 以 50 Hz 解码出关节位置目标，底层控制器以 1000 Hz 跟踪。在相同示范和 SONIC 的爆米花任务上，Turbo 在 48 次试验中次次按要求装好两杯，GR00T 1.7 成功 83.3%。但同时涉及蹲下、用脚擦地和处理毛巾的完整清洁只从 13/30 升到 14/30。演示视频中一次完整的全身动作，背后可能对应相距很远的任务可靠性。（图 9、表 25）</p>
+<p>仿真还可以扩充场景：保持一次真人遥操作记录的全身动作，通过拟合桌面和物体位置，让同一个动作在不同布置下确实能抓到物体，再渲染成功轨迹。在分布外桌面取放上，两种模型仅用真机数据时都只成功 2/30 次；加仿真数据后，Turbo 是 19/30，GR00T 1.7 是 12/30。两者都从仿真获益，但两个混合训练模型之间的差距未达常用显著水平（双侧 Fisher 检验 p ≈ 0.12），不能据此断言所有 WAM 都更能利用仿真。（§3.5、附录 H.3，表 26）</p>
+</section>
+<section id="limits">
+  <h2>要判断它能否部署，还缺哪几种测量？</h2>
+  <p><strong>可靠性要把漏检和等待算进去。</strong>论文中后训练基准的每任务试验最多约 20 次，足以看到相差几十个百分点的模型，难以分辨 95% 与 99% 的操作可靠性。作者估算，在显著性 0.05、检验功效 80% 的双侧检验中，分辨这两个比例约需每种策略 285 次试验。视觉引导的 YAM 垃圾分类中，代理一次决策中位耗时 7.5 秒，实机一局等待代理的时间占比中位数为 38%。评估一套系统能否长期值守，应一起记录整项成功率、停机等待、人工复位和任务完成时间。（§5、表 24）</p>
+  <p><strong>仿真能够筛选模型，最难的接触仍需真机裁决。</strong>作者为真实工位重建场景，在 25 个 YAM 任务上比较 14 个同系列检查点。真实和模拟的任务进度、成功率、Elo 分别有 Pearson 相关系数 0.93、0.92、0.93，适合先用仿真挑候选，再上真机分高下。这是跨检查点的整体相关；用它推断另一类训练方法的极小收益或紧密装配的误差，还需要相应配对测量。作者在真实工位用同场景盲测和按任务重采样的区间控制漂移，GR00T 2 相对 π₀.₅ 高 236 Elo（95% 区间 171–325）；换算出的约 80% 是双方对阵中预期胜出的比例，与独立完成任务的概率有不同含义。（§4.3、4.5.2，图 18、表 13）</p>
+  <p><strong>还无法给每种数据定价。</strong>视频、手持示范和真机遥操作分别提供多样性、动作相关性和本体控制经验。现有实验能测出混合训练的收益，但要给新项目分配预算，仍缺在固定计算和采集预算下，分别增加一种数据时的真机表现，以及模型迁入全新硬件时所需的最低校准与采集成本。对于抓捏和装配，还要区分从演示学到应施多大力，与运行时能否感知滑动或阻滞。作者明确指出当前模型没有将触觉作为策略输入。（§5）</p>
+</section>
+
+<section id="sources"><h2>原文与证据索引</h2><p>以用户提供的 135 页英文技术报告为准。数字来自作者实验；图中流程为据原文重绘的机制示意，未自行复现实机。报告以 NVIDIA 为团体署名。</p>
+<ul class="source-list">
+<li><a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf">完整技术报告（PDF）</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/">NVIDIA GEAR 项目页与任务演示</a></li>
+<li><a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=5">§2：视频与动作的注意力方向</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=14">§4.1–4.2：训练阶段</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=60">附录 C.1.5：扩量实验的初始化、任务重叠和置信区间</a></li>
+<li><a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=6">图 2 与表 1：筛选规则和布局脚注</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=41">表 3 与附录 A.3：盲测和 LoRA</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=46">图 27：人手到 Dexter 的四项真机对照</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=79">附录 E.3：相机对齐消融</a></li>
+<li><a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=91">附录 F.4：四项真实接触任务</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=98">附录 G：长程恢复与视觉引导</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=109">附录 H–I：人形机和推理延迟</a> · <a href="https://research.nvidia.com/labs/gear/gr00t-2/assets/gr00t2_whitepaper.pdf#page=26">§5：作者列出的开放问题</a></li>
+</ul></section></main>
+<aside class="paper-rail" aria-label="阅读协作"><section id="paper-mark-panel" class="paper-mark-panel"><h2>划线追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文可记录名词讲解、逻辑梳理或作图理解。当前标记 <strong data-mark-count>0</strong> 条。</p></section>
+<section id="paper-comments" class="paper-comment-panel"><h2>个人评论 <span data-comment-count>0</span></h2><p>连接本地写回服务后可保存到页面。离线评论仅存于当前浏览器。</p><button type="button" class="paper-comment-new">写一条章节评论</button></section></aside></div></body></html>
