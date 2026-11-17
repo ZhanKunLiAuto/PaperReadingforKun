@@ -1,4 +1,4 @@
-<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal comments and clarifies concise-page compatibility. -->
+<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal comments and preserves collaboration anchors in detailed readings. -->
 
 # HTML 协作契约
 
@@ -7,7 +7,7 @@
 ```text
 paper-doc
 ├── paper-sidebar        内容阅读地图
-├── paper-main           精炼正文；按用户需求深入
+├── paper-main           详细正文；充分解释方法、证据与边界
 │   ├── section#thesis
 │   ├── section#concepts
 │   ├── section#problem-chain
@@ -22,7 +22,7 @@ paper-doc
 
 稳定 `section id` 用于写回、目录和刷新定位；可见入口文案按当次论文生成。
 
-保留 `thesis` 至 `sources` 的七个正文 section 作为 `paper-main` 的直接子元素，以兼容现有校验、阅读位置与章节评论逻辑；`paper-mark-panel` 和 `paper-comments` 仍放在 `paper-rail` 内。稳定锚点不等于七个长章节。`concepts` 和 `problem-chain` 通常各用一个短段交代必要概念和旧瓶颈，避免与开头或机制重复，不要求独立图表。不要使用空 section、隐藏占位或重复文字凑契约。已有页面精简时保留被标记、评论引用的锚点和相应上下文。
+保留 `thesis` 至 `sources` 的七个正文 section 作为 `paper-main` 的直接子元素，以兼容现有校验、阅读位置与章节评论逻辑；`paper-mark-panel` 和 `paper-comments` 仍放在 `paper-rail` 内。稳定锚点用于组织和定位，不限制分析深度。`concepts` 和 `problem-chain` 按理解需要充分解释概念和旧瓶颈；各 section 可含多个有意义的小标题与图表，避免重复。不要使用空 section、隐藏占位或重复文字凑契约。已有页面重写时保留被标记、评论引用的锚点和相应上下文。
 
 页面 `<head>` 至少包含：`citation_title`、一个或多个 `citation_author`、`citation_publication_date`、`citation_pdf_url`（有则填写）、`description`、`keywords` 和 `paper:read_at`。`body` 包含 `data-page-kind="paper"`。
 

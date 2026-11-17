@@ -1,6 +1,8 @@
 # PaperReadingforKun
 
 - 处理论文、技术报告、arXiv PDF、论文 repo 或论文 HTML 时，使用仓库内 `.agents/skills/paper-reading/SKILL.md`。
+- 以用户于 2026-10-19 提供的 RoVES 解读为深度标杆。先给总体判断，详细解释问题、方法、贡献、实验和证据边界，每个重要判断交代依据、推理与影响。首次交付的完整解读覆盖这些内容，篇幅随需要展开。仅在用户要求审稿时给出审稿决定。
+- 自 2026-11-17 起，新论文默认采用苏格拉底式导读。对话每轮围绕一个具体研究选择出题，给出合理选项，停下来等读者选择或提出自己的解释。下一轮从读者的理由出发，用论文证据检验预测，再引出下一问，最后回看最初判断。新 HTML 在相关正文旁提供可以改选、跳过的导读，同时保留可一次读完的详细正文。读者要求直接讲、速读或问局部问题时，按当次请求回答。具体写法见仓库内 paper-reading 技能的阅读方法。
 - 每篇解读保存为 `papers/<slug>/index.html`，共享样式和交互放在 `assets/`，不要把 API key 写入页面。
 - 新增或修改论文页面后运行 `python3 scripts/rebuild_catalog.py`、`python3 scripts/validate_site.py` 和 `npm run build`。
 - 用户已在 2026-10-25 明确要求：每次上传论文解读到 GitHub 时，同步更新 `README.md` 的最近更新、论文目录、收录总数与阅读链接；提交前核对 README 与 `papers/catalog.json` 一致。

@@ -1,4 +1,4 @@
 interface:
   display_name: "论文协作阅读"
-  short_description: "核心要点优先的精炼论文网页，默认主动实现机制交互，支持划线协作与个人评论"
-  default_prompt: "使用 $paper-reading 阅读论文，生成聚焦核心判断、方法、证据与局限的精炼 HTML；默认为适合的核心机制实现可操作的交互 HTML 图解并验证状态变化，保留静态解释、划线协作和个人评论，深入细节留待后续交流。"
+  short_description: "用逐轮选择与证据追问带读论文，生成可连续阅读的详细交互解读"
+  default_prompt: "使用 $paper-reading 带我读这篇论文，先给总体判断和一道值得推敲的选择题，根据我的回答继续追问，并在完整解读中讲清方法、贡献与证据边界。"

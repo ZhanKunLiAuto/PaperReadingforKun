@@ -1,19 +1,19 @@
 ---
 name: paper-reading
-description: "阅读研究论文、技术报告、arXiv PDF、论文仓库或资料包，在本仓库生成或维护精炼的论文解读 HTML。默认提炼核心判断、关键方法、证据与局限，深入细节通过后续交流按需展开；默认主动实现有助理解的交互 HTML 图解，支持 SVG、划线协作、个人评论和本地持久化。"
+description: "阅读研究论文、技术报告、arXiv PDF 或论文 repo，默认以苏格拉底式选择题逐轮带读，依据读者的预测和原文证据追问。在本仓库创建或维护含分支导读、完整技术分析、机制交互和协作批注的论文 HTML。"
 ---
 
-<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal comments, repository workflow, concise-first reading with conversational follow-up, and default meaningful interactive explainers. -->
+<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal comments, repository workflow, detailed evidence-grounded reading with conversational follow-up, and default meaningful interactive explainers. -->
 
 # 论文协作阅读
 
 ## 原则
 
 - 只定义方法、结构、组件契约和执行边界；具体内容必须来自当次论文材料、repo、用户补充或现有 HTML。
-- 默认产出可独立读懂的精炼核心版：研究目的之后立即给出核心判断，再解释关键方法、决定性证据与局限；篇幅和取舍见阅读方法。
-- 阅读与核验覆盖支撑判断所需的原文；网页只呈现最值得记住的内容，不能用精简省略改变结论的前提或反面证据。
+- 默认产出可独立读懂的详细解读，以用户 2026-10-19 提供的 RoVES 分析为深度与清晰度标杆：开篇给总体判断，充分拆解问题、方法、贡献、实验和局限；每个重要判断交代具体依据、推理与影响。对话与 HTML 使用同一深度标准，篇幅随解释需要展开，详见阅读方法。
+- 新论文先给简短总体判断，对话按 `references/01-paper-method.md` 的苏格拉底式导读展开。一轮只问一题，等读者作答，用对应证据接住其选择或自拟解释。完整稿首次交付就讲清技术与证据，页面制作和交付独立于对话作答进度。
 - 左侧使用内容阅读地图，不做机械章节目录。
-- SVG 用于压缩核心机制或对照关系；公式、术语和实现细节按理解核心判断的必要性取舍，不逐项展开。
+- 用具体例子、模块对照、公式解释和 SVG 帮助读者理解机制；逐步解释关键模块如何衔接、设计为什么有用及依赖什么假设，避免只有术语和结论。
 - 遵循用户“解读论文时尽可能加入交互 HTML”的偏好：默认主动设计并实现机制交互。有阶段、信息流、变量作用或方法差异时，通常至少实现一处流程步进、参数操控或方法切换，围绕最影响核心判断的 1–2 处难点。静态解释是回退，不是跳过交互的理由；读者可按需操作，作者不能等用户再次要求才实现。
 - 操作后必须能看见机制、图形或数值的有意义变化；评论、划线、目录、纯文字折叠和装饰动画不算机制交互。确无合适主题或材料不足以支持忠实交互时可以省略，交付时说明具体原因，不能只用“论文简单”“静态已清楚”作理由。示意与论文实测结果明确区分。
 - 划线协作只保留 `名词讲解`、`逻辑梳理`、`作图理解` 三类动作；个人评论是独立内容层，不冒充模型解释。
@@ -21,7 +21,7 @@ description: "阅读研究论文、技术报告、arXiv PDF、论文仓库或资
 
 ## 资源路由
 
-- 从论文或 repo 生成、重写正文：完整读取 `references/01-paper-method.md`。
+- 首次带读、承接读者作答，或从论文及 repo 生成、重写正文：完整读取 `references/01-paper-method.md`。
 - 创建、修复或优化论文 HTML：先完整读取 `references/03-layout-standard.md`，再完整读取 `references/02-html-contract.md`。
 - 生成解读、重写机制正文或评估／修复缺失交互：必须在选择呈现形式前完整读取 `references/04-interactive-explainers.md`，据此选题并实现；不能先决定只画静态图再跳过该资源。纯评论写回、错字或元数据修复无需加载。
 - 普通追问与深入讨论：遵循 `references/01-paper-method.md` 的后续交流规则，先在对话中回答；用户要求写回网页或处理网页标记时，再读取 `references/02-html-contract.md`。
@@ -31,7 +31,7 @@ description: "阅读研究论文、技术报告、arXiv PDF、论文仓库或资
 ## 仓库工作流
 
 1. 读取当次材料，区分论文事实、repo 事实和推断。
-2. 依据材料选定交互问题、可操作控件、变化前后的状态及原文依据，在 `papers/<slug>/index.html` 实现精炼正文与机制交互。优先增强已有机制图，以交互替代重复解释；精炼不等于只做静态页面。用户明确要求深读或推导时按需扩展。没有论文材料时不生成虚构示例。
+2. 在 `papers/<slug>/index.html` 撰写完整正文，并在关键推理处按阅读方法实现可选的分支导读。依据原文选定适合的机制交互、控件与状态，优先增强已有机制图。没有论文材料时不生成虚构论文解读。
 3. 引用 `../../assets/site.css` 和 `../../assets/paper-reading.js`，补齐契约规定的稳定 section、评论区和页面元数据。
 4. 运行 `python3 scripts/rebuild_catalog.py` 更新首页目录。
 5. 启动静态服务器与 bridge，通过 localhost 实际操作机制交互，核对关键状态与静态回退，再检查正文、主要断点、三类划线动作、评论写回和刷新定位。仅有控件或脚本引用不代表交互已完成。

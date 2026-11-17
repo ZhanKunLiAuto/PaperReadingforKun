@@ -1,18 +1,18 @@
-<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal-comment layout and concise-first presentation. -->
+<!-- Modified from Agentchengfeng/paper-reading-skills in 2026: adds personal-comment layout and detailed continuous-reading presentation. -->
 
 # 论文 HTML 版式标准
 
 ## 目标
 
-- 页面首先是一篇可连续阅读的精炼技术解读，篇幅与内容取舍遵循 `01-paper-method.md`。
+- 页面首先是一篇可连续阅读的详细技术解读，篇幅与内容取舍遵循 `01-paper-method.md`。
 - 正文是主层；划线协作、解释和个人评论是辅助层。
 - SVG 是正文配图，不做装饰；适合的机制默认增强为可操作的 HTML 图解，遵循 `04-interactive-explainers.md`。静态回退与连续阅读不排斥机制交互。
 
 ## 首屏与阅读地图
 
-- 首屏先出现一句研究目的，紧接核心判断与必要要点，图放在判断之后；不要让大图把核心结论挤到屏幕下方。
+- 首屏用一段呈现总体判断，交代研究目的、主要价值与证据边界，图放在判断之后；不要让大图把核心结论挤到屏幕下方。
 - 标题克制，副标题说明阅读对象和问题边界；不做营销 hero 或卡片仪表盘。
-- 左侧阅读地图聚焦判断、方法、证据、边界与来源，通常 4–5 个主要入口；简短概念与背景可不单列导航，不因稳定 section 数量增加长章节。
+- 左侧阅读地图覆盖本篇的主要问题、方法、证据、边界与来源；长文可为关键技术点增加小节锚点，入口数量按定位需要决定，不为固定导航数量合并独立问题。
 - 空间不足时地图收起为左边缘浮窗。
 
 ## 版面

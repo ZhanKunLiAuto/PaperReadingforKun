@@ -51,3 +51,12 @@ Updated in October 2026 to honor the user preference for interactive HTML by
 default: evaluate interactions before choosing visuals, implement meaningful
 mechanism controls where suitable, distinguish them from collaboration UI,
 and verify state changes with concrete explanations for omissions.
+
+Updated on October 19, 2026 to follow the user's RoVES reading benchmark:
+detailed, concrete explanations of methods, contributions, experiments, and
+evidence boundaries in both conversation and HTML. This supersedes the earlier
+concise-first length targets and deferred-detail defaults while preserving
+interactive explainers, attribution, and collaboration contracts.
+
+Updated in November 2026 to guide readers through choices, predictions, and
+paper evidence in conversation and HTML, alongside the full technical reading.
