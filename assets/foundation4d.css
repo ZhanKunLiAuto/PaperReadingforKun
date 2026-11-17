@@ -1,0 +1,64 @@
+.f4d-figure__panel {
+  padding: clamp(12px, 3vw, 24px);
+  font-family: var(--font-sans);
+}
+
+.f4d-figure__controls:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.f4d-figure__controls button {
+  min-height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.f4d-figure__controls button[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+  font-weight: 700;
+}
+
+.f4d-matrix {
+  width: 100%;
+  table-layout: fixed;
+  margin-top: 12px;
+  border-spacing: 3px;
+  text-align: center;
+  font-size: clamp(.8rem, 2.2vw, .95rem);
+}
+
+.f4d-matrix th, .f4d-matrix td {
+  padding: 8px 2px;
+}
+
+.f4d-matrix th {
+  color: var(--ink-soft);
+}
+
+.f4d-matrix td {
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.f4d-matrix .f4d-joined {
+  border: 1px solid var(--green);
+  background: var(--green-soft);
+  color: var(--green);
+  font-weight: 700;
+}
+
+.f4d-matrix .f4d-reference {
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: white;
+  font-weight: 700;
+}

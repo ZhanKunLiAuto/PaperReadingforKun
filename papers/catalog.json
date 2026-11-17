@@ -1,6 +1,26 @@
 {
-  "updatedAt": "2026-11-16",
+  "updatedAt": "2026-11-17",
   "papers": [
+    {
+      "slug": "foundation4d",
+      "title": "Foundation4D: Towards a unified perception and reconstruction model for autonomous vehicles",
+      "authors": [
+        "NVIDIA"
+      ],
+      "publicationDate": "2026-10-21",
+      "readAt": "2026-11-17",
+      "description": "用一辆横穿路口的车看懂 Foundation4D 如何共享多相机视频特征，核对联合训练对检测、几何与占用的不同影响，以及离线重建的适用范围。",
+      "tags": [
+        "自动驾驶",
+        "多相机感知",
+        "4D 重建",
+        "语义占用",
+        "多任务学习",
+        "高斯渲染"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2610.30340",
+      "href": "papers/foundation4d/"
+    },
     {
       "slug": "groot-2",
       "title": "GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation",
