@@ -2,6 +2,40 @@
   "updatedAt": "2026-11-22",
   "papers": [
     {
+      "slug": "lyra-2",
+      "title": "Lyra 2.0: Explorable Generative 3D Worlds",
+      "authors": [
+        "Tianchang Shen",
+        "Sherwin Bahmani",
+        "Kai He",
+        "Sangeetha Grama Srinivasan",
+        "Tianshi Cao",
+        "Jiawei Ren",
+        "Ruilong Li",
+        "Zian Wang",
+        "Nicholas Sharp",
+        "Zan Gojcic",
+        "Sanja Fidler",
+        "Jiahui Huang",
+        "Huan Ling",
+        "Jun Gao",
+        "Xuanchi Ren"
+      ],
+      "publicationDate": "2026-04-15",
+      "readAt": "2026-11-22",
+      "description": "从转身重看一扇门讲清逐帧几何检索、像素对应与自增强训练，用视频和三维重建的对照检验长程一致性。",
+      "tags": [
+        "Lyra 2.0",
+        "生成式三维重建",
+        "视频扩散",
+        "空间记忆",
+        "长程一致性",
+        "高斯泼溅"
+      ],
+      "sourceUrl": "https://research.nvidia.com/labs/sil/projects/lyra2/",
+      "href": "papers/lyra-2/"
+    },
+    {
       "slug": "agentworld",
       "title": "Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving",
       "authors": [

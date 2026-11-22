@@ -1,0 +1,99 @@
+.lyra-retrieval {
+  padding: clamp(.8rem, 3vw, 1.5rem);
+}
+.lyra-retrieval__maps,
+.lyra-retrieval__result {
+  display: grid;
+  gap: clamp(.55rem, 2vw, 1.2rem);
+}
+.lyra-retrieval__maps {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 34rem;
+}
+.lyra-retrieval strong {
+  color: var(--ink);
+  font: 650 1rem/1.45 var(--font-sans);
+}
+.lyra-retrieval__maps strong {
+  display: block;
+  margin-bottom: .3rem;
+  font-size: .92rem;
+}
+.svg-figure.lyra-retrieval svg {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  border: 1px solid var(--line-strong);
+  background: #f9faf5;
+}
+.lyra-retrieval__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-top: 1rem;
+}
+.lyra-retrieval__controls[hidden] {
+  display: none;
+}
+.lyra-retrieval__controls button {
+  padding: .45rem .65rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--ink);
+  background: var(--surface);
+  font: 600 .91rem/1.5 var(--font-sans);
+  cursor: pointer;
+}
+.lyra-retrieval__controls button[aria-pressed="true"] {
+  border-color: var(--green);
+  color: white;
+  background: var(--green);
+}
+.lyra-retrieval__controls button:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+.lyra-retrieval__result {
+  grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
+  align-items: center;
+  margin-top: 1rem;
+  padding-block: .9rem;
+  border-block: 1px solid var(--line);
+}
+.paper-main .lyra-retrieval__result p {
+  margin: .25rem 0 0;
+  font: 400 .96rem/1.65 var(--font-sans);
+}
+.lyra-retrieval .read-guide {
+  margin-bottom: 0;
+}
+@media (max-width: 570px) {
+  .lyra-retrieval__result {
+    grid-template-columns: 1fr;
+  }
+  .lyra-retrieval__result svg {
+    max-width: 12rem;
+  }
+}
+
+.lyra-guide {
+  margin-block: 1.4rem;
+  padding: .25rem 1rem;
+  border-left: 3px solid var(--green);
+}
+.lyra-guide details {
+  border-top: 1px solid var(--line);
+}
+.lyra-guide summary {
+  padding-block: .65rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lyra-guide summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.lyra-guide details[open] summary {
+  color: var(--green);
+}

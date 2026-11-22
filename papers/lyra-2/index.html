@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="Lyra 2.0: Explorable Generative 3D Worlds">
+  <meta name="citation_author" content="Tianchang Shen">
+  <meta name="citation_author" content="Sherwin Bahmani">
+  <meta name="citation_author" content="Kai He">
+  <meta name="citation_author" content="Sangeetha Grama Srinivasan">
+  <meta name="citation_author" content="Tianshi Cao">
+  <meta name="citation_author" content="Jiawei Ren">
+  <meta name="citation_author" content="Ruilong Li">
+  <meta name="citation_author" content="Zian Wang">
+  <meta name="citation_author" content="Nicholas Sharp">
+  <meta name="citation_author" content="Zan Gojcic">
+  <meta name="citation_author" content="Sanja Fidler">
+  <meta name="citation_author" content="Jiahui Huang">
+  <meta name="citation_author" content="Huan Ling">
+  <meta name="citation_author" content="Jun Gao">
+  <meta name="citation_author" content="Xuanchi Ren">
+  <meta name="citation_publication_date" content="2026-04-15">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2604.13036v1">
+  <meta name="citation_public_url" content="https://research.nvidia.com/labs/sil/projects/lyra2/">
+  <meta name="description" content="从转身重看一扇门讲清逐帧几何检索、像素对应与自增强训练，用视频和三维重建的对照检验长程一致性。">
+  <meta name="keywords" content="Lyra 2.0, 生成式三维重建, 视频扩散, 空间记忆, 长程一致性, 高斯泼溅">
+  <meta name="paper:read_at" content="2026-11-22">
+  <title>Lyra 2.0 · 镜头绕一圈，回来还是同一扇门吗？</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/lyra-2.css">
+  <script defer src="../../assets/paper-reading.js"></script>
+  <script defer src="../../assets/lyra-2.js"></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/lyra-2/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">NVIDIA · 2026 年 4 月</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">阅读地图</p><ol class="paper-map">
+<li><a href="#thesis">回到原处还能认出来吗</a></li>
+<li><a href="#concepts">从一张图到三维场景</a></li>
+<li><a href="#problem-chain">忘了旧物，还是画面漂了</a></li>
+<li><a href="#mechanism">相机怎样找回旧观察</a></li>
+<li><a href="#mechanism-lab">动手挑两张旧照片</a></li>
+<li><a href="#method-training">让模型练习带错续写</a></li>
+<li><a href="#method-reconstruct">从视频提取三维表面</a></li>
+<li><a href="#evidence">看画质、相机与重建对照</a></li>
+<li><a href="#limits">多快、多远、能否仿真</a></li>
+<li><a href="#sources">对照原文</a></li></ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+<p class="paper-kicker">Lyra 2.0</p>
+<h1 class="paper-title" id="paper-title">镜头绕一圈，回来还是同一扇门吗？</h1>
+<p class="paper-subtitle" lang="en">Explorable Generative 3D Worlds</p>
+<div class="research-purpose"><span class="research-purpose__label">总体判断</span>
+<p>从一张照片出发，生成模型很容易再画一张合理的门。难的是隔着几百帧、换个角度，还能找回先前那一扇。Lyra 2.0 用估计的三维位置找回相关旧画面，让视频模型参考原有细节继续生成，又让模型在训练中练习从自己画坏的历史接着往下画。这两项设计使长视频更适合作为一组“虚拟拍摄”的素材，进一步重建成可自由换视角的静态场景。实验支持跨视角外观与三维渲染质量的改善；门洞实际有多宽、移动物体会如何响应动作，仍超出这些实验的测量范围。〔§4–6，表 1–3〕</p></div>
+<aside class="lyra-guide" aria-labelledby="first-visit"><h3 id="first-visit">假设你只能为回访保留五张旧画面</h3>
+<p>相机从门厅走进客厅，绕过一面隔墙，几百帧后从侧面重新看门。你会优先把哪类画面交给生成器？可以改选，也可以直接读正文。</p>
+<details name="memory-choice"><summary>A · 最近看到的五帧</summary><p>这能让转身动作和刚才墙面的光照接得自然。若门一直被墙挡住，最近几帧还剩多少关于门把手的证据？表 3 去掉了近期时间槽，可以先查这种记忆实际保住了什么。<a href="#ablate-history">看移除时间槽的结果</a></p></details>
+<details name="memory-choice"><summary>B · 相机位置离现在最近的五帧</summary><p>站位接近能减少视差。但站在同一个位置面朝墙壁和面朝门厅，拍到的东西截然不同。怎样把朝向、遮挡和目标表面都算进去？这是一个候选检索规则；论文给出了可见性算法，表 3 没有单独比较按相机距离选帧。<a href="#method-memory">看怎样判定旧帧里的点可见</a></p></details>
+<details name="memory-choice"><summary>C · 合起来能看清这扇门不同部分的五帧</summary><p>你押的是不同视图互补。要是其中四张都拍清了门板，单张重叠率稍低的侧视图可能更值一个槽。多加一帧究竟补了哪些区域？试着在格子图中挑第二张，再看模型怎么从选中的照片里读到把手。<a href="#mechanism-lab">比较两种选法</a> · <a href="#method-geometry">看像素如何对应</a></p></details>
+<p><a href="#concepts">跳过选择，直接阅读全文</a></p></aside>
+</section>
+<section id="concepts"><h2>一张图怎样变成可以绕着走的场景？</h2>
+<p>把一张门厅照片交给系统，再指定相机往哪儿走、朝哪儿看，也可以用文字描述下一段场景。向前走时，相机越过原图边缘；模型必须生成原图没拍到的区域。等镜头回到门厅，这些“已经被画出来”的选择就成为后续画面的约束。单图生成因此同时面对两项要求：在未知处创造内容，在已见处保持连续。这里的门厅是解释机制的示意场景。〔图 1、2，§4.1〕</p>
+<p>系统分段生成视频，估计每帧各像素的深度，根据相机位置把像素放回三维空间。用户可以在点云预览中安排下一段路线，反复离开和回访。最后，多视图重建器把生成的视频变成可渲染的三维高斯；需要表面时，再抽取三角网格。因此有两种“换视角”：探索期间，模型可以扩写尚未生成的区域；资产导出后，渲染器可以直接从新角度观察已经构建的部分。图 2 左侧串起了这两个阶段。〔§4.1、4.4〕</p>
+</section>
+<section id="problem-chain"><h2>门把手换了位置，和整段视频慢慢偏色，是两种失败</h2>
+<p><strong>空间遗忘。</strong>绕过隔墙后，门厅会消失在近期视频的时间窗口外。回头时，生成器可以凭常识画出一扇十分自然的门，却把把手安在另一侧。加长窗口能帮到刚走过的区域；在固定算力下，真正想要的那一帧可能早被压缩，还要从许多无关视图中找出来。此时最有用的历史，取决于接下来要看到哪一块表面。〔§1、4.2〕</p>
+<p><strong>时间漂移。</strong>向前走进从未拍过的新房间时，即使检索完全正确，也可能找不到能覆盖前方的旧图。若每段生成都沿用上一段带一点色偏、模糊或变形的输出，小误差就会成为下一轮输入。训练时总给模型清晰的实拍历史，它就很少练习带着这种误差继续生成。两种失败有时一起出现；纠正一种之后，另一种仍可能妨碍三维重建。〔§1、4.3〕</p>
+</section>
+<section id="mechanism"><h2>几何负责找回旧观察，生成器决定怎样续画</h2>
+<section id="method-memory">
+<h3>回头看时，先找出哪些旧帧看得见这片区域</h3>
+<p>设想相机从门厅走进客厅，绕过一堵墙，再转身看门厅。最近几帧有墙面的颜色，可以帮助视频接得顺；几百帧前的正面视图却可能拍到了这次重新入镜的门把手。两类线索按不同规则取用。一类按时间选，维持刚发生的运动和局部外观。另一类按目标相机能看到的表面选，时间久远的照片也有机会进入模型。</p>
+<p>每生成一帧，系统就保存该帧的相机参数和完整深度图，另把深度图沿高和宽各采样到原尺寸的 1/8，再将采样点从图像坐标反投影到世界坐标。粗点云用于快速筛选，完整深度留给随后精细的像素对应。各帧共用世界坐标系、分别保存。这样，一张图里偏深的门框不会在建缓存时就和另一张图里偏浅的门框合并，后续生成仍可以查阅两个来源。深度误差依然会影响筛选。（§4.2，附录 A.2）</p>
+<p>给定目标相机，把候选帧的粗点云都投到目标图像上。一个旧点可能正落在新图的中央，却隔着一堵近墙。对落入同一目标像素的点，先取最近深度，再保留与这份最近深度之差小于阈值的点；论文使用归一化深度单位下的 0.1。按每帧可见点数衡量相关性。训练按这个分数成比例抽样，允许模型遇到不同组合。推理则逐张挑帧，每次选能覆盖最多<strong>尚未覆盖</strong>目标像素的那一张。第二张门厅正面照片与第一张高度重复时，一张能补上门框侧面的旧照片更有价值。（§4.2）</p>
+<p>每轮最多取五张，四张以较低空间分辨率编码，一张保留完整的空间采样。它们经视频自编码器（VAE）逐张独立编码，作为五组图像特征。首张输入图另有固定位置；近期视频通过 FramePack 按远近采用不同空间压缩率。这些特征与待生成的 20 个时间位置共同进入视频扩散 Transformer（DiT）的自注意力层。此处 20 是潜空间长度，VAE 在时间方向压缩四倍，对应每轮续写 80 帧。附录图 9 用目标图像上有可信深度对应的像素比例考察取几张图合算；从这个覆盖率指标选定五张，尚不能推出五张在每条路线的生成质量上都最优。（§3、§4.2，附录 A.1–A.3）</p>
+</section>
+<section id="mechanism-lab">
+  <h3>给第二个记忆槽选一帧</h3>
+  <p>假设镜头转回走廊，只剩两个槽可用。把目标画面划成 15 个格子，先把 A、B、C 三张历史帧的点投影到这里，再剔除被前景遮住的点。这里简化为每帧在每格至多留下一个点，所以可见点数恰好等于可见格数。下面三张小图都使用目标相机的坐标，可以直接比较位置。</p>
+  <figure class="svg-figure lyra-retrieval" aria-label="历史帧选择与目标画面覆盖范围">
+    <div class="lyra-retrieval__maps">
+      <div><strong>A · 可见 8 格</strong>
+        <svg viewBox="0 0 100 60" role="img" aria-label="A 看见前两行左侧各四格">
+          <path d="M0 0h80v40H0z" fill="#477564"></path>
+          <path d="M0 20h100M0 40h100M20 0v60M40 0v60M60 0v60M80 0v60" fill="none" stroke="#d6ddd6"></path>
+        </svg>
+      </div>
+      <div><strong>B · 可见 7 格</strong>
+        <svg viewBox="0 0 100 60" role="img" aria-label="B 看见前两行左侧各三格、底行最左一格">
+          <path d="M0 0h60v40H20v20H0z" fill="#477564"></path>
+          <path d="M0 20h100M0 40h100M20 0v60M40 0v60M60 0v60M80 0v60" fill="none" stroke="#d6ddd6"></path>
+        </svg>
+      </div>
+      <div><strong>C · 可见 5 格</strong>
+        <svg viewBox="0 0 100 60" role="img" aria-label="C 看见前两行右侧各两格、底行最右一格">
+          <path d="M60 0h40v60H80V40H60z" fill="#477564"></path>
+          <path d="M0 20h100M0 40h100M20 0v60M40 0v60M60 0v60M80 0v60" fill="none" stroke="#d6ddd6"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="lyra-retrieval__controls" role="group" aria-label="选择检索规则，查看覆盖范围" hidden>
+      <button type="button" data-lyra-pick="first" aria-pressed="true">只放入 A</button>
+      <button type="button" data-lyra-pick="rank" aria-pressed="false">按单帧分数选两帧</button>
+      <button type="button" data-lyra-pick="greedy" aria-pressed="false">按新增覆盖选两帧</button>
+    </div>
+    <div class="lyra-retrieval__result">
+      <div>
+        <svg viewBox="0 0 100 60" role="img" aria-labelledby="lyra-grid-title">
+          <title id="lyra-grid-title">A 覆盖 8 格，空白 7 格。</title>
+          <defs>
+            <pattern id="lyra-added-hatch" width="5" height="5" patternUnits="userSpaceOnUse">
+              <rect width="5" height="5" fill="#f3d8af"></rect>
+              <path d="M-1 1l2-2M0 5l5-5M4 6l2-2" stroke="#97612e" stroke-width=".8"></path>
+            </pattern>
+          </defs>
+          <path d="M0 0h80v40H0z" fill="#477564"></path>
+          <path data-lyra-new d="" fill="url(#lyra-added-hatch)"></path>
+          <path d="M0 20h100M0 40h100M20 0v60M40 0v60M60 0v60M80 0v60" fill="none" stroke="#d6ddd6"></path>
+        </svg>
+      </div>
+      <div aria-live="polite" aria-atomic="true">
+        <strong data-lyra-count>已选 A，覆盖 8 / 15 格</strong>
+        <p data-lyra-detail>A 的可见点最多，先占第一个槽。实色格已有历史观测，空格仍待覆盖。</p>
+      </div>
+    </div>
+    <figcaption class="read-guide">按第 4.2 节构造的检索示意。若只看单帧分数，A 之后会选 B，7 格中有 6 格与 A 重合。论文的推理规则会选 C，它能补上右侧 3 格。两种选法都只占两个槽，覆盖范围分别为 9 格和 11 格。实际模型最多检索 5 帧。</figcaption>
+  </figure>
+</section>
+
+<section id="method-geometry">
+<h3>让新视角知道该去旧图哪里找门把手</h3>
+<p>检索到旧照片只回答了“哪张图有关”。相机绕过门框后，门把手会出现在另一处像素，仅凭相机位姿和一整张旧图，模型还得自行推断两者的对应关系。作者给每张检索图上的每个像素编一个地址，三个分量分别表示源图中的归一化横坐标、纵坐标和这张图所在的槽位。利用源图完整深度和两台相机的参数，把地址向前投影到目标视角，同时携带深度作为第四个通道。这样，若有可信对应，目标位置可以读到“这个表面先前出现在哪张图、哪个坐标”。没有拍到过的门后区域仍要靠模型补全。（§4.2，式 3）</p>
+<p>地址和深度经位置编码与可学习的投影后，加入每层自注意力计算查询（Q）和键（K）的特征。查询与键决定哪些位置相互关注，值（V）携带供读取的内容，保留原有计算。可以把对应信号理解为查照片的索引，原始历史帧的特征仍然提供门把手的形状和颜色。若把多帧旧照片的颜色先投影成一张目标图，估深错误会在门框与背景交界处拉长像素；投影地址让生成器有余地选择更可信的观察。地址本身仍可能指错，它提供的是可学习的提示。（§4.2，附录 A.1）</p>
+<p><strong>新近帧还有一条相机控制通路。</strong>系统确实把最近一帧的 RGB 画面按深度变形到目标视角，经 VAE 编码后拼入待去噪的潜变量。大幅转身会让可投影的像素骤减，所以系统还为每个像素编码一条相机射线，用六维 Plücker 坐标描述射线方向与空间位置，为视角变化提供线索。论文所说的“几何用于信息路由”特指长程空间记忆。把这句话推广到整个系统，就会漏掉相机跟随能力的一个来源。（§3，附录 A.1）</p>
+</section>
+<section id="method-training">
+<h3>第一次走进陌生房间，模型靠什么少漂一点？</h3>
+<p>首帧和五张旧照片都可能看不见新房间。若上一段已把白墙染黄，下一段接收的就是偏黄的条件，几次以后整间屋子都可能换了色调。作者把这种逐段积累称为漂移。真实视频训练通常给模型干净的历史，部署时它却反复接到自己的输出。增加可看的旧帧有帮助，但相机一旦离开原有视野，延长历史也不能凭空提供新房间的可靠参照。（§4.3）</p>
+<div class="formula-card" aria-label="训练时构造近似历史">
+<div class="formula-card__label">怎样造一段带模型自身误差的历史</div>
+<div class="formula-card__equation">z<sub>t</sub> = (1 − t)z<sub>0</sub> + tε<br>z̃<sub>0</sub> = z<sub>t</sub> − t v<sub>θ</sub>(z<sub>t</sub>, t, c)</div>
+<p class="formula-card__caption">第一行从干净的历史潜变量 z₀ 向高斯噪声 ε 移动一小段，噪声比例 t 在 0 到 0.5 间均匀采样。第二行以网络在条件 c 下估计的速度 v<sub>θ</sub> 走回一步，得到带有模型重建误差的历史 z̃₀。（§4.3，式 4–5）</p></div>
+<p>训练以 0.7 的概率把这份一步去噪的历史给 DiT。此处要分清两个输入口。因果 VAE 编码当前视频段时需要之前帧的状态，这个状态来自干净真值，因此代表当前段的学习目标也保持干净。DiT 看到的历史条件才会被替换。这样模型因预测干净后续而得到训练，即使历史已有轻微模糊或偏色；若连目标编码也依赖损坏的历史，模型就失去了这个干净参照。增强只多一次 DiT 前向，近似推理中的误差，省下替每份训练历史运行完整多步采样的代价。一步重建产生的误差与连续很多轮后的错误仍可能不同。（§4.3，附录 A.2）</p>
+<p>训练素材来自 DL3DV 的约一万段真实视频，每段抽取 1,000 帧，ViPE 估位姿，Depth Anything V3 估深度，Qwen3-VL-8B-Instruct 生成文字描述。训练样本中 30% 练从单图启动，70% 练根据已有片段续写；这个比例和上面的历史增强概率控制不同的操作。骨干为 Wan 2.1-14B，分辨率 832 × 480，64 张 GB200、总批量 64，共训练 7,000 次迭代。（§5.1，附录 A.1–A.2）</p>
+</section>
+<h3 id="method-reconstruct">视频结束后，哪些像素能变成可绕看的资产？</h3>
+<p>视频里相邻帧都有漂亮的门框，不代表从新位置渲染时门框也能重合。作者让前馈重建模型 Depth Anything V3 同时利用多视图来预测三维高斯。高斯带有空间位置、形状和外观，能从新相机位置投影、叠加成图。原模型每个像素都输出一个高斯，作者保留输入图的分辨率，将预测头的高和宽各减半，高斯数量随之降为四分之一。为适应生成帧间小幅错位，作者以 DL3DV 的首图与轨迹生成 3,000 段一分钟视频，在这些场景上微调重建器 10,000 次迭代。表 2 把同一种视频配合原版重建器和完整重建器作比较，能检验整个重建环节的增益。（§4.4、§5.3，附录 A.4）</p>
+<p>要支持碰撞，还需把高斯转成表面。系统从高斯渲染出各视角的中值深度，用深度梯度估算法线，把有方向的表面点写入分层稀疏网格上的有符号距离场。相机探索过的近处网格较细，远景网格较粗，以空间分辨率换内存。最后用 marching cubes 提取等值面，拼合不同层级并简化三角形。重建后的高斯负责视觉呈现，网格能供仿真引擎做碰撞。视频里的跨视角错误仍可能留在最终表面，生成器也无法验证初始照片外面真实存在什么。（§4.4，附录 A.4）</p>
+</section>
+<section id="evidence" aria-labelledby="evidence-title">
+  <h2 id="evidence-title">从第 800 帧到新视角渲染，哪些证据支持“同一个世界”？</h2>
+  <h3>长视频的画质、相机控制和跨视角一致性分别测</h3>
+  <p>作者以单张图为起点，在训练分布内的 DL3DV-Evaluation 和分布外的 Tanks and Temples 上沿指定相机轨迹生成视频。SSIM 衡量与参考图像的结构相似度，LPIPS 衡量感知差异，FID 比较图像特征分布。WorldScore 的三个分数分别侧重感知质量、首尾风格一致性和相机控制；其中“主观质量”是评估器评分。作者还用现成的 SLAM 系统估计深度，计算重投影误差。风格接近、走对轨迹、同一表面能正确投影，是三个可以分别成功或失败的条件。（§5.2，表 1）</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Tanks and Temples 长视频生成指标">
+    <table class="evidence-table evidence-table--compact">
+      <caption>表 1 节选 · Tanks and Temples 长视频</caption>
+      <thead><tr><th scope="col">生成方法</th><th scope="col">FID ↓</th><th scope="col">风格一致性 ↑</th><th scope="col">相机控制 ↑</th><th scope="col">重投影误差 ↓</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">GEN3C</th><td>79.07</td><td>75.54</td><td>70.91</td><td>0.054</td></tr>
+        <tr><th scope="row">SPMem</th><td>60.11</td><td>79.68</td><td>45.07</td><td>0.059</td></tr>
+        <tr class="evidence-table__emphasis"><th scope="row">Lyra 2.0</th><td>51.33</td><td>85.07</td><td>63.87</td><td>0.069</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>GEN3C 强依赖深度变换后的图像，两个数据集上的相机控制和重投影误差都优于完整 Lyra；图 3 的约第 800 帧却能看到生成画面的畸变。Lyra 对比 SPMem 则同时改善 FID、风格和相机控制。DL3DV 上也有类似取舍：Lyra 的 FID 为 43.43，GEN3C 为 58.96；相机控制分别为 64.67 和 69.54。论文展示的进步在于兼顾可控性和外观质量。比较条件也要一起看：CaM 与 SPMem 由作者基于 Wan2.1-14B 复现，HY-WorldPlay 使用离散动作控制，表 1 对它的相机控制栏留空。</p>
+  <h3>拿掉一个设计，哪项指标会先变差？</h3>
+  <p><strong>长期空间记忆。</strong>在 Tanks and Temples 上，改用全局点云及其渲染图后，相机控制由 63.87 降至 49.86，风格一致性由 85.07 降至 82.42，重投影误差却由 0.069 略降至 0.067。这个实验一起替换了逐帧缓存和基于对应关系的条件输入，能支持整套设计的取舍，单凭这行数字难以分配两者各自的贡献。保留对应关系、仅将可学习聚合换成显式深度融合，相机控制降至 57.29。这个更窄的对照支持让模型学习如何合并多源线索。（§5.4，表 3、图 6）</p>
+  <p id="ablate-history"><strong>近期历史与训练方法。</strong>移除 FramePack 时间槽，风格一致性降至 80.61，重投影误差升至 0.079。去掉自增强，单帧主观质量由 43.35 <em>升至</em> 47.88，风格一致性却跌至 77.98，相机控制也跌至 53.92。若只看单张生成帧，很容易选中更会漂移的版本。这个结果支持在训练中让模型接触自己的误差以改善长程稳定性；表中的首尾风格分数仍无法定位哪次回访丢失了哪个物体。（表 3）</p>
+  <h3>固定重建器，再固定生成视频</h3>
+  <p>作者把不同方法生成的视频都交给同一个预训练 DAv3 重建器，从 3D 高斯场景渲染新视图。LPIPS-P 的参照物是模型自己生成的视频帧，它问三维表示能否重现这套画面；LPIPS-G 的参照物是数据集的真实帧，它还要求重现结果接近实拍。一个模型可以把房间持续画错，仍然得到不错的 LPIPS-P。因此两种距离要并读，数值均以低为优。（§5.3，表 2）</p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="在同一数据集上分开比较视频与重建端">
+    <table class="evidence-table evidence-table--compact">
+      <caption>表 2 节选 · Tanks and Temples 的 3DGS 渲染</caption>
+      <thead><tr><th scope="col">视频来源与重建器</th><th scope="col">LPIPS-P ↓</th><th scope="col">LPIPS-G ↓</th><th scope="col">FID ↓</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">SPMem + DAv3</th><td>0.412</td><td>0.666</td><td>94.11</td></tr>
+        <tr><th scope="row">Lyra 2.0 + DAv3</th><td>0.409</td><td>0.648</td><td>79.36</td></tr>
+        <tr class="evidence-table__emphasis"><th scope="row">Lyra 2.0 完整管线</th><td>0.372</td><td>0.629</td><td>72.47</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>先读前两行：沿用相同的 DAv3，Lyra 的 FID 明显降低，LPIPS-P 仅相差 0.003。再读后两行：沿用 Lyra 生成的视频，启用面向生成数据适配的重建管线，三项指标进一步改善。DL3DV 上同样能观察到后端收益，LPIPS-P 从 0.413 降至 0.381，LPIPS-G 从 0.603 降至 0.579。两步对照说明视频和重建器都影响最终渲染。后端同时包含生成域微调和高斯预测头改动，表 2 没有拆分二者的独立增益。图 5 的俯视图补充展示了相对 Lyra 初代和 FantasyWorld 可扩展的空间范围，未给出按面积统计的扩展倍数。</p>
+</section>
+
+<section id="limits" aria-labelledby="boundaries-title">
+  <h2 id="boundaries-title">交互探索的等待时间，以及静态世界的边界</h2>
+  <p><strong>一次交互要等多久？</strong>在单张 NVIDIA GB200、832 × 480 分辨率下，每次扩展 80 帧，完整模型带无分类器引导，做 35 步去噪，约需 194 秒。作者用分布匹配蒸馏（DMD）训练学生，同时把引导效果蒸馏进学生；学生只做 4 步去噪，每步省去单独计算无条件预测的开销，约需 15 秒。这两项耗时包括深度估计、记忆检索和扩散去噪，其中检索不足 1 秒。约 13 倍的提速指这整段生成；最后构建高斯场景和提取网格另计。蒸馏对不同指标的影响也有差异：Tanks and Temples 上 FID 从 51.33 改善至 49.71，相机控制从 63.87 降至 58.12，风格一致性从 85.07 降至 78.91。规划下一段、等待生成和渲染已有 3D 资产，具有不同的延迟。（§4.5、表 1、附录 A.1 与 A.3）</p>
+  <p><strong>能看、能回访、能用于物理预测，各自需要什么依据？</strong>作者明确限定静态环境。DL3DV 的跨视角曝光变化会被生成模型学到，同一表面在两个视角下可能一明一暗，给前馈高斯重建带来伪影。图 7 展示了把场景导入 Isaac Sim，并在其中进行机器人仿真；定量表关注视频与渲染图像。若使用者关心机器人能否通过狭窄门洞，还需要检验门宽、碰撞网格和通行结果。单张起始图没有观测到的房间，也可能有多套同样合理的布局。（§5.5、§6）</p>
+  <p><strong>长程证据还缺哪一块？</strong>图 3 给出了约第 800 帧的示例，表 1 给出视频级综合比较。要判断绕行多久之后还能认出同一扇门，可以按离开时长、回访时的视角变化和可见重叠率分组，比较同一表面的相对位置与外观。这样的回访曲线能把“第一帧与最后一帧风格相近”推进到“相隔多远仍保住物体身份与布局”。这是从应用问题出发提出的验证，原文没有报告这条曲线。</p>
+</section>
+
+<section id="sources"><h2>对照原文</h2>
+<p>本文依据所附的 25 页 NVIDIA 报告（封面日期为 2026 年 4 月 15 日）。数值来自作者实验。走廊与门把手是讲解示例，格子图展示检索规则。作者在项目页提供了可回访的生成视频与相应的三维场景演示。</p>
+<ul class="source-list">
+<li><a href="https://arxiv.org/pdf/2604.13036v1">论文 PDF</a> · <a href="https://arxiv.org/abs/2604.13036v1">arXiv 版本记录</a> · <a href="https://research.nvidia.com/labs/sil/projects/lyra2/">NVIDIA 项目与视频演示</a> · <a href="https://github.com/nv-tlabs/lyra/tree/main/Lyra-2">官方实现</a></li>
+<li><a href="https://arxiv.org/pdf/2604.13036v1#page=6">图 2 与 §4.2，回访时怎样读空间记忆</a> · <a href="https://arxiv.org/pdf/2604.13036v1#page=8">式 4–5，自增强训练与三维重建</a></li>
+<li><a href="https://arxiv.org/pdf/2604.13036v1#page=9">表 1，长视频画质和相机控制</a> · <a href="https://arxiv.org/pdf/2604.13036v1#page=11">表 2，渲染新视角</a> · <a href="https://arxiv.org/pdf/2604.13036v1#page=13">表 3，缓存、聚合、时间槽与自增强消融</a> · <a href="https://arxiv.org/pdf/2604.13036v1#page=17">附录 A，训练设置和每段生成耗时</a></li>
+</ul></section></main>
+<aside class="paper-rail" aria-label="阅读协作"><section id="paper-mark-panel" class="paper-mark-panel"><h2>划线追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文可记录名词讲解、逻辑梳理或作图理解。当前标记 <strong data-mark-count>0</strong> 条。</p></section>
+<section id="paper-comments" class="paper-comment-panel"><h2>个人评论 <span data-comment-count>0</span></h2><p>连接本地写回服务后可保存到页面。离线评论仅存于当前浏览器。</p><button type="button" class="paper-comment-new">写一条章节评论</button></section></aside></div></body></html>
