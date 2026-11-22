@@ -1,0 +1,147 @@
+.aw-panel {
+  padding: clamp(14px, 3vw, 24px);
+  font-family: var(--font-sans);
+}
+
+.aw-panel h3 {
+  margin: 0 0 .5rem;
+  font-size: 1.12rem;
+}
+
+.aw-instructions {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: .9rem;
+}
+
+.aw-controls,
+.aw-choices,
+.aw-time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.aw-controls {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.aw-choices button {
+  min-height: 44px;
+  padding: 5px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.aw-choices button[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green);
+  color: white;
+  font-weight: 700;
+}
+
+.aw-time {
+  min-height: 44px;
+  font-size: .9rem;
+}
+
+.aw-time input {
+  width: 95px;
+  min-height: 32px;
+  accent-color: var(--green);
+}
+
+.aw-time output {
+  min-width: 2.5em;
+}
+
+.aw-plot {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr));
+  align-items: center;
+  gap: 14px 20px;
+}
+
+.aw-map {
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.aw-readings {
+  margin: 0;
+}
+
+.aw-readings > div {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.aw-readings dt {
+  color: var(--ink-soft);
+  font-size: .85rem;
+}
+
+.aw-readings dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.07rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.aw-key {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  font-size: .85rem;
+}
+
+.aw-key span:first-child { color: var(--green); }
+.aw-key span:last-child { color: var(--blue); }
+
+:is(.aw-guide details, details.aw-guide) {
+  border-top: 1px solid var(--line);
+}
+
+:is(.aw-guide details, details.aw-guide) > summary {
+  padding: 12px 8px;
+  color: var(--green);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+:is(.aw-guide details, details.aw-guide)[open] > summary {
+  background: var(--green-soft);
+}
+
+:is(.aw-guide details, details.aw-guide) > summary:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+
+.aw-evidence.evidence-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.aw-evidence.evidence-table th,
+.aw-evidence.evidence-table td {
+  padding: 10px clamp(5px, 1.4vw, 13px);
+  font-size: max(.88rem, 14px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.aw-evidence.evidence-table td:not(:first-child) { white-space: normal; }
+
+.aw-framework img {
+  display: block;
+  width: 100%;
+  height: auto;
+}

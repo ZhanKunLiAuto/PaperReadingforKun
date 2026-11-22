@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving">
+  <meta name="citation_author" content="Guoqing Wang">
+  <meta name="citation_author" content="Pin Tang">
+  <meta name="citation_author" content="Xiangxuan Ren">
+  <meta name="citation_author" content="Chao Ma">
+  <meta name="citation_publication_date" content="2026-11-17">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2611.22880v1">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2611.22880v1">
+  <meta name="description" content="从右侧两辆车读懂 AgentWorld 如何给交通参与者分配可引用的状态，借置换实验检验规划依赖，再看三阶段训练、仿真闭环和反事实预测的证据边界。">
+  <meta name="keywords" content="自动驾驶, 世界模型, 视觉语言动作模型, 轨迹规划, 参与者表示, nuScenes, Bench2Drive">
+  <meta name="paper:read_at" content="2026-11-22">
+  <title>AgentWorld · 规划时，模型在看哪辆车？</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/agentworld.css">
+  <script defer src="../../assets/paper-reading.js"></script>
+  <script defer src="../../assets/agentworld.js"></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/agentworld/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">上海交通大学 · NeurIPS 2026</span></header>
+<div class="paper-doc">
+  <nav class="paper-sidebar" aria-label="内容阅读地图">
+    <p class="paper-sidebar__label">阅读地图</p>
+    <ol class="paper-map">
+      <li><a href="#thesis">规划时，模型在看哪辆车</a></li>
+      <li><a href="#concepts">从右侧两辆车读懂输出</a></li>
+      <li><a href="#problem-chain">编号怎样找到一辆真车</a></li>
+      <li><a href="#mechanism">从标注和奖励学会让行</a></li>
+      <li><a href="#evidence">换编号、换状态与闭环驾驶</a></li>
+      <li><a href="#limits">这能叫作“理解互动”吗</a></li>
+      <li><a href="#sources">原文、实验表与演示</a></li>
+    </ol>
+  </nav>
+  <main class="paper-main">
+    <section id="thesis" aria-labelledby="paper-title">
+      <p class="paper-kicker">AgentWorld</p>
+      <h1 id="paper-title" class="paper-title">规划时，模型在看哪辆车？</h1>
+      <p class="paper-subtitle">Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving</p>
+      <div class="research-purpose"><span class="research-purpose__label">总体判断</span><p>一次会车，决定自车要不要让行的是哪辆车会在什么时候靠近。AgentWorld 把每个重要交通参与者的信息放在模型可以单独引用的位置，让预测“对方会怎么走”和决定“我该怎么走”用得上同一份信息。论文最扎实的发现是，保留这些对应关系，规划对编号改名很稳定；一旦把车与状态配错，轨迹误差和碰撞率都会上升。它还在驾驶仿真中提高了成功率。周围车辆会怎样回应自车的不同动作，仍是另一道需要验证的问题。<small>〔表 4、8、9〕</small></p></div>
+      <aside class="aw-guide" aria-labelledby="guide-q">
+        <h3 id="guide-q">试想你正看着右侧一辆近车，远处还有一辆车</h3>
+        <p>模型给每辆车做了一张“记录卡”，里面存着它在哪儿、以后可能往哪儿走。你想判断模型开车时是否真的用到这些卡。哪种改动最容易让它做错决定？</p>
+        <details name="first-prediction"><summary>把卡片统一改名，每张卡仍指向原来的车</summary><p>这个猜想认为模型记住了名字，比如总把“3 号”当作危险车。作者做了一次一致改名，平均轨迹误差几乎没动。接着可以查一件事：训练时到底是谁决定哪辆车进 3 号位？<a href="#assignment">看训练中的分配规则</a> · <a href="#swap">核对改名实验</a></p></details>
+        <details name="first-prediction"><summary>保留卡名，却把近车的位置和运动换成远车的</summary><p>你的预测是，模型会把本该留给近车的空间当成空余距离。论文在验证集上打乱对象对应关系，确实看到碰撞率上升。下一步值得问，这证明它依赖车辆信息，还是连输出的每句理由也能相信？<a href="#swap">看错配后的误差</a> · <a href="#verbal">读图 5 的原话和动作</a></p></details>
+        <details name="first-prediction"><summary>两种改动影响都小，模型可以直接看路和自己的车速</summary><p>这条捷径确实存在。可以先看遮去图像或去掉额外自车状态时，轨迹误差分别变了多少，再看打乱卡片能否造成额外损失。两组实验分别触及视觉输入和对象对应关系。<a href="#shortcut">看输入对照</a> · <a href="#swap">看表 9</a></p></details>
+        <p><a href="#concepts">跳过选择，从实际路况开始读</a></p>
+      </aside>
+    </section>
+
+    <section id="concepts" aria-labelledby="scene-title">
+      <h2 id="scene-title">右边有两辆车，一句话怎样连到六个路点？</h2>
+      <p>论文图 5 的第一个场景里，右侧两辆车把可通行空间挤窄，前方远处还有一名行人。模型的解释把右侧两车称为 <code>&lt;agent_3&gt;</code> 和 <code>&lt;agent_5&gt;</code>，指出 3 号最近，同时把远处那名行人和眼前风险区分开。它给出横向、纵向两个动作标签，最后输出未来 3 秒的六个自车路点，每 0.5 秒一个，坐标单位为米。读者因此可以顺着一句理由找到它指的是画面里的谁。<small>〔图 5 场景一〕</small></p>
+      <p><strong>一个编号，实际包含两层东西。</strong>写出来的 <code>&lt;agent_3&gt;</code> 是词表里的一个特殊符号，方便语句点名。模型在这个位置算出的<strong>隐藏状态</strong>是一串随场景变化的连续数值，承载车型、方位、运动和周围情境等信息。可以把前者想成卡名，后者想成卡的内容。换个场景，3 号可以指行人，也可以是空位。推理时不会有人先把框坐标写在卡上交给模型。<small>〔§3.1–3.3，式 2–4〕</small></p>
+      <p><strong>这篇文章改变的是规划器读到的中间结果。</strong>较早的做法先预测未来画面，再从大量图像符号中找出有用的运动线索。一个整场景向量也能压缩画面，但单独询问“那辆车离我多远”比较困难。AgentWorld 保留相机观测、导航指令等上下文，让规划器额外读取按对象组织的隐藏状态。式（4）同时给策略当前上下文和这些状态，因此视觉、道路背景和自车信息仍可能直接影响决策。<small>〔§2.2、§3.1〕</small></p>
+      <figure class="svg-figure aw-framework">
+        <a href="framework.webp" aria-label="打开高清原论文架构图"><img src="framework.webp" width="1185" height="459" alt="论文图 3。左侧为多相机观测、自车状态和导航目标；中间用几何及视觉特征对齐多个对象位置；右侧语言模型据此给出理由、动作与路点。"></a>
+        <figcaption class="read-guide"><strong>图 3 怎么读</strong>　中间下方的虚线表示训练时把预测配给有标注的参与者。图中把训练设施和驾驶策略放在一起；实际部署时离线几何特征、路由模块和辅助解码头都可以撤掉。原图取自 Wang 等，裁去页边与图注。<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></figcaption>
+      </figure>
+    </section>
+
+    <section id="problem-chain" aria-labelledby="grounding-title">
+      <h2 id="grounding-title">没人规定 3 号是汽车，它怎样学会指向一辆真车？</h2>
+      <h3>先决定什么值得占一个位置</h3>
+      <p>默认只有 20 个位置。制作训练样本时，作者先给标注物体打“影响分”。当前分考虑距离、车道关系和相互接近的速度；未来分则看接下来 3 秒物体和专家自车轨迹的最小距离、出现危险的时间、是否进入自车行驶走廊。两项按 0.45 和 0.55 混合，再乘类别权重，行人、自行车等弱势交通参与者权重较高。只选得分靠前的 K 个，K 不超过 20。远一点但将横穿车道的行人因此有机会排在近处静止车辆之前。未来真值用在<strong>离线选择训练目标</strong>，上线时模型须从可见观测自己估计。<small>〔附录 A.1，式 12–15，算法 1〕</small></p>
+      <h3>让每个位置从两种证据里找人或车</h3>
+      <p>每个特殊符号自己的可学习向量，经投影后就成了一个查询。它分别去读取两组特征：预先算好的 VGGT 风格时空几何特征提示距离、布局与运动；视觉语言模型自己的二维视觉特征提供外观和语义。两条分支各有独立门控，同一个查询可以同时利用两者。交叉注意力从各自的特征里取信息，再与原查询融合。默认重复三层，最后把结果投影回相应的符号位置，由多模态大语言模型结合上下文更新。这个过程形成了可区分的候选对象，具体对应谁还要靠监督确定。<small>〔图 4，式 5–9，附录 A.3〕</small></p>
+      <h3 id="assignment">用一对一匹配固定“这次指的是谁”</h3>
+      <p>训练时，一个共享的小预测头从每个隐藏状态读出类别或存在性、三维框和未来轨迹。匈牙利匹配在整组预测与选中对象之间求一对一分配。有匹配的槽位接受分类、框和轨迹误差；空余位置学“这里没有对象”，其损失权重为 0.1，避免空位太多掩盖真正的目标。这样，多个槽反复描述同一辆显眼汽车并不能覆盖训练目标。这个约束作用于当前样本，尚不足以保证遮挡前后一直用同一个编号。<small>〔§3.2，式 10；附录 A.3，式 25〕</small></p>
+    </section>
+
+    <section id="mechanism" aria-labelledby="learning-title">
+      <h2 id="learning-title">学会认车之后，怎样学会为它让行？</h2>
+      <p><strong>第一阶段教模型看懂卡。</strong>物理对齐训练 12 轮，更新语言视觉主干、特殊符号、路由和预测头，离线几何编码器保持冻结。<strong>第二阶段教模型用卡作答。</strong>作者用第一阶段的模型重跑训练集，把匹配到的编号与专家自车轨迹结合。短理由只提会影响本次决策的对象，高层动作从专家轨迹推导，最后一项直接监督专家路点。理由可由较强的多模态模型根据图像、车速和匹配好的物体信息生成；策略看到的感知字段只有编号。由此学到的是模仿有对象依据的解释和驾驶示范。<small>〔§3.3，式 11；附录 A.1，图 7–9〕</small></p>
+      <p>第二阶段也训练 12 轮。路由和辅助头冻结，前期使用完整的训练辅助输入，中期逐步丢弃，末期只保留部署时可用的多模态模型输入输出。这样安排解决了一个具体问题：如果训练时每次都有额外几何特征帮忙定位，撤掉它以后，语言模型可能只记得卡名。<small>〔附录 A.3，式 27〕</small></p>
+      <h3>同一幕生成八份驾驶方案，用什么判高下？</h3>
+      <p>第三阶段用群组相对策略优化（GRPO）训练 1 轮。每个场景采样八份“理由、动作、路点”，按同一场景内的相对奖励调整策略，用上一阶段模型作参考。评价分成格式、感知字段、动作、轨迹、参与者交互五项。容易误读的是<strong>感知字段奖励</strong>：它检查特殊符号集合是否齐全、合法；要判断物理风险，还得在奖励侧用冻结的预测头，从活跃槽位解码周围参与者的预测轨迹。动作奖励用专家高层动作的 F1，轨迹奖励考虑专家模仿和平滑性。<small>〔附录 A.2–A.3，式 19–24〕</small></p>
+      <p>对每条候选自车轨迹，作者在<strong>同一未来时刻</strong>计算自车和每个相关参与者的距离，再取全程最小值，并找出首次低于安全间距的时间。危险阈值内的接近、净距不足和过早接近都会扣分。如果两车先后经过同一地点，轨迹线在图上相交，时间上可能仍有充足余量。冻结的头只负责训练时打分，部署时由多模态模型直接生成理由、动作和路点。<small>〔式 21–24，附录 A.3〕</small></p>
+<figure class="svg-figure" id="interaction-reward-demo" data-aw-interaction>
+  <div class="aw-panel">
+    <h3>同一个交叉点，什么时候构成风险？</h3>
+    <div class="aw-instructions">圈表示距横穿车辆 2.5 米的范围。两车都经过路口中心，危险程度取决于它们何时到达。</div>
+    <div data-aw-controls hidden>
+      <div class="aw-controls">
+        <div class="aw-choices" role="group" aria-label="选择自车候选轨迹">
+          <button type="button" data-aw-plan="maintain" aria-pressed="true">保持速度</button>
+          <button type="button" data-aw-plan="yield" aria-pressed="false">减速让行</button>
+        </div>
+        <label class="aw-time">观察时刻
+          <input type="range" min="0" max="4" step="1" value="2" data-aw-time aria-label="观察时刻，单位为秒">
+          <output data-aw-time-label>2 秒</output>
+        </label>
+      </div>
+    </div>
+    <div class="aw-plot">
+      <div>
+        <svg class="aw-map" viewBox="0 0 280 251" role="img" aria-labelledby="aw-map-title aw-map-desc">
+          <title id="aw-map-title">自车向上行驶，另一辆车从左向右穿过路口。圆圈为间距阈值。</title>
+          <desc id="aw-map-desc" data-aw-description>第 2 秒，两车相距 0.0 米。</desc>
+          <rect x="1" y="1" width="278" height="249" rx="6" fill="#f2f0e8" stroke="#d8d4ca"/>
+          <path d="M112 2h56v100h110v56H168v91h-56v-91H2v-56h110z" fill="#fffef9" stroke="#d8d4ca"/>
+          <path d="M26 130h228" fill="none" stroke="#b0bdc4" stroke-dasharray="5 5"/>
+          <path d="M140 235V20" fill="none" stroke="#adbbb3" stroke-dasharray="5 5"/>
+          <path d="M56 130H224" fill="none" stroke="#355e7c" stroke-width="3" stroke-dasharray="5 5"/>
+          <path d="m219 125 7 5-7 5" fill="none" stroke="#355e7c" stroke-width="2"/>
+          <polyline data-aw-path points="140,214 140,172 140,130 140,88 140,46" fill="none" stroke="#24624e" stroke-width="3" stroke-linecap="round"/>
+          <line data-aw-line x1="140" y1="130" x2="140" y2="130" stroke="#92502d" stroke-width="2" stroke-dasharray="2 3"/>
+          <g data-aw-agent transform="translate(140 130)">
+            <circle r="26.25" fill="#355e7c" fill-opacity=".08" stroke="#355e7c" stroke-dasharray="3 2"/>
+            <circle r="8" fill="#fffef9" stroke="#355e7c" stroke-width="3"/>
+          </g>
+          <g data-aw-ego transform="translate(140 130)">
+            <path d="M0 -6.5 6 4.5 -6 4.5z" fill="#24624e" stroke="#fffef9" stroke-width="1"/>
+          </g>
+        </svg>
+        <div class="aw-key"><span>▲ 自车</span><span>○ 横穿车辆</span></div>
+      </div>
+      <dl class="aw-readings" aria-live="polite" aria-atomic="true">
+        <div><dt>所选时刻的间距</dt><dd data-aw-distance>0.0 米</dd></div>
+        <div><dt>全程最小间距</dt><dd data-aw-minimum>0.0 米</dd></div>
+        <div><dt>首次低于间距阈值（TTC）</dt><dd data-aw-ttc>2 秒</dd></div>
+      </dl>
+    </div>
+  </div>
+  <figcaption class="read-guide"><strong>读图</strong>　保持速度时，两车在第 2 秒同时抵达中心。减速后，自车在第 3 秒到达，最小同步间距为 3.0 米。这里按 1 秒采样，轨迹、时间和 2.5 米阈值均为讲解设定。附录 A.2 式（21）至（23）使用同步距离构造交互奖励，图中只展示其中两项输入。</figcaption>
+</figure>
+    </section>
+
+    <section id="evidence" aria-labelledby="evidence-title">
+      <h2 id="evidence-title">换一种表示、配错一辆车、真的闭环开，分别证明了什么？</h2>
+      <h3>同一批对象，怎样交给规划器更好？</h3>
+      <p>表 8 的比较最接近论文的核心主张。在 nuScenes 开环验证中，作者报告三组使用相同骨干、可用参与者信息、监督和 SFT + RL 流程。平均 L2 衡量自车预测路点与记录中专家路点的距离，单位为米；碰撞率按数据集评测计算，两者都越低越好。</p>
+      <div class="table-wrap" role="region" tabindex="0" aria-label="表 8，三种参与者表示的规划比较"><table class="evidence-table aw-evidence">
+        <thead><tr><th scope="col">规划器读取的表示</th><th scope="col">平均 L2（米）</th><th scope="col">碰撞率</th></tr></thead>
+        <tbody><tr><td>整场景隐向量</td><td>0.49</td><td>0.23%</td></tr><tr><td>结构化文字</td><td>0.58</td><td>0.21%</td></tr><tr class="evidence-table__emphasis"><td>逐个参与者的隐藏状态</td><td>0.27</td><td>0.08%</td></tr></tbody>
+      </table></div>
+      <p>这里的重要区别是，三组都有参与者信息。仅把同一批信息写成文字，碰撞率比整场景向量略低，但路点误差反而更高。给每个对象留一个可直接读取的向量，两项同时改善。这支持作者对<strong>信息组织方式</strong>的判断；表中并没有证明所有文字或整场景表示在其他训练预算下都只能达到这个水平。</p>
+      <h3 id="swap">只换卡名，对比把车和卡配错</h3>
+      <p>只看到误差降低，仍可能怀疑那些卡只是装饰。表 9 对同一个已训练模型做干预。保持卡与车的对应关系，只一致地重排编号，L2 为 <strong>0.27 ± 0.01 米</strong>，碰撞率为 <strong>0.08 ± 0.03%</strong>，与原始的 0.27 米、0.08% 接近。故意让编号与物理状态错配，L2 升到 <strong>0.63 ± 0.04 米</strong>，碰撞率升到 <strong>0.74 ± 0.09%</strong>。绝对变化分别是 0.36 米和 0.66 个百分点。卡名本身可以任意取，配对关系却会影响轨迹。这个对照衡量对象配对对规划指标的整体影响。要判断模型说出的每句话是否忠实，还需要逐例核对。<small>〔表 9；± 照录原表〕</small></p>
+      <h3 id="shortcut">图像和自车状态，模型各依赖多少？</h3>
+      <p>图 2 比较有无图像的结果。AgentWorld 的平均序列长度为 98 个符号，VLA-World 为 653 个；这是整段序列的统计，前面的 20 指对象槽位数。移除图像后，两者的平均 L2 分别从 0.62 升到 1.07 米、从 0.83 升到 1.15 米。图 6(c) 改做另一种干预，仅去掉额外自车状态，AgentWorld 从 0.40 升到 0.45 米，VLA-World 从 0.42 升到 0.83 米。两幅图各有自己的对照设置，不能用图 2 的 0.62 和图 6 的 0.40 来算提升。它们支持“预测会利用图像，对额外自车状态依赖较小”；模型究竟读对了哪些视觉线索，还要结合表 9 或逐场景检验。</p>
+      <p>图 6(b) 也限制了怎样理解“20”。无额外自车状态时，1、4、8 个槽位的平均 L2 分别约 0.32、0.28、0.27 米，8 至 30 在图上基本持平。检测指标还可能随槽位增加而改善。检测到更多物体和让<strong>平均</strong>规划误差继续降低是两项不同任务。默认 20 是作者结合目标数量分布所做的容量取舍，在超拥挤场景里仍需要优先选择。<small>〔图 6、10，附录 A.7〕</small></p>
+      <h3>同骨干的开环优势有多大？</h3>
+      <p>表 1 中两组都使用 Qwen2-VL-2B 和额外自车状态。按 UniAD 协议，VLA-World 到 AgentWorld 的平均误差从 <strong>0.42 降到 0.40 米</strong>，平均碰撞率从 <strong>0.12% 降到 0.11%</strong>。按 ST-P3 协议，相应数字是 0.26 到 0.25 米、0.08% 到 0.07%。两套协议应各自比较。相对同类完整系统，提升小于把 AgentWorld 自己的对象配对打乱所造成的退化。主比较采用固定种子，论文没有给这几项小差值的跨种子区间。<small>〔表 1，NeurIPS Checklist 第 7 项〕</small></p>
+      <p>辅助任务帮我们判断卡里学到了什么。在 nuScenes 检测上，AgentWorld 的平均精度 mAP 为 0.318，综合检测分 NDS 为 0.416；表中 PGD 为 0.305、0.409。高层动作上，七类中六类的 F1 超过 VLA-World，例如停车由 81.24% 到 84.56%；直行则是 95.14%，略低于 VLA-World 的 95.88%。这些结果说明模型学到了可供读出的物体与动作信息，不过检测正确、说对动作、给出合适路点各有各的检验。<small>〔表 2、3〕</small></p>
+      <h3>把自己开的下一步也算进去</h3>
+      <p>开环评测拿预测去对照已录制的驾驶过程，一次偏差不会改变下一帧。Bench2Drive 在 CARLA 里闭环运行，自车执行动作后会看到新的场景，走偏会影响后续驾驶。AgentWorld 的驾驶分为 <strong>81.17</strong>，AutoVLA 为 <strong>78.84</strong>；无严重违规并完成路线的成功率为 <strong>61.36% 对 57.73%</strong>，高 3.63 个百分点。舒适度为 54.39 对 39.33，效率为 147.82 对 146.93，VAD 的效率更高，为 157.94。效率衡量相对于参考交通流的速度，超过 100 是可能的。这张表验证了整套策略的仿真闭环表现；其中没有同一骨干只更换三种表示的闭环实验，不能把 3.63 个百分点都归给对象槽位。<small>〔表 4，附录 A.5〕</small></p>
+      <h3>收益来自物理监督、强化学习，还是额外计算？</h3>
+      <p>表 5 中完整模型 L2 为 0.27 米，训练时去掉几何锚定为 0.30，去掉二维视觉锚定为 0.28。表 6 从原始 2B 模型的 1.37 米，经监督微调降到 0.32 米，再加 RL 到 0.27 米。表 12 单独移除动作、参与者交互、轨迹奖励，分别得到 0.29、0.30、0.32 米。轨迹模仿与对周车留出空间都提供了有用信号；表 12 的观测量只有 L2，无法单凭它判定哪一项减少了多少碰撞。</p>
+      <p>更大的骨干也有影响：7B 版本得到 0.25 米，Qwen2-VL-2B 和 Qwen2.5-VL-3B 均为 0.27 米。表 7 在无额外自车状态的设置报告一次推理延迟，AgentWorld 为 <strong>0.31 秒</strong>，VLA-World 为 0.40 秒，FSDrive 为 0.36 秒。这个比较支持减少未来画面生成开销的工程动机。论文的训练使用四张 80 GB A800，另有几何特征预提取；表 7 的模型延迟不足以估计车端从采集到执行的尾延迟。<small>〔§4.1，表 7、11〕</small></p>
+    </section>
+
+    <section id="limits" aria-labelledby="scope-title">
+      <h2 id="scope-title">会用对象的运动信息，离理解交通互动还有多远？</h2>
+      <p><strong>预测对方怎么走，与预测对方会怎样回应我，差一步。</strong>附录的奖励侧用预测出的周车轨迹评价自车候选轨迹的间距。这样能学习避开预计的冲突点。若要说模型懂得“我先向前探，对方便会减速让我”，需给同一初始场景指定不同自车动作，并检验相应周车反应是否预测准确。本文的置换实验和 CARLA 总分都没有直接测这件事。附录 A.6 的误差上界也依赖两个假设：规划代价由参与者状态决定，且代价的变化不超过状态误差乘以某个常数。红灯切换或可行驶区域突然收窄时，固定周车状态仍可能改变正确动作；模型还能从原图获取这些线索，理论假设与整车能力要分别理解。<small>〔式 4、21–23、31–35〕</small></p>
+      <p><strong>远处危险对象可能提前进入训练视野。</strong>筛选监督目标时使用专家未来路线和物体未来标注，很适合教模型注意即将冲突的人。但如果驾驶者选择另一条路径，相关物体的排序也可能改变。平均成绩无法说明固定的 20 个槽是否漏掉了极端拥挤、遮挡后突然出现的目标。一个有区分力的检验，是按目标密度和遮挡分组，同时报告关键对象覆盖率与碰撞率，并检查重新出现的对象是否保持身份。这是本解读提出的验证，作者也把跨时间的身份一致性列为后续方向。<small>〔附录 A.1、A.7–A.8，§5〕</small></p>
+      <p id="verbal"><strong>能指出哪辆车，也要核对说的和做的是否一致。</strong>回看图 5 场景一，理由建议自车稍微减速并多留右侧间距，高层动作却写着保持速度、保持车道。这可能与离散动作标签的阈值或自然语言表述有关，仅凭这一个例子无法定因。它给出了比“看起来说得通”更好的检查方式：把文字里的对象、动作标签和实际路点放回同一场景比较。表 9 已表明配错对象会损害规划；要评价每句话对决策有多忠实，还需要面向具体对象、理由与动作的一致性检验。</p>
+      <p><strong>回到最初的两张卡。</strong>如果你起初怀疑模型只记编号，一致改名是能否定该猜想的对照。如果你担心它只凭车速和图像规划，错配造成的损失表明它也会用对象状态。由这些结果可以支持的设计判断是，把关键交通参与者做成可引用、可干预的世界状态，确实给规划增加了有用的信息通路。现实道路安全、长时身份跟踪和对他车反应的因果预测，需要各自的证据。</p>
+    </section>
+    <section id="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">原文、实验表与演示</h2>
+      <p>Guoqing Wang、Pin Tang、Xiangxuan Ren、Chao Ma，上海交通大学。论文于 2026 年 11 月 17 日提交至 arXiv，获 NeurIPS 2026 接收。本页图表编号对应 34 页的 v1 版本。<a href="https://arxiv.org/abs/2611.22880v1">arXiv 记录</a> · <a href="https://agentworld-ad.github.io/">作者项目与驾驶演示</a></p>
+      <ul>
+        <li>从输入、对象对齐读到部署。<a href="https://arxiv.org/pdf/2611.22880v1#page=4">图 3–4 和式 1–11</a> · <a href="https://arxiv.org/pdf/2611.22880v1#page=18">训练样本构造、奖励和训练阶段</a></li>
+        <li>核对整套系统与核心机制的证据。<a href="https://arxiv.org/pdf/2611.22880v1#page=7">表 1–4 与图 5</a> · <a href="https://arxiv.org/pdf/2611.22880v1#page=10">图 6 与表 8–9</a> · <a href="https://arxiv.org/pdf/2611.22880v1#page=25">附录消融与数量分布</a></li>
+      </ul>
+    </section>
+  </main>
+  <aside class="paper-rail" aria-label="阅读协作">
+    <section id="paper-mark-panel" class="paper-mark-panel" aria-labelledby="marks-title"><h2 id="marks-title">划线追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文，可记录名词讲解、逻辑梳理或作图理解。当前标记 <strong data-mark-count>0</strong> 条。</p></section>
+    <section id="paper-comments" class="paper-comment-panel" aria-labelledby="comments-title"><h2 id="comments-title">个人评论 <span data-comment-count>0</span></h2><p>离线评论仅保存在当前浏览器。</p><button class="paper-comment-new" type="button">写一条章节评论</button></section>
+  </aside>
+</div>
+</body>
+</html>

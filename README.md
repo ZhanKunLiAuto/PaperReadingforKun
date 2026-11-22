@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **2026-11-22 · AgentWorld**　用换编号与换状态的对照，解释模型如何用周围车辆规划，并用交互路口图读懂让行奖励。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/agentworld/) · [源码](papers/agentworld/index.html)
+
 - **2026-11-17 · Foundation4D**　多任务训练能让检测受益，也会让部分几何和占用指标回落。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/foundation4d/) · [源码](papers/foundation4d/index.html)
 
 - **2026-11-16 · GR00T 2**　从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/groot-2/) · [源码](papers/groot-2/index.html)
@@ -58,6 +60,7 @@
 
 | 论文 | 解读主线 | 阅读链接 |
 | --- | --- | --- |
+| [Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving](papers/agentworld/) | 从右侧两辆车理解对象状态的学习与使用，核对置换、开环与仿真闭环实验。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/agentworld/) · [源码](papers/agentworld/index.html) |
 | [Foundation4D: Towards a unified perception and reconstruction model for autonomous vehicles](papers/foundation4d/) | 用路口的一辆车说明多相机视频如何同时支持三维感知与场景重建，并用任务消融和未来帧条件解读检测收益。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/foundation4d/) · [源码](papers/foundation4d/index.html) |
 | [GR00T 2: Scaling Robot Foundation Models for Generalization, Dexterity, and Adaptation](papers/groot-2/) | 从人手放滤纸讲清世界与动作的联合预测，核对人类视频的真机收益、五条示范的筛选条件，以及纠错代理与 Turbo 的代价。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/groot-2/) · [源码](papers/groot-2/index.html) |
 | [Unbundling Multimodal Vision Encoding](papers/unbundling-multimodal-vision-encoding/) | 拆开视觉预训练、视觉专用参数与融合位置，在相同训练算力下检验四种架构，解释早层视觉分支的问答收益、首 token 延迟与高分辨率反例。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/unbundling-multimodal-vision-encoding/) · [源码](papers/unbundling-multimodal-vision-encoding/index.html) |
@@ -139,7 +142,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/fomovla/) · [源码](papers/fomovla/index.html) |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/egogenesis/) · [源码](papers/egogenesis/index.html) |
 
-当前共收录 80 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 81 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 

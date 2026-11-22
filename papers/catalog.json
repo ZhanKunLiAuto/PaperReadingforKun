@@ -1,6 +1,30 @@
 {
-  "updatedAt": "2026-11-17",
+  "updatedAt": "2026-11-22",
   "papers": [
+    {
+      "slug": "agentworld",
+      "title": "Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving",
+      "authors": [
+        "Guoqing Wang",
+        "Pin Tang",
+        "Xiangxuan Ren",
+        "Chao Ma"
+      ],
+      "publicationDate": "2026-11-17",
+      "readAt": "2026-11-22",
+      "description": "从右侧两辆车读懂 AgentWorld 如何给交通参与者分配可引用的状态，借置换实验检验规划依赖，再看三阶段训练、仿真闭环和反事实预测的证据边界。",
+      "tags": [
+        "自动驾驶",
+        "世界模型",
+        "视觉语言动作模型",
+        "轨迹规划",
+        "参与者表示",
+        "nuScenes",
+        "Bench2Drive"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2611.22880v1",
+      "href": "papers/agentworld/"
+    },
     {
       "slug": "foundation4d",
       "title": "Foundation4D: Towards a unified perception and reconstruction model for autonomous vehicles",
