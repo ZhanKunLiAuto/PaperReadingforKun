@@ -1,6 +1,32 @@
 {
-  "updatedAt": "2026-11-22",
+  "updatedAt": "2026-11-27",
   "papers": [
+    {
+      "slug": "splatwam",
+      "title": "SplatWAM: Splatting World Action Models for Real-Time 3D Imagination",
+      "authors": [
+        "Frank Tsu-Fang Lu",
+        "Karthik Sundar Senthilkumar",
+        "Christopher Thirgood",
+        "Oscar Mendez",
+        "Simon Hadfield"
+      ],
+      "publicationDate": "2026-11-24",
+      "readAt": "2026-11-27",
+      "description": "跟踪抽屉里的一枚方块，理解 SplatWAM 怎样用 2,048 个三维高斯预测动作后果，核对换视角的 12 倍提速、物体恒存与推移距离的证据。",
+      "tags": [
+        "SplatWAM",
+        "世界动作模型",
+        "3D Gaussian Splatting",
+        "三维高斯",
+        "动作条件动力学",
+        "物体恒存",
+        "OGBench",
+        "LIBERO"
+      ],
+      "sourceUrl": "https://arxiv.org/abs/2611.33467v1",
+      "href": "papers/splatwam/"
+    },
     {
       "slug": "lyra-2",
       "title": "Lyra 2.0: Explorable Generative 3D Worlds",

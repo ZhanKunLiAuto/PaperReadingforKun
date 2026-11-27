@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="citation_title" content="SplatWAM: Splatting World Action Models for Real-Time 3D Imagination">
+  <meta name="citation_author" content="Frank Tsu-Fang Lu">
+  <meta name="citation_author" content="Karthik Sundar Senthilkumar">
+  <meta name="citation_author" content="Christopher Thirgood">
+  <meta name="citation_author" content="Oscar Mendez">
+  <meta name="citation_author" content="Simon Hadfield">
+  <meta name="citation_publication_date" content="2026-11-24">
+  <meta name="citation_public_url" content="https://arxiv.org/abs/2611.33467v1">
+  <meta name="citation_pdf_url" content="https://arxiv.org/pdf/2611.33467v1">
+  <meta name="paper:read_at" content="2026-11-27">
+  <meta name="description" content="跟踪抽屉里的一枚方块，理解 SplatWAM 怎样用 2,048 个三维高斯预测动作后果，核对换视角的 12 倍提速、物体恒存与推移距离的证据。">
+  <meta name="keywords" content="SplatWAM,世界动作模型,3D Gaussian Splatting,三维高斯,动作条件动力学,物体恒存,OGBench,LIBERO">
+  <title>SplatWAM · 换个角度看，抽屉里的方块还在吗？</title>
+  <link rel="stylesheet" href="../../assets/site.css">
+  <link rel="stylesheet" href="../../assets/splatwam.css">
+  <script defer src="../../assets/paper-reading.js"></script>
+  <script defer src="../../assets/splatwam.js"></script>
+</head>
+<body class="paper-page" data-page-kind="paper" data-page-path="/papers/splatwam/" data-bridge-url="http://127.0.0.1:8766">
+<header class="paper-topbar"><a class="paper-topbar__back" href="../../">← 返回论文档案</a><span class="paper-topbar__meta">arXiv v1 · 阅读于 2026-11-27</span></header>
+<div class="paper-doc">
+<nav class="paper-sidebar" aria-label="内容阅读地图"><p class="paper-sidebar__label">阅读地图</p><ol class="paper-map">
+  <li><a href="#thesis">抽屉里的方块还在吗</a></li>
+  <li><a href="#concepts">一个场景怎样装进 2,048 个高斯</a></li>
+  <li><a href="#problem-chain">换相机为什么会多一次生成</a></li>
+  <li><a href="#mechanism">把时间推进与视角切换分开</a></li>
+  <li><a href="#policy">策略作决定时看到了什么</a></li>
+  <li><a href="#evidence">12 倍提速的比较条件</a></li>
+  <li><a href="#drawer">开抽屉和推方块的差距</a></li>
+  <li><a href="#control-evidence">哪些控制任务得益</a></li>
+  <li><a href="#limits">从可观看到可用来规划</a></li>
+  <li><a href="#sources">原文与证据位置</a></li>
+</ol></nav>
+<main class="paper-main">
+<section id="thesis" aria-labelledby="paper-title">
+  <h1 id="paper-title" class="paper-title">SplatWAM</h1>
+  <p class="paper-subtitle">换个角度看，抽屉里的方块还在吗？</p>
+  <div class="paper-byline"><span>Frank Tsu-Fang Lu 等 5 位作者</span><span>University of Surrey · Locus Robotics</span><span>2026-11-24 · arXiv v1</span></div>
+  <p><strong>这篇论文最有价值的设计，是把“机械臂动了以后，场景会怎样”与“从哪里看这个场景”拆成两次计算。</strong>模型先预测一组新的三维高斯，随后各台相机都从这组高斯成像。给定同一段动作，可以在预测完成后再绕到侧面观察。在 OGBench 仿真的新视角测试中，它的帧率约为 Cosmos3-Edge 加三维重建方案的 12 倍，也让模型在抽屉关上再打开时更常保住方块。对要把方块推多远这样的定量问题，它仍会明显低估动作效果。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">表 2</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=15">表 B2</a></p>
+  <aside class="sw-reading-choice" aria-labelledby="opening-choice">
+    <h3 id="opening-choice">同一模型能找回方块，为什么常推得不够远？</h3>
+    <p>在两个各做 32 次的测试中，模型每次都让抽屉里的方块重新出现，却只有 13 次把方块推到真实位移的一半。如果只选一个切入点解释差距，你会先查哪一项？选项可以改选，也可以<a href="#concepts">直接读正文</a>。</p>
+    <details name="splatwam-reading"><summary>A · 两张起始照片能否确定接触位置</summary><p>这个猜想预期，对物体“还在”的判断可以正确，夹爪与小方块相差几毫米却足以改变推动结果。先看表 1 怎样对齐深度，再看附录 C.5 改变观察角度的效果。接下来要判断的是，这两组实验里究竟哪一组真的测到了推方块时的初始位置误差？<a href="#geometry-evidence">核对几何真值</a> · <a href="#control-evidence">核对额外视角</a></p></details>
+    <details name="splatwam-reading"><summary>B · 训练数据里有多少真正推走方块的动作</summary><p>这个猜想预期，即使起始位置估对了，模型也可能学会“方块通常待在原处”。作者指出推方块在训练数据中少见。若给同一起点施加三个不同长度的推移，预测位移是否随命令增长？表 B2 给出过线次数，还需逐动作的位移才能查这个预测。<a href="#drawer">看反事实实验及其判据</a></p></details>
+    <details name="splatwam-reading"><summary>C · “重新出现”与“推够距离”的通过条件</summary><p>这个猜想预期，同一个预测可能满足可见性要求，却在距离上误差很大。不妨先查附录 B.4 怎么算一次成功。若抽屉重开后方块仍可见、但偏离原位一厘米，凭现在的记录能判定它失败吗？<a href="#drawer">看原图和给分方法</a></p></details>
+  </aside>
+</section>
+<section id="concepts"><h2>一个场景怎样装进 2,048 个高斯</h2>
+  <p>把一个三维高斯想成有中心、有朝向、可半透明的椭球。中心决定它在哪里，三个尺度和旋转决定它沿哪个方向铺开，颜色与不透明度决定它对画面有多大贡献。给定相机，光栅化器把各个椭球投影到图像平面，按深度与透明度合成像素。抽屉边缘和方块通常各由多个椭球共同表示。这个状态没有专门叫作“方块”的变量，也没有摩擦系数或接触力。<a href="https://arxiv.org/pdf/2611.33467v1#page=3">§3，式 1</a></p>
+  <p>编码器 <strong>SplatWAM-T</strong> 接收同一时刻的多张 RGB 照片，输入可不附各相机位姿。它沿用 C3G 的固定预算设计，用经微调的 VGGT 提取图像块特征，再让 2,048 个可学习查询与这些特征交换信息。每个查询输出一个高斯，所有高斯都写在以第一张输入照片为锚点的坐标系里。增加输入照片能补充被挡住的细节，传给动力学模型的序列长度仍固定。换视角渲染时仍须指定目标相机。<a href="https://arxiv.org/pdf/2611.33467v1#page=3">§3.1，式 5</a></p>
+  <p>同一编号在所有时刻都由同一个查询解码，这给时间模型一个稳定的索引。但作者只固定了查询，未监督“第 317 个椭球永远附着在方块左上角”。因此可以逐编号做跨帧注意力，不能仅凭编号追踪某个材料点。这个区别也解释了为什么作者在结尾仍提出研究能处理高斯任意排列的动力学。</p>
+</section>
+<section id="problem-chain"><h2>为什么换一台相机会增加预测成本</h2>
+  <p>设机械臂把装有方块的抽屉关上。若世界模型只给出正面视频，想知道侧面能看见什么，就要再推断这段视频背后的几何，或生成另一段条件视频。两次预测有机会对同一条抽屉边缘的位置作出不同判断。表 2 里的 iVideoGPT 和 Cosmos3-Edge 输出输入相机的未来画面，作者为它们接上同一个三维编码器 T，再从新相机渲染。另一个基线 GWM 自身能输出可渲染的高斯。</p>
+  <p>SplatWAM 把可渲染的状态放到时间预测的接口上。只要给定同一批高斯与相机，渲染结果就是确定的。换相机时会自然得到不同投影和遮挡顺序，且不用重采样另一条未来。如果少量照片让模型把方块放错了，所有相机都会一致地画出那个错误位置。要评估这一点，必须另与保留视角、几何或动作真值比较。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">§4.1–4.2，表 1–2</a></p>
+</section>
+<section id="mechanism"><h2>先推进时间，再选择观看的位置</h2>
+  <p>用三个操作读图 2。T 从当前照片估计场景 <i>s</i><sub>t</sub>。动力学模型 <strong>SplatWAM-D</strong> 读取过去的场景、动作和当前命令，采样下一时刻的高斯 <i>s</i><sub>t+1</sub>。渲染器 R 接收这个状态和相机 π，输出该视角的画面。要再向前预测一步，把刚生成的状态放回历史，并提供下一条动作。故 32 步未来需要逐步推进，已经预测好的一步可反复从不同方位观看。<a href="https://arxiv.org/pdf/2611.33467v1#page=3">图 2，式 2–4</a></p>
+<figure class="svg-figure sw-explorer" id="splatwam-view-demo" data-sw-explorer>
+  <figcaption class="sw-explorer__intro"><strong>换个角度看同一刻，模型要重算什么？</strong>
+    <span>桌上有一个方块，夹爪向它靠近。左图从上往下看场景，右图从所选相机看同一个场景。</span>
+  </figcaption>
+  <div class="sw-explorer__controls" data-sw-controls hidden>
+    <fieldset><legend>时刻</legend>
+      <button type="button" data-sw-step="observed" aria-pressed="false">观测时刻 t</button>
+      <button type="button" data-sw-step="future" aria-pressed="true">动作后 t+1</button>
+    </fieldset>
+    <fieldset><legend>观察位置</legend>
+      <button type="button" data-sw-camera="A" aria-pressed="true">相机 A · 左前</button>
+      <button type="button" data-sw-camera="B" aria-pressed="false">相机 B · 右前</button>
+    </fieldset>
+  </div>
+  <div class="sw-explorer__panels">
+    <div class="sw-explorer__panel"><div class="sw-explorer__head"><strong>三维状态</strong><span data-sw-source>D 的预测</span></div>
+      <svg viewBox="0 0 256 151" role="img" aria-labelledby="sw-map-title sw-map-desc">
+        <title id="sw-map-title">场景俯视示意</title>
+        <desc id="sw-map-desc">方块和夹爪位于桌面上方，相机 A 从左前方观察。</desc>
+        <rect x="51.25" y="27.05" width="157.5" height="89.9" rx="2" class="sw-table"/>
+        <path d="M90.6 27v90m39.4-90v90m39.4-90v90M51.3 49.5h157.5M51.3 72h157.5M51.3 94.5h157.5" class="sw-grid"/>
+        <rect x="168.5" y="74.9" width="17.5" height="14.5" class="sw-cube-top"/>
+        <g data-sw-map-grip transform="translate(145.75 61.85)">
+          <path d="M-8 -4H8m-16 0v8m16-8v8" class="sw-grip"/><circle cy="-4" r="3.5" class="sw-joint"/>
+        </g>
+        <g data-sw-map-camera="A">
+          <path d="M42 132L54 99 68 119Z" class="sw-frustum"/><circle cx="42" cy="132" r="4" class="sw-camera-dot"/>
+          <text x="31" y="138" text-anchor="end" class="sw-camera-label">A</text>
+        </g>
+        <g data-sw-map-camera="B" display="none">
+          <path d="M218 132L192 119 206 99Z" class="sw-frustum"/><circle cx="218" cy="132" r="4" class="sw-camera-dot"/>
+          <text x="229" y="138" class="sw-camera-label">B</text>
+        </g>
+      </svg>
+    </div>
+    <div class="sw-explorer__panel"><div class="sw-explorer__head"><strong>相机投影</strong><span data-sw-projection>R · 相机 A</span></div>
+      <svg viewBox="0 0 256 151" role="img" aria-labelledby="sw-image-title sw-image-desc">
+        <title id="sw-image-title">对应的二维投影示意</title>
+        <desc id="sw-image-desc">相机 A 从左前方投影动作后的夹爪和方块。</desc>
+        <g data-sw-projected-table>
+          <polygon points="109.1,139.08 230.6,86.88 146.9,50.92 25.4,103.12" class="sw-table"/>
+          <path d="M139.47 126.03L55.77 90.07M169.85 112.98L86.15 77.02M200.23 99.93L116.53 63.97M88.17 130.09L209.68 77.89M67.25 121.1L188.75 68.9M46.32 112.11L167.82 59.91" class="sw-grid"/>
+        </g>
+        <polyline data-sw-prong="left" points="130.7,35.12 130.7,51.62 123.95,54.52 123.95,63.32" class="sw-grip"/>
+        <polyline data-sw-prong="right" points="130.7,51.62 137.45,48.72 137.45,57.52" class="sw-grip"/>
+        <circle data-sw-joint cx="130.7" cy="51.62" r="3.5" class="sw-joint"/>
+        <polygon data-sw-face="side" points="173.9,78.2 160.4,72.4 160.4,83.4 173.9,89.2" class="sw-cube-side"/>
+        <polygon data-sw-face="front" points="173.9,78.2 187.4,72.4 187.4,83.4 173.9,89.2" class="sw-cube-front"/>
+        <polygon data-sw-face="top" points="173.9,78.2 187.4,72.4 173.9,66.6 160.4,72.4" class="sw-cube-top"/>
+      </svg>
+    </div>
+  </div>
+  <p class="sw-explorer__key"><span><i class="sw-key-grip" aria-hidden="true"></i>夹爪</span><span><i class="sw-key-cube" aria-hidden="true"></i>方块</span></p>
+  <p class="sw-explorer__status" aria-live="polite" aria-atomic="true" data-sw-status>D 根据历史状态和动作预测下一时刻，夹爪靠近方块。R 从相机 A 投影这个状态。</p>
+  <div class="read-guide">在同一时刻换相机，只需用新的相机参数再次光栅化。沿动作推进一帧，才需要 D 生成新的高斯状态。图中用轮廓代表一组高斯，两帧位置和正交投影为教学示意。依据为论文第 3 节式（2）–（3）及第 4.2 节。</div>
+</figure>
+  <h3>让椭球既能成像，又能在时间上学习</h3>
+  <p>第一阶段先教 T 重建。作者随机取若干上下文视角，用这些相机和一个留出的相机检查渲染图像的颜色与感知误差。单靠颜色，许多又长又薄的半透明高斯也能糊出一张相似的照片。作者于是用预训练骨干估计的深度和由深度导出的表面法线做几何监督，按中位深度比例消除教师尺度的不确定性，再惩罚覆盖不足、极度拉长和近似一维的椭球。这些信号帮助表面成形，训练阶段的几何教师与评估时的模拟器深度是两种不同来源。<a href="https://arxiv.org/pdf/2611.33467v1#page=4">§3.1，式 6–10</a></p>
+  <p>第二阶段冻结 T，直接教 D 预测这些椭球。原始高斯有 14 个参数，其中旋转四元数 <i>q</i> 和 −<i>q</i> 表示相同旋转。如果把两者当普通坐标回归，完全相同的椭球也会产生误差。作者先从旋转和尺度构造协方差矩阵 Σ，再用对称矩阵的六个独立数值替代四元数与三个尺度。对接近球形的高斯，这也绕开了难以确定主轴朝向的问题。<a href="https://arxiv.org/pdf/2611.33467v1#page=5">§3.2.1，式 15–17</a></p>
+  <div class="formula-card" aria-label="协方差的预测坐标">
+    <div class="formula-card__label">同一个椭球，换一组适合预测的坐标</div>
+    <div class="formula-card__equation">ν = vech(log Σ − log Σ̄)</div>
+    <p class="formula-card__caption">Σ̄ 是训练集在对数欧氏空间的平均协方差。矩阵对数把正定矩阵映到对称矩阵。vech 取六个独立分量，并将非对角项乘以 √2。</p>
+    <div class="formula-card__intuition">预测后将六个数还原为对称矩阵，加回 log Σ̄，取矩阵指数，就得到合法的正定协方差。这样每个高斯只需预测 13 个量，位置、颜色与不透明度仍各有自己的分量。</div>
+  </div>
+  <p>D 有 5,400 万参数，在每层做帧内注意力，每四层沿同一编号做因果时间注意力。每个编号还配一个三维位置编码，取自这个编号在训练集中的<strong>平均位置</strong>；当前高斯中心仍在状态里。训练时，每个时刻独立混入不同比例的噪声，让模型习惯历史不完全可靠。较大的去噪步学习逼近连续两个小步的平均速度，推理时每个新状态只做一次去噪。窗口含 17 帧，生成状态作为历史前会再次加少量噪声。32 步评测因此也检验了超出训练窗口后的累积误差。<a href="https://arxiv.org/pdf/2611.33467v1#page=15">附录 B.1–B.3，表 B1</a></p>
+  <p>第三个约束直接看预测画出来是什么。在训练窗口的最后一帧，模型把预测高斯与 T 从真实观测提取的目标高斯放到<strong>同一个留出相机</strong>下，各渲染一次，比较图像。这个损失把屏幕上可见的错位、轮廓与透明度偏差传回 D。监督目标本身经过 T，所以 T 漏掉的小物体也会限制这个信号。<a href="https://arxiv.org/pdf/2611.33467v1#page=5">式 13–14</a></p>
+  <h3 id="policy">策略作决定时，究竟看到了什么？</h3>
+  <p><strong>SplatWAM-P</strong> 借用 D 学过的骨干，另跑一次策略前向。它看最近实际观测的高斯状态，在 OGBench 上读目标场景的高斯，在 LIBERO 上读冻结 CLIP 编码的指令。四个策略查询可以读世界和目标，世界侧不能反过来读策略查询或目标。作者发现给策略过去动作会诱发照抄，于是在策略前向用训练过的空动作标记，动力学前向仍用真实命令。<a href="https://arxiv.org/pdf/2611.33467v1#page=5">§3.3</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=18">图 C3</a></p>
+  <p>动作头通过流匹配，从噪声逐步生成一段示范动作，测试时用 10 个欧拉积分步。OGBench 预测 8 个动作、执行 1 个，LIBERO 预测 16 个、执行 8 个，再取新观测。联合训练从 D 的 4 万步检查点开始，用行为克隆的动作损失和世界预测的捷径损失共同更新。由此，策略能用到会预测后果的特征；部署流程中没有为多个候选动作各自想象未来、打分、再选优的步骤。<a href="https://arxiv.org/pdf/2611.33467v1#page=16">附录 C.1–C.3</a></p>
+</section>
+<section id="evidence"><h2>“实时”在哪种比较里成立？</h2>
+  <h3 id="geometry-evidence">先查静态重建是否足以支撑换视角</h3>
+  <p>表 1 从 OGBench Scene 的 30 个留出回合各取一个时刻，输入两张 224 × 224 图像，在三个未输入的视角检查重建。与同样使用 2,048 个高斯的 C3G 比，T 将 PSNR 从 21.04 提高到 23.00 dB，相对深度误差 AbsRel 从 0.131 降到 0.055，法线角误差从 52.6° 降到 37.9°。这里最有说服力的是<strong>同一容量下，外观与几何一起改善</strong>。给 pixelSplat 约 10 万个高斯并提供位姿，它的 PSNR 更高，达 24.52 dB。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">表 1</a></p>
+  <p>深度评测对每张图先用最小二乘拟合尺度和平移，再与模拟器真值比较；表 1 的法线角来自一个未用作输入的上下文相机位置。由此可判断相对深度和表面方向改善了多少，要判断夹爪距离桌面还差几毫米，则需统一物理坐标下的误差。仿真相机沿固定弧分布，附图 A2 另给了低机位和俯视的定性外推；输入照片均未拍到的区域仍然模糊。<a href="https://arxiv.org/pdf/2611.33467v1#page=13">附录 A.2–A.3</a></p>
+  <h3 id="speed">同样预测 32 步，分别从原相机和新相机计时</h3>
+  <p>表 2 从 100 个留出回合取 400 个窗口。模型从两个视角起步，沿记录动作开环预测，途中看不到后续真实帧。各模型保留支持的输入分辨率，预测图像统一按 128 × 128 评测。计时用单张 RTX 5090、批量 1，需要从视频重建三维的模型计入该开销。下表取 32 步时域，PSNR 越高越好，感知距离 LPIPS 和视频分布距离 FVD 越低越好。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">表 2</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=15">附录 B.3</a></p>
+  <div class="table-wrap" tabindex="0" role="region" aria-label="32 步开环预测的画质与速度"><table class="evidence-table">
+    <thead><tr><th scope="col">观看位置</th><th scope="col">方法</th><th scope="col">PSNR ↑（dB）</th><th scope="col">LPIPS ↓</th><th scope="col">FVD ↓</th><th scope="col">帧/秒 ↑</th></tr></thead>
+    <tbody>
+      <tr><td>原相机</td><td>Cosmos3-Edge</td><td>23.73</td><td>0.061</td><td>39</td><td>18.9</td></tr>
+      <tr><td>原相机</td><td>SplatWAM-D</td><td>24.15</td><td>0.088</td><td>338</td><td>83.9</td></tr>
+      <tr><td>新相机</td><td>Cosmos3-Edge，经 T 重建</td><td>21.03</td><td>0.126</td><td>355</td><td>6.6</td></tr>
+      <tr class="evidence-table__emphasis"><td>新相机</td><td>SplatWAM-D，直接渲染</td><td>23.02</td><td>0.102</td><td>313</td><td>78.8</td></tr>
+    </tbody>
+  </table></div>
+  <p>在新相机上，78.8 ÷ 6.6 ≈ 11.9，PSNR 差 1.99 dB，二者的跨视角一致性指标 MEt3R 都是 0.123。在原相机上，Cosmos 的 LPIPS 和 FVD 明显占优。专画某个角度的视频模型能保住那个视角的视觉细节。直接预测三维状态则让读者能以较低开销从别处查看同一段未来。这个 FPS 对应世界模型预测与成像管线。部署控制还涉及取真实观测、编码、采样动作和执行，论文没有给出这整个回路的 78.8 Hz 测量。</p>
+  <p><strong>哪项改动最值得归功？</strong>同输入、同协议的表 5 更有区分力。在 32 步新视角上，完整模型是 23.02 dB，去掉渲染损失降到 21.92，去掉对数协方差降到 22.80，去掉三维位置编码降到 22.87。图 B1 显示，有位置编码时达到验证 PSNR 23.5 dB 需要 4.2 万步，移除后需要 6.2 万步。渲染约束对最终图像影响最大，位置先验更明显的收益是更早学会。各项消融效应随组合变化，不能相加来分配总贡献。<a href="https://arxiv.org/pdf/2611.33467v1#page=8">表 5</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=15">图 B1</a></p>
+  <h3 id="drawer">把方块关进抽屉，和把方块推出去</h3>
+  <p>高 PSNR 有时只说明桌面和背景画对了。图 4 改给指定动作，从预测画面判断事件是否真的发生。作者为每项任务预选 32 个结果在相机中可见的留出状态，各模型收到对应的同一起点和命令。关抽屉、等待、再打开时，判据要求方块先消失、后重新出现。SplatWAM-D 为 <strong>32/32</strong>，Cosmos 为 12/32，iVideoGPT 为 1/32。该设计检验物体在遮挡前后的可见行为，单看最后一帧有个方块还不足以过关。<a href="https://arxiv.org/pdf/2611.33467v1#page=7">图 4</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=15">表 B2</a></p>
+  <figure class="sw-proof" aria-label="论文图 4 中抽屉重新打开后的同一案例">
+    <div class="sw-proof-grid">
+      <div><img src="drawer-reference.webp" width="194" height="192" loading="lazy" alt="模拟器中，打开的抽屉里可见红方块">模拟器真值</div>
+      <div><img src="drawer-cosmos.webp" width="194" height="194" loading="lazy" alt="Cosmos 预测的打开抽屉中未见红方块">Cosmos3-Edge</div>
+      <div><img src="drawer-splatwam.webp" width="194" height="196" loading="lazy" alt="SplatWAM 预测的打开抽屉中可见红方块">SplatWAM-D</div>
+    </div>
+    <figcaption class="read-guide">看黄色框内的红方块。这里截取一个案例，32 次的总体结果见表 B2。画面裁自 Frank Tsu-Fang Lu 等人的图 4，按原图标注保留黄色框。<a href="https://arxiv.org/pdf/2611.33467v1#page=7">原图</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></figcaption>
+  </figure>
+  <p>换成推方块，判据要求预测位移达到真值的一半。SplatWAM 只有 <strong>13/32</strong>，两个视频基线都是 0/32。即使在不发运动命令时，夹爪也只有 24/32 次留在规定的 20 像素范围内。反过来，持续把夹爪压向窗口时，它在 32/32 次保持在窗口前。合起来看，遮挡解除、在表面前停住这类可见事件学得较好，稳定预测物体移动的量仍然困难。作者指出推方块在训练数据中少见，且模型有时会弱化动作的影响；论文没有用平衡动作频次的重训实验确定两者各解释多少。<a href="https://arxiv.org/pdf/2611.33467v1#page=16">附录 B.4 的逐项判据</a></p>
+  <h3 id="control-evidence">空间表征对控制的收益，随任务变化</h3>
+  <p>先关掉时间预测，只用当前帧做策略输入。表 3 对齐两个输入视角、512 维输出嵌入与动作头，像素分支用 IMPALA CNN，高斯分支用集合编码器。在八个套件中高斯赢六个。OGBench 四环境平均成功率从 49.3% 升到 63.4%，Cube-Double 从 50.1% 到 74.9%，是摘要所写的 <strong>24.8 个百分点</strong>。在同一任务上，附录 C.6 换入微调后 VGGT 的图像块特征，沿用同一集合编码器，得到 63.7%。预训练特征本身已有价值，显式高斯又多出 11.2 个百分点；这个对照限定在 Cube-Double。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">表 3</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=18">图 C5、表 C4</a></p>
+  <p>在 LIBERO 的两个视角下，高斯的平均成功率为 65.3%，像素为 63.0%，但 Goal 上为 54.8% 对 67.6%，Object 上为 84.0% 对 87.8%。这两个套件涉及杂乱物体与精确抓取。附录把视角增加到五个，高斯平均升到 71.0%，像素为 62.7%。这与“稀疏视角会漏掉抓取需要的细节”相符；它检验的是闭环策略成功率，没有测表 B2 推方块任务的深度误差。<a href="https://arxiv.org/pdf/2611.33467v1#page=18">图 C4</a></p>
+  <p>再加上预训练过的动力学骨干和读历史的策略 P。OGBench Scene 每个目标跑 50 个闭环回合，P 的平均成功率为 52 ± 2%，LPWM 为 40 ± 1%，数值接近使用价值函数和子目标的 HIQL（49 ± 4%）。优势集中在 Unlock-and-Lock，P 为 67%，LPWM 为 6%；Rearrange-Hard 上两者均为 0%。每个任务的得失比总平均更能说明哪些操作已经可做。表 4 左侧的 ± 是跨训练种子的标准差。<a href="https://arxiv.org/pdf/2611.33467v1#page=8">表 4</a></p>
+  <p>LIBERO 每个套件单独训练，10 个任务各测 50 个初态、运行 3 个种子。约 10 亿参数的 P 四套平均 92.3 ± 0.3%（表中报告标准误），无大规模机器人预训练的 OpenVLA-OFT 为 91.9%，有机器人预训练的版本为 97.1%。OFT 使用腕部相机和本体感觉，并报告最优检查点，SplatWAM 用末次检查点。因此 92.3% 支持该方案在这组仿真任务上有竞争力，两者 0.4 个百分点的差不足以分辨哪种架构更优。LIBERO-Long 只在 T 的预训练中留出，动力学和策略随后仍在该套件示范上训练。<a href="https://arxiv.org/pdf/2611.33467v1#page=8">表 4</a>、<a href="https://arxiv.org/pdf/2611.33467v1#page=16">附录 C.1</a></p>
+</section>
+<section id="limits"><h2>从能观看未来，到能依赖未来做决定</h2>
+  <p><strong>画得准和做得好有时会争用同一个骨干。</strong>图 C1 从同一 4 万步检查点继续训练 6 万步。起始的 16 步输入视角 PSNR 是 24.02 dB。按正文做联合训练，PSNR 变成 22.00 dB、策略成功率 52.0%；联合训练时保留渲染损失，得到 22.61 dB 与 54.5%；再阻断策略梯度进入共享骨干，PSNR 升到 24.36 dB，成功率却降到 46.7%。这组对照说明，骨干学习对动作有用的表征时，图像预测也可能退步。对下游控制的判断需要同时查看两类指标。<a href="https://arxiv.org/pdf/2611.33467v1#page=17">附录 C.4、图 C1</a></p>
+  <p><strong>原文把物理验证推进到了可见的结果。</strong>遮挡后找回物体、在表面前停下都比“视频看起来连贯”更严格。但有限视角可能容许不同的三维解释，画面上重新出现也容许位置偏差。若关心在新场景中规划精确推移，一个可区分解释的后续测试是固定初态，逐级改变推动距离，逐步对照模拟器中方块的三维轨迹。再按初始遮挡量与训练中同类动作的频次分组，才有机会区分定位不准和低估动作强度。这是本页提出的检验。</p>
+  <p><strong>回到开头的选择。</strong>几何对照解释了换视角为什么划算，成功判据解释了找回方块为什么比推够距离容易得分；现有结果只提示数据覆盖可能参与其中。作者验证了可渲染状态的开环预测，也验证了复用其骨干的仿真闭环策略。要进一步判断想象是否真的帮助选动作，可以在同一任务、同一动作策略上，加减候选未来的打分选择，比较真实执行后的成败与额外耗时。作者把在想象轨迹中做强化学习列为后续工作，本文也未报告真机闭环成功率。<a href="https://arxiv.org/pdf/2611.33467v1#page=9">§5 的工作范围</a></p>
+</section>
+<section id="sources"><h2>原文与证据位置</h2>
+  <p>以所附 21 页 arXiv v1（2026 年 11 月 24 日提交）为准。各项成绩及样本数来自作者报告。交互里的坐标和夹爪运动只用来解释状态与相机的关系，抽屉对照图取自论文实测示例。</p>
+  <ul class="source-list">
+    <li>Frank Tsu-Fang Lu、Karthik Sundar Senthilkumar、Christopher Thirgood、Oscar Mendez、Simon Hadfield。<a href="https://arxiv.org/abs/2611.33467v1">arXiv 版本记录</a> · <a href="https://arxiv.org/pdf/2611.33467v1">完整 PDF</a></li>
+    <li>从多视图到动作。<a href="https://arxiv.org/pdf/2611.33467v1#page=3">图 2 和 §3.1</a> · <a href="https://arxiv.org/pdf/2611.33467v1#page=5">动力学坐标、渲染目标与策略</a></li>
+    <li>速度、几何与控制对照。<a href="https://arxiv.org/pdf/2611.33467v1#page=6">表 1–3</a> · <a href="https://arxiv.org/pdf/2611.33467v1#page=8">表 4–5</a> · <a href="https://arxiv.org/pdf/2611.33467v1#page=15">反事实实验与采样协议</a> · <a href="https://arxiv.org/pdf/2611.33467v1#page=17">策略与预测的消融</a></li>
+  </ul>
+</section></main>
+<aside class="paper-rail" aria-label="阅读协作">
+  <section id="paper-mark-panel" class="paper-mark-panel"><h2>划线追问</h2><p data-bridge-status>正在检测本地写回服务…</p><p>选中正文可记录名词讲解、逻辑梳理或作图理解。当前标记 <strong data-mark-count>0</strong> 条。</p></section>
+  <section id="paper-comments" class="paper-comment-panel"><h2>个人评论 <span data-comment-count>0</span></h2><p>连接本地写回服务后可保存到页面。离线评论仅存于当前浏览器。</p><button type="button" class="paper-comment-new">写一条章节评论</button></section>
+</aside></div></body></html>

@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+- **2026-11-27 · SplatWAM**　跟踪抽屉里的一枚方块，理解 SplatWAM 怎样用 2,048 个三维高斯预测动作后果，核对换视角的 12 倍提速、物体恒存与推移距离的证据。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/splatwam/) · [源码](papers/splatwam/index.html)
+
 - **2026-11-22 · Lyra 2.0**　从转身重看一扇门讲清逐帧几何检索、像素对应与自增强训练，用视频和三维重建的对照检验长程一致性。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/lyra-2/) · [源码](papers/lyra-2/index.html)
 
 - **2026-11-22 · AgentWorld**　用换编号与换状态的对照，解释模型如何用周围车辆规划，并用交互路口图读懂让行奖励。 [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/agentworld/) · [源码](papers/agentworld/index.html)
@@ -62,6 +64,7 @@
 
 | 论文 | 解读主线 | 阅读链接 |
 | --- | --- | --- |
+| [SplatWAM: Splatting World Action Models for Real-Time 3D Imagination](papers/splatwam/) | 跟踪抽屉里的一枚方块，理解 SplatWAM 怎样用 2,048 个三维高斯预测动作后果，核对换视角的 12 倍提速、物体恒存与推移距离的证据。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/splatwam/) · [源码](papers/splatwam/index.html) |
 | [Lyra 2.0: Explorable Generative 3D Worlds](papers/lyra-2/) | 从转身重看一扇门讲清逐帧几何检索、像素对应与自增强训练，用视频和三维重建的对照检验长程一致性。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/lyra-2/) · [源码](papers/lyra-2/index.html) |
 | [Learning Agent-Centric Vision-Language-Action World Models for Autonomous Driving](papers/agentworld/) | 从右侧两辆车理解对象状态的学习与使用，核对置换、开环与仿真闭环实验。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/agentworld/) · [源码](papers/agentworld/index.html) |
 | [Foundation4D: Towards a unified perception and reconstruction model for autonomous vehicles](papers/foundation4d/) | 用路口的一辆车说明多相机视频如何同时支持三维感知与场景重建，并用任务消融和未来帧条件解读检测收益。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/foundation4d/) · [源码](papers/foundation4d/index.html) |
@@ -145,7 +148,7 @@
 | [FoMoVLA: Bridging Visual Foresight and Motion Guidance for Vision-Language-Action Models](papers/fomovla/) | 从终态预见、二维点轨迹与训练时耦合三条线解读 FoMoVLA：未来特征回答去哪里，稀疏轨迹回答怎么去，FCCA 如何把两种辅助监督转成更好的 VLA 动作表征。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/fomovla/) · [源码](papers/fomovla/index.html) |
 | [EgoGenesis: Egocentric World-Action Modeling with Online Anchored Projective Memory and Action-3D RoPE](papers/egogenesis/) | 从场景记忆、动作几何与真实机器人泛化三条线解读 EgoGenesis：OAPM 如何抑制漂移，A3D-RoPE 如何把 3D 动作注入交叉注意力，以及论文证据的有效边界。 | [Sites](https://paper-reading-for-kun.kunzhan.chatgpt.site/papers/egogenesis/) · [源码](papers/egogenesis/index.html) |
 
-当前共收录 82 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
+当前共收录 83 篇解读与导读；完整目录由 [`papers/catalog.json`](papers/catalog.json) 自动生成。
 
 ## 本地浏览
 
